@@ -30,12 +30,12 @@ jobs:
         run: npm run typecheck
         continue-on-error: true
       
+      - name: Build
+        run: npm run build
+      
       - name: Lint
         run: npm run lint
         continue-on-error: true
-      
-      - name: Build
-        run: npm run build
       
       - name: Test
         run: npm test

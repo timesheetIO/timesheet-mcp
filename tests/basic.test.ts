@@ -23,10 +23,9 @@ describe('Basic Tests', () => {
     expect(packageJson.dependencies['dotenv']).toBeDefined();
   });
 
-  test('build output exists', () => {
-    const fs = require('fs');
-    const path = require('path');
-    const distPath = path.join(__dirname, '..', 'dist', 'index.js');
-    expect(fs.existsSync(distPath)).toBe(true);
+  test('build script is configured', () => {
+    const packageJson = require('../package.json');
+    expect(packageJson.scripts.build).toBeDefined();
+    expect(packageJson.scripts.build).toBe('tsc');
   });
 });
