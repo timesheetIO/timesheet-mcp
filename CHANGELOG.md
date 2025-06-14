@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.1] - 2025-01-14
+
+### Added
+- Support for TIMESHEET_API_URL environment variable (undocumented, for testing)
+
+### Fixed
+- CI/CD pipeline issues
+- Test suite compatibility
+- npm publish workflow
+
 ## [1.0.0] - 2025-01-14
 
 ### Added
