@@ -36,12 +36,26 @@ export class TimesheetMCPServer {
     if (!this.client) {
       const options: TimesheetClientOptions = {};
 
+      // Debug logging
+      console.error('Environment variables:', {
+        TIMESHEET_API_TOKEN: process.env.TIMESHEET_API_TOKEN ? 'Set' : 'Not set',
+        TIMESHEET_API_URL: process.env.TIMESHEET_API_URL || 'Not set'
+      });
+
       if (process.env.TIMESHEET_API_TOKEN) {
         options.apiKey = process.env.TIMESHEET_API_TOKEN;
       }
 
       if (process.env.TIMESHEET_API_URL) {
         options.baseUrl = process.env.TIMESHEET_API_URL;
+      }
+
+      // Check if authentication is configured
+      if (!options.apiKey) {
+        throw new McpError(
+          ErrorCode.InternalError,
+          'Authentication must be configured. Set TIMESHEET_API_TOKEN environment variable or use auth_configure tool.'
+        );
       }
 
       this.client = new TimesheetClient(options);
@@ -984,6 +998,10 @@ export class TimesheetMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('Timesheet MCP server running on stdio');
+    console.error('Initial environment check:', {
+      TIMESHEET_API_TOKEN: process.env.TIMESHEET_API_TOKEN ? 'Set' : 'Not set',
+      TIMESHEET_API_URL: process.env.TIMESHEET_API_URL || 'Not set'
+    });
   }
 }
 
