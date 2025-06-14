@@ -1,6 +1,6 @@
 {
   "name": "@timesheet/mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Model Context Protocol server for Timesheet API",
   "main": "dist/index.js",
   "type": "module",
@@ -24,7 +24,13 @@
     "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build"
   },
-  "keywords": ["mcp", "timesheet", "api", "claude", "model-context-protocol"],
+  "keywords": [
+    "mcp",
+    "timesheet",
+    "api",
+    "claude",
+    "model-context-protocol"
+  ],
   "author": "Timesheet.io",
   "license": "MIT",
   "repository": {
