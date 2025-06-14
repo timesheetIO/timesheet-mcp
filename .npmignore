@@ -1,0 +1,15 @@
+src/
+.env
+.env.example
+*.log
+.DS_Store
+coverage/
+.vscode/
+.idea/
+.github/
+claude-desktop-config.example.json
+examples/
+tsconfig.json
+.gitignore
+*.tsbuildinfo
+node_modules/

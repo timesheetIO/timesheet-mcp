@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "timesheet": {
+      "command": "npx",
+      "args": ["@timesheet/mcp"],
+      "env": {
+        "TIMESHEET_API_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}

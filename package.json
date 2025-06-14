@@ -1,0 +1,58 @@
+{
+  "name": "@timesheet/mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for Timesheet API",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "timesheet-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "jest tests/basic.test.ts tests/tools.test.ts",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["mcp", "timesheet", "api", "claude", "model-context-protocol"],
+  "author": "Timesheet.io",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/timesheet/timesheet-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/timesheet/timesheet-mcp/issues"
+  },
+  "homepage": "https://github.com/timesheet/timesheet-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "@timesheet/sdk": "^1.0.0",
+    "dotenv": "^16.4.1"
+  },
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
