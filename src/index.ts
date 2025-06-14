@@ -40,6 +40,10 @@ export class TimesheetMCPServer {
         options.apiKey = process.env.TIMESHEET_API_TOKEN;
       }
 
+      if (process.env.TIMESHEET_API_URL) {
+        options.baseUrl = process.env.TIMESHEET_API_URL;
+      }
+
       this.client = new TimesheetClient(options);
     }
     return this.client;
@@ -945,6 +949,8 @@ export class TimesheetMCPServer {
 
     if (baseUrl) {
       options.baseUrl = baseUrl;
+    } else if (process.env.TIMESHEET_API_URL) {
+      options.baseUrl = process.env.TIMESHEET_API_URL;
     }
 
     this.client = new TimesheetClient(options);
