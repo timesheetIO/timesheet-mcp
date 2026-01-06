@@ -93,6 +93,8 @@ app.get('/health', (req, res) => {
  */
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
   console.error('[OAuth] Protected Resource Metadata request');
+  console.error('[OAuth] MCP_SERVER_URL env:', process.env.MCP_SERVER_URL);
+  console.error('[OAuth] getMcpServerUrl():', getMcpServerUrl());
 
   const metadata = getProtectedResourceMetadata();
 
@@ -345,7 +347,10 @@ const server = app.listen(PORT, HOST, () => {
   console.error(`   Protected Resource: http://${HOST}:${PORT}/.well-known/oauth-protected-resource`);
   console.error(`   Authorization Server: ${apiUrl}`);
   console.error(`   Dynamic Registration: ${apiUrl}/oauth2/register`);
-  console.error(`\n📝 Production URL: ${mcpUrl}`);
+  console.error(`\n📝 Environment:`);
+  console.error(`   MCP_SERVER_URL: ${process.env.MCP_SERVER_URL || '(not set)'}`);
+  console.error(`   COMPONENT_BASE_URL: ${process.env.COMPONENT_BASE_URL || '(not set)'}`);
+  console.error(`   Resolved MCP URL: ${mcpUrl}`);
   console.error(`\n✅ Features:`);
   console.error(`   - Landing page at root for browsers`);
   console.error(`   - MCP protocol at root for POST requests`);
