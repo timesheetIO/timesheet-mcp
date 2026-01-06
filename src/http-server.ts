@@ -160,9 +160,9 @@ app.get('/components', (req, res) => {
 // ============================================================================
 
 // MCP endpoint path - can be configured via environment variable
-// Default: '/mcp' for backwards compatibility
-// Set MCP_ENDPOINT_PATH='/' to use root path (recommended for mcp.timesheet.io)
-const MCP_ENDPOINT_PATH = process.env.MCP_ENDPOINT_PATH || '/mcp';
+// Default: '/' for clean URLs (mcp.timesheet.io)
+// Set MCP_ENDPOINT_PATH='/mcp' for backwards compatibility if needed
+const MCP_ENDPOINT_PATH = process.env.MCP_ENDPOINT_PATH || '/';
 
 /**
  * MCP endpoint using StreamableHTTPServerTransport in STATELESS mode
@@ -259,20 +259,39 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
   }
 });
 
-// Handle GET requests for SSE streaming (if client requests it)
-app.get(MCP_ENDPOINT_PATH, async (req, res) => {
-  console.error(`[MCP] GET request (SSE) from: ${req.headers.origin || 'unknown'}`);
+// Landing page path
+const landingPagePath = path.join(__dirname, '..', 'web', 'landing.html');
 
-  // In stateless mode, we don't support SSE streaming
-  // Clients should use POST for all interactions
-  res.status(405).json({
-    jsonrpc: '2.0',
-    error: {
-      code: -32601,
-      message: 'This server operates in stateless mode. Use POST requests only.',
-    },
-    id: null,
-  });
+// Handle GET requests - serve landing page for browsers, error for MCP clients
+app.get(MCP_ENDPOINT_PATH, async (req, res) => {
+  const acceptHeader = req.headers.accept || '';
+  const userAgent = req.headers['user-agent'] || '';
+
+  // Check if this is a browser request (wants HTML)
+  const wantsBrowser = acceptHeader.includes('text/html') ||
+                       (userAgent.includes('Mozilla') && !acceptHeader.includes('application/json'));
+
+  if (wantsBrowser) {
+    // Serve landing page for browser requests
+    console.error(`[Landing] Serving landing page to: ${userAgent.substring(0, 50)}`);
+    res.sendFile(landingPagePath, (err) => {
+      if (err) {
+        console.error('[Landing] Error serving landing page:', err);
+        res.status(500).send('Error loading landing page');
+      }
+    });
+  } else {
+    // Return JSON error for MCP/API clients
+    console.error(`[MCP] GET request (SSE) from: ${req.headers.origin || 'unknown'}`);
+    res.status(405).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32601,
+        message: 'This server operates in stateless mode. Use POST requests only.',
+      },
+      id: null,
+    });
+  }
 });
 
 // Handle DELETE requests for session termination
@@ -294,7 +313,7 @@ app.use((req, res) => {
     error: 'Not found',
     path: req.path,
     availableEndpoints: [
-      '/mcp',
+      '/ (GET: landing page, POST: MCP protocol)',
       '/health',
       '/components',
       '/.well-known/oauth-protected-resource',
@@ -308,29 +327,22 @@ app.use((req, res) => {
 const server = app.listen(PORT, HOST, () => {
   const mcpUrl = getMcpServerUrl();
   const apiUrl = getApiBaseUrl();
-  const endpointDisplay = MCP_ENDPOINT_PATH === '/' ? '/' : MCP_ENDPOINT_PATH;
 
   console.error(`\n🚀 Timesheet MCP HTTP Server (Stateless Mode + OAuth 2.1)`);
-  console.error(`   Local:   http://${HOST}:${PORT}`);
-  console.error(`   MCP:     http://${HOST}:${PORT}${endpointDisplay} (POST only)`);
-  console.error(`   Components: http://${HOST}:${PORT}/components/`);
+  console.error(`   Local:       http://${HOST}:${PORT}`);
+  console.error(`   Landing:     http://${HOST}:${PORT}/ (GET)`);
+  console.error(`   MCP:         http://${HOST}:${PORT}/ (POST)`);
+  console.error(`   Components:  http://${HOST}:${PORT}/components/`);
   console.error(`\n🔐 OAuth 2.1 Endpoints:`);
   console.error(`   Protected Resource: http://${HOST}:${PORT}/.well-known/oauth-protected-resource`);
   console.error(`   Authorization Server: ${apiUrl}`);
   console.error(`   Dynamic Registration: ${apiUrl}/oauth2/register`);
-  console.error(`\n📝 For production deployment (e.g., https://mcp.timesheet.io):`);
-  console.error(`   1. Set MCP_SERVER_URL=https://mcp.timesheet.io`);
-  console.error(`   2. Set MCP_ENDPOINT_PATH=/ for root path (recommended)`);
-  console.error(`   3. Deploy behind reverse proxy with HTTPS`);
-  console.error(`\n📝 For local development with ChatGPT:`);
-  console.error(`   1. Start ngrok: ngrok http ${PORT}`);
-  console.error(`   2. Set MCP_SERVER_URL in .env to ngrok URL`);
-  console.error(`   3. Use ngrok URL in ChatGPT connector`);
+  console.error(`\n📝 Production URL: ${mcpUrl}`);
   console.error(`\n✅ Features:`);
+  console.error(`   - Landing page at root for browsers`);
+  console.error(`   - MCP protocol at root for POST requests`);
   console.error(`   - Stateless mode: No session timeouts`);
   console.error(`   - OAuth 2.1: Bearer token authentication`);
-  console.error(`   - PKCE: Required for authorization code flow`);
-  console.error(`   - DCR: Dynamic client registration supported`);
   console.error('');
 });
 

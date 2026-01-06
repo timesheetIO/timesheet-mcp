@@ -1,8 +1,16 @@
 # Changelog
 
-## [1.0.3] - Unreleased
+## [1.0.3] - 2026-01-06
 
 ### Added
+- **Landing Page**: Modern dark-themed landing page at mcp.timesheet.io root
+  - Installation instructions for Claude Code, Claude Desktop, and ChatGPT
+  - Feature cards with gradient icons
+  - Copy-to-clipboard code blocks
+  - Responsive design with timesheet.io branding
+- **Root URL Routing**: Serve landing page on GET, MCP protocol on POST at root
+  - Content negotiation based on Accept header and User-Agent
+  - Clean URL structure (mcp.timesheet.io instead of mcp.timesheet.io/mcp)
 - **Reports API - Document Reports**: New tools for document/invoice data and PDF generation
   - `report_document_get` - Retrieve formatted document data with tasks, expenses, and financials
   - `report_document_pdf` - Generate PDF version of documents/invoices
