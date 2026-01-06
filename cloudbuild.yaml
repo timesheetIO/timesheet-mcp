@@ -20,7 +20,7 @@
 substitutions:
   _REGION: us-central1
   _SERVICE_NAME: timesheet-mcp
-  _REPOSITORY: timesheet
+  _REPOSITORY: cloud-run-source-deploy
   _MCP_SERVER_URL: https://timesheet-mcp-HASH.run.app  # Update after first deploy or use custom domain
 
 steps:
