@@ -42,6 +42,7 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/web/dist ./web/dist
+COPY --from=builder /app/web/landing.html ./web/landing.html
 
 # Cloud Run sets PORT environment variable (default 8080)
 ENV PORT=8080
