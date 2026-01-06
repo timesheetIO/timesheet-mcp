@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.4] - 2026-01-06
+
+### Added
+- OAuth 2.1 Authorization Server Metadata endpoint with PKCE support
+  - `code_challenge_methods_supported: ['S256']` for ChatGPT compatibility
+  - `authorization_endpoint`, `token_endpoint`, `registration_endpoint`
+  - Serves metadata directly instead of redirecting
+
+### Fixed
+- Set `MCP_SERVER_URL` in Cloud Build for correct OAuth resource identifier
+- Debug logging for environment variable troubleshooting
+
 ## [1.0.3] - 2026-01-06
 
 ### Added

@@ -8,7 +8,7 @@
 # Prerequisites:
 # 1. Enable Cloud Build and Cloud Run APIs
 # 2. Create Artifact Registry repository:
-#    gcloud artifacts repositories create timesheet --repository-format=docker --location=europe-west1
+#    gcloud artifacts repositories create timesheet --repository-format=docker --location=us-central1
 # 3. Grant Cloud Build service account Cloud Run Admin role
 # 4. Connect GitHub repository to Cloud Build trigger
 #
@@ -21,7 +21,7 @@ substitutions:
   _REGION: us-central1
   _SERVICE_NAME: timesheet-mcp
   _REPOSITORY: cloud-run-source-deploy
-  _MCP_SERVER_URL: https://timesheet-mcp-HASH.run.app  # Update after first deploy or use custom domain
+  _MCP_SERVER_URL: https://mcp.timesheet.io
 
 steps:
   # Build Docker image
