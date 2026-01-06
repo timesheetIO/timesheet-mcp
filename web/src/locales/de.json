@@ -1,0 +1,85 @@
+{
+  "projectList": {
+    "title": "Projekte",
+    "count": "{{count}} Projekt",
+    "count_other": "{{count}} Projekte",
+    "loading": "Projekte werden geladen...",
+    "error": "Fehler: Keine Projektdaten empfangen",
+    "emptyState": {
+      "title": "Keine Projekte gefunden",
+      "description": "Erstellen Sie ein Projekt, um mit der Zeiterfassung zu beginnen"
+    },
+    "archived": "Archiviert",
+    "viewAll": "Alle {{count}} Projekte in Timesheet anzeigen",
+    "viewInTimesheet": "In Timesheet anzeigen"
+  },
+  "projectCard": {
+    "backButton": "← Zurück zu Projekten",
+    "loading": "Projektdetails werden geladen...",
+    "error": "Fehler: Projekt nicht gefunden",
+    "sections": {
+      "description": "Beschreibung",
+      "team": "Team"
+    },
+    "stats": {
+      "totalTime": "Gesamtzeit",
+      "office": "Büro",
+      "defaultBillable": "Standard abrechenbar"
+    },
+    "billable": {
+      "yes": "Ja",
+      "no": "Nein"
+    }
+  },
+  "timerWidget": {
+    "status": {
+      "running": "Läuft",
+      "paused": "Pausiert",
+      "stopped": "Gestoppt"
+    },
+    "controls": {
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "stop": "Stoppen"
+    },
+    "noDescription": "Keine Beschreibung"
+  },
+  "taskList": {
+    "title": "Zeiteinträge",
+    "loading": "Aufgaben werden geladen...",
+    "error": "Fehler: Keine Aufgabendaten empfangen",
+    "emptyState": {
+      "title": "Keine Zeiteinträge gefunden",
+      "description": "Starten Sie einen Timer, um Ihre Zeit zu erfassen"
+    },
+    "billable": "Abrechenbar",
+    "nonBillable": "Nicht abrechenbar",
+    "noProject": "Kein Projekt",
+    "dateRange": {
+      "from": "Ab {{date}}",
+      "until": "Bis {{date}}"
+    },
+    "viewAll": "Alle {{count}} Einträge in Timesheet anzeigen",
+    "viewInTimesheet": "In Timesheet anzeigen"
+  },
+  "taskCard": {
+    "loading": "Aufgabendetails werden geladen...",
+    "error": "Fehler: Aufgabe nicht gefunden",
+    "noDescription": "Keine Beschreibung"
+  },
+  "statistics": {
+    "title": "Statistiken",
+    "totalHours": "Gesamtstunden",
+    "billableHours": "Abrechenbare Stunden",
+    "billablePercentage": "Abrechenbar %",
+    "projectBreakdown": "Projektaufschlüsselung",
+    "dailyHours": "Tägliche Stunden",
+    "expand": "Erweitern"
+  },
+  "common": {
+    "hours": "{{count}} Std",
+    "minutes": "{{count}} Min",
+    "loading": "Lädt...",
+    "error": "Fehler"
+  }
+}

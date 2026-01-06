@@ -1,8 +1,103 @@
+# Dependencies
 node_modules/
+package-lock.json.bak
+
+# Build outputs
 dist/
+web/dist/
+*.tsbuildinfo
+
+# Environment variables
 .env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
 .DS_Store
-coverage/
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE and editors
 .vscode/
 .idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Test coverage
+coverage/
+.nyc_output/
+*.lcov
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache
+.npm/
+.eslintcache
+.stylelintcache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Local development
+.ngrok*
+*.local
+
+# AI assistant configuration files
+# (User-specific, not project-level)
+.claude/
+.cursor/
+.continue/
+.aider*
+.copilot/
+.codeium/
+.tabnine/
+.kite/
+.sourcery/
+CLAUDE.md
+AGENTS.md
+
+# AI chat history and sessions
+.ai-history/
+.chat-history/
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+.secrets
+
+# Debug
+.debug/
+*.debug
+
+# Misc
+*.bak
+*.backup
+*.orig

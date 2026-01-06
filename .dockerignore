@@ -1,0 +1,45 @@
+# Dependencies - will be installed in container
+node_modules
+
+# Git
+.git
+.gitignore
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+
+# Environment files (secrets should be passed via Cloud Run env vars)
+.env
+.env.*
+!.env.example
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__
+coverage
+jest.config.*
+
+# Development files
+*.md
+!README.md
+LICENSE*
+
+# Build artifacts (rebuilt in container)
+dist
+web/dist
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Local development
+.ngrok*
+examples

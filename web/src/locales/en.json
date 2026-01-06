@@ -1,0 +1,85 @@
+{
+  "projectList": {
+    "title": "Projects",
+    "count": "{{count}} project",
+    "count_other": "{{count}} projects",
+    "loading": "Loading projects...",
+    "error": "Error: No projects data received",
+    "emptyState": {
+      "title": "No projects found",
+      "description": "Create a project to start tracking time"
+    },
+    "archived": "Archived",
+    "viewAll": "View all {{count}} projects in Timesheet",
+    "viewInTimesheet": "View in Timesheet"
+  },
+  "projectCard": {
+    "backButton": "← Back to projects",
+    "loading": "Loading project details...",
+    "error": "Error: Project not found",
+    "sections": {
+      "description": "Description",
+      "team": "Team"
+    },
+    "stats": {
+      "totalTime": "Total Time",
+      "office": "Office",
+      "defaultBillable": "Default Billable"
+    },
+    "billable": {
+      "yes": "Yes",
+      "no": "No"
+    }
+  },
+  "timerWidget": {
+    "status": {
+      "running": "Running",
+      "paused": "Paused",
+      "stopped": "Stopped"
+    },
+    "controls": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop"
+    },
+    "noDescription": "No description"
+  },
+  "taskList": {
+    "title": "Time Entries",
+    "loading": "Loading tasks...",
+    "error": "Error: No tasks data received",
+    "emptyState": {
+      "title": "No time entries found",
+      "description": "Start a timer to track your time"
+    },
+    "billable": "Billable",
+    "nonBillable": "Non-billable",
+    "noProject": "No project",
+    "dateRange": {
+      "from": "From {{date}}",
+      "until": "Until {{date}}"
+    },
+    "viewAll": "View all {{count}} entries in Timesheet",
+    "viewInTimesheet": "View in Timesheet"
+  },
+  "taskCard": {
+    "loading": "Loading task details...",
+    "error": "Error: Task not found",
+    "noDescription": "No description"
+  },
+  "statistics": {
+    "title": "Statistics",
+    "totalHours": "Total Hours",
+    "billableHours": "Billable Hours",
+    "billablePercentage": "Billable %",
+    "projectBreakdown": "Project Breakdown",
+    "dailyHours": "Daily Hours",
+    "expand": "Expand"
+  },
+  "common": {
+    "hours": "{{count}}h",
+    "minutes": "{{count}}m",
+    "loading": "Loading...",
+    "error": "Error"
+  }
+}

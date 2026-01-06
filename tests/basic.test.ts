@@ -26,6 +26,6 @@ describe('Basic Tests', () => {
   test('build script is configured', () => {
     const packageJson = require('../package.json');
     expect(packageJson.scripts.build).toBeDefined();
-    expect(packageJson.scripts.build).toBe('tsc');
+    expect(packageJson.scripts.build).toBe('npm run build:server && npm run build:web');
   });
 });
