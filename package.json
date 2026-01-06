@@ -10,6 +10,7 @@
   "files": [
     "dist",
     "web/dist",
+    "web/landing.html",
     "README.md",
     "LICENSE.md",
     "CHANGELOG.md"
