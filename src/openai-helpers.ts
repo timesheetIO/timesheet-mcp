@@ -398,6 +398,37 @@ export function getProtectedResourceMetadata() {
 }
 
 /**
+ * Authorization Server Metadata (RFC 8414)
+ * This describes the OAuth 2.1 authorization server capabilities
+ * ChatGPT fetches this to discover endpoints and supported features
+ */
+export function getAuthorizationServerMetadata() {
+  const apiBaseUrl = getApiBaseUrl();
+
+  return {
+    // Issuer identifier (authorization server URL)
+    issuer: apiBaseUrl,
+    // OAuth 2.1 endpoints
+    authorization_endpoint: `${apiBaseUrl}/oauth2/auth`,
+    token_endpoint: `${apiBaseUrl}/oauth2/token`,
+    // Dynamic Client Registration (DCR) endpoint
+    registration_endpoint: `${apiBaseUrl}/oauth2/register`,
+    // PKCE support - REQUIRED for ChatGPT
+    code_challenge_methods_supported: ['S256'],
+    // Supported grant types
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    // Supported response types
+    response_types_supported: ['code'],
+    // Token endpoint authentication methods
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+    // Supported scopes
+    scopes_supported: ['openid', 'profile', 'offline_access'],
+    // Service documentation
+    service_documentation: 'https://docs.timesheet.io/api/oauth',
+  };
+}
+
+/**
  * Generate WWW-Authenticate header value for 401 responses
  * Compliant with RFC 6750 (Bearer Token Usage)
  */

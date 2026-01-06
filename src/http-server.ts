@@ -20,6 +20,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { TimesheetMCPServer } from './index.js';
 import {
   getProtectedResourceMetadata,
+  getAuthorizationServerMetadata,
   getWWWAuthenticateHeader,
   extractBearerToken,
   getApiBaseUrl,
@@ -104,27 +105,34 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 });
 
 /**
- * Redirect to authorization server metadata
- * Some clients may look for this on the MCP server itself
+ * Authorization Server Metadata (RFC 8414)
+ * ChatGPT fetches this to discover OAuth endpoints and PKCE support
  */
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
-  const apiBaseUrl = getApiBaseUrl();
-  console.error(`[OAuth] Redirecting to authorization server metadata: ${apiBaseUrl}/.well-known/oauth-authorization-server`);
+  console.error('[OAuth] Authorization Server Metadata request');
 
-  // Redirect to the actual authorization server
-  res.redirect(302, `${apiBaseUrl}/.well-known/oauth-authorization-server`);
+  const metadata = getAuthorizationServerMetadata();
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/json');
+
+  console.error('[OAuth] Returning auth server metadata:', JSON.stringify(metadata, null, 2));
+  res.json(metadata);
 });
 
 /**
- * Redirect to OpenID configuration
- * Some clients may look for this on the MCP server itself
+ * OpenID Configuration (alias for authorization server metadata)
+ * Some clients look for this endpoint instead
  */
 app.get('/.well-known/openid-configuration', (req, res) => {
-  const apiBaseUrl = getApiBaseUrl();
-  console.error(`[OAuth] Redirecting to OpenID configuration: ${apiBaseUrl}/.well-known/openid-configuration`);
+  console.error('[OAuth] OpenID Configuration request');
 
-  // Redirect to the actual authorization server
-  res.redirect(302, `${apiBaseUrl}/.well-known/openid-configuration`);
+  const metadata = getAuthorizationServerMetadata();
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Content-Type', 'application/json');
+
+  res.json(metadata);
 });
 
 // List available components
