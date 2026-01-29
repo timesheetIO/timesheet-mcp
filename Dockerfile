@@ -21,7 +21,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY build-web.mjs ./
 COPY tailwind.config.ts ./
-COPY postcss.config.js ./
+COPY postcss.config.cjs ./
 COPY src/ ./src/
 COPY web/ ./web/
 
