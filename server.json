@@ -1,0 +1,28 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.timesheetIO/timesheet-mcp",
+  "description": "timesheet.io MCP server - manage timers, projects, tasks and reports",
+  "repository": {
+    "url": "https://github.com/timesheetIO/timesheet-mcp",
+    "source": "github"
+  },
+  "version": "1.0.4",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@timesheet/mcp",
+      "version": "1.0.4",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TIMESHEET_API_TOKEN",
+          "description": "Your timesheet.io API token",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -101,3 +101,6 @@ credentials/
 *.bak
 *.backup
 *.orig
+
+# MCP Registry tokens
+.mcpregistry_*

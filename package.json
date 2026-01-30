@@ -1,6 +1,7 @@
 {
   "name": "@timesheet/mcp",
   "version": "1.0.4",
+  "mcpName": "io.github.timesheetio/mcp",
   "description": "Model Context Protocol server for Timesheet API",
   "main": "dist/index.js",
   "type": "module",
@@ -39,16 +40,16 @@
     "claude",
     "model-context-protocol"
   ],
-  "author": "Timesheet.io",
+  "author": "Timesheet",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/timesheet/timesheet-mcp.git"
+    "url": "https://github.com/timesheetIO/timesheet-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/timesheet/timesheet-mcp/issues"
+    "url": "https://github.com/timesheetIO/timesheet-mcp/issues"
   },
-  "homepage": "https://github.com/timesheet/timesheet-mcp#readme",
+  "homepage": "https://github.com/timesheetIO/timesheet-mcp#readme",
   "dependencies": {
     "@headlessui/react": "^1.7.15",
     "@heroicons/react": "^1.0.6",
