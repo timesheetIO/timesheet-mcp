@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { McpAppProvider } from '../../McpAppProvider';
 import { useToolOutput, useTheme } from '../../hooks';
 import { useApplyTheme } from '../../utils';
 import type { Task } from '../../types';
@@ -136,5 +137,9 @@ function TaskCardApp() {
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
-  root.render(<TaskCardApp />);
+  root.render(
+    <McpAppProvider appName="TaskCard">
+      <TaskCardApp />
+    </McpAppProvider>
+  );
 }

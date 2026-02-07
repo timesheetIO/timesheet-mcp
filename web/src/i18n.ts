@@ -1,6 +1,6 @@
 /**
  * i18n Configuration
- * Detects locale from OpenAI SDK and loads appropriate translations
+ * Detects locale from MCP App host context and loads appropriate translations
  */
 
 import i18n from 'i18next';
@@ -8,12 +8,13 @@ import { initReactI18next } from 'react-i18next';
 import enTranslations from './locales/en.json';
 import deTranslations from './locales/de.json';
 
-// Get locale from OpenAI SDK
-const getOpenAILocale = (): string => {
-  if (typeof window !== 'undefined' && window.openai?.locale) {
-    return window.openai.locale;
+// Get locale from browser (MCP Apps provides locale via host context,
+// which is applied reactively via McpAppProvider/useHostStyles)
+const getInitialLocale = (): string => {
+  if (typeof navigator !== 'undefined' && navigator.language) {
+    return navigator.language.split('-')[0];
   }
-  return 'en'; // Default to English
+  return 'en';
 };
 
 // Initialize i18next
@@ -27,31 +28,25 @@ i18n
       de: {
         translation: deTranslations,
       },
-      // Add more languages here as needed
-      // fr: { translation: frTranslations },
-      // es: { translation: esTranslations },
     },
-    lng: getOpenAILocale(),
+    lng: getInitialLocale(),
     fallbackLng: 'en',
     interpolation: {
       escapeValue: false, // React already escapes
     },
   });
 
-// Update language when OpenAI locale changes
-if (typeof window !== 'undefined') {
-  // Listen for locale changes from OpenAI SDK
-  const originalSetGlobals = window.openai?.setWidgetState;
-  if (originalSetGlobals) {
-    window.openai.setWidgetState = function(...args) {
-      const result = originalSetGlobals.apply(this, args);
-      const newLocale = getOpenAILocale();
-      if (newLocale !== i18n.language) {
-        i18n.changeLanguage(newLocale);
-      }
-      return result;
-    };
+export default i18n;
+
+/**
+ * Update i18n language from MCP App host context locale.
+ * Call this when the host context changes.
+ */
+export function updateLocaleFromHostContext(locale?: string) {
+  if (locale) {
+    const lang = locale.split('-')[0];
+    if (lang !== i18n.language) {
+      i18n.changeLanguage(lang);
+    }
   }
 }
-
-export default i18n;

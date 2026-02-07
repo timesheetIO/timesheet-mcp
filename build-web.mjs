@@ -1,6 +1,6 @@
 /**
  * Build script for web components
- * Compiles React components to standalone ESM bundles for OpenAI Apps SDK
+ * Compiles React components to standalone ESM bundles for MCP Apps SDK
  */
 
 import * as esbuild from 'esbuild';

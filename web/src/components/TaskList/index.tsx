@@ -6,6 +6,7 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {useTranslation} from 'react-i18next';
+import {McpAppProvider} from '../../McpAppProvider';
 import {useTheme, useToolOutput} from '../../hooks';
 import {useApplyTheme} from '../../utils';
 import TaskListView from './TaskListView';
@@ -146,5 +147,9 @@ function TaskListApp() {
 const container = document.getElementById('root');
 if (container) {
     const root = createRoot(container);
-    root.render(<TaskListApp/>);
+    root.render(
+        <McpAppProvider appName="TaskList">
+            <TaskListApp/>
+        </McpAppProvider>
+    );
 }

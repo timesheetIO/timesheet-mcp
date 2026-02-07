@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { McpAppProvider } from '../../McpAppProvider';
 import { useToolOutput, useTheme, useDisplayMode } from '../../hooks';
 import { useApplyTheme } from '../../utils';
 import StatCard from './StatCard';
@@ -14,6 +15,14 @@ import type { Statistics } from '../../types';
 import '../../index.css';
 
 const formatHours = (hours: number) => hours.toFixed(1);
+
+function formatDateRange(startDate?: string, endDate?: string): string | null {
+  if (!startDate || !endDate) return null;
+  const start = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+  return `${start.toLocaleDateString('en-US', opts)} — ${end.toLocaleDateString('en-US', opts)}`;
+}
 
 function StatisticsApp() {
   const stats = useToolOutput<Statistics>();
@@ -36,10 +45,12 @@ function StatisticsApp() {
     ? Math.round((stats.billableHours / stats.totalHours) * 100)
     : 0;
 
+  const dateRange = formatDateRange(stats.startDate, stats.endDate);
+
   return (
     <div className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-6">
       {/* Header with expand button */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-1">
         <h2 className="text-heading text-text-primary dark:text-text-primary">
           Statistics
         </h2>
@@ -51,8 +62,16 @@ function StatisticsApp() {
         </button>
       </div>
 
+      {/* Date range subtitle */}
+      {dateRange && (
+        <p className="text-body-small text-secondary dark:text-secondary mb-6">
+          {dateRange}
+        </p>
+      )}
+      {!dateRange && <div className="mb-6" />}
+
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         <StatCard
           label="Total Hours"
           value={formatHours(stats.totalHours)}
@@ -69,6 +88,11 @@ function StatisticsApp() {
           value={`${billablePercentage}%`}
           theme={theme}
         />
+        <StatCard
+          label="Tasks"
+          value={stats.totalTasks ?? 0}
+          theme={theme}
+        />
       </div>
 
       {/* Project breakdown */}
@@ -80,10 +104,11 @@ function StatisticsApp() {
         />
       )}
 
-      {/* Daily hours chart */}
+      {/* Daily/Weekly hours chart */}
       {stats.dailyHours && stats.dailyHours.length > 0 && (
         <DailyChart
           data={stats.dailyHours}
+          weeklyData={stats.weeklyHours}
           formatHours={formatHours}
           theme={theme}
         />
@@ -96,5 +121,9 @@ function StatisticsApp() {
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
-  root.render(<StatisticsApp />);
+  root.render(
+    <McpAppProvider appName="Statistics">
+      <StatisticsApp />
+    </McpAppProvider>
+  );
 }

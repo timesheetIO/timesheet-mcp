@@ -1,13 +1,26 @@
 /**
  * ProjectBreakdown Component
- * Displays project hours breakdown with progress bars
+ * Displays project hours breakdown as a donut chart with side legend
  */
 
 import React from 'react';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+import { getChartTheme, intToHexColor } from './chartTheme';
 
 interface ProjectBreakdownItem {
+  projectId?: string;
   projectTitle: string;
+  projectColor?: number;
   hours: number;
+  billableHours: number;
+  nonBillableHours: number;
+  taskCount: number;
   percentage: number;
 }
 
@@ -17,51 +30,88 @@ interface ProjectBreakdownProps {
   theme?: 'light' | 'dark';
 }
 
-const colorPalette = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
-  '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
-  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
-];
-
 export default function ProjectBreakdown({ projects, formatHours, theme = 'light' }: ProjectBreakdownProps) {
-  const isDark = theme === 'dark';
-  const secondaryColor = isDark ? '#888888' : '#666666';
+  const ct = getChartTheme(theme);
+
+  const chartData = projects.map((item, index) => ({
+    name: item.projectTitle,
+    value: Number(item.hours.toFixed(2)),
+    fill: intToHexColor(item.projectColor, index),
+    percentage: item.percentage,
+    taskCount: item.taskCount,
+  }));
 
   return (
     <div style={{ marginBottom: '24px' }}>
-      <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>
+      <h3 className="text-lg font-semibold mb-4 text-text-primary dark:text-text-primary">
         Project Breakdown
       </h3>
-      <div style={{ display: 'grid', gap: '12px' }}>
-        {projects.map((item, index) => (
-          <div key={item.projectTitle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                {item.projectTitle}
-              </div>
-              <div style={{ fontSize: '14px', color: secondaryColor }}>
-                {formatHours(item.hours)}h ({item.percentage}%)
-              </div>
-            </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* Donut chart */}
+        <div style={{ width: '180px', height: '180px', flexShrink: 0 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={chartData}
+                cx="50%"
+                cy="50%"
+                innerRadius={45}
+                outerRadius={80}
+                paddingAngle={2}
+                dataKey="value"
+                stroke="none"
+              >
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={entry.fill} />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: ct.tooltipBg,
+                  border: `1px solid ${ct.tooltipBorder}`,
+                  borderRadius: '8px',
+                  color: ct.tooltipText,
+                  fontSize: '13px',
+                }}
+                formatter={(value: number, name: string) => [
+                  `${formatHours(value)}h`,
+                  name,
+                ]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Legend list */}
+        <div style={{ flex: 1, display: 'grid', gap: '8px' }}>
+          {projects.map((item, index) => (
             <div
-              style={{
-                height: '8px',
-                backgroundColor: isDark ? '#2a2a2a' : '#e5e7eb',
-                borderRadius: '4px',
-                overflow: 'hidden',
-              }}
+              key={item.projectId || item.projectTitle}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <div
                 style={{
-                  height: '100%',
-                  width: `${item.percentage}%`,
-                  backgroundColor: colorPalette[index % colorPalette.length],
-                  transition: 'width 0.3s ease',
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '3px',
+                  backgroundColor: intToHexColor(item.projectColor, index),
+                  flexShrink: 0,
                 }}
               />
+              <span
+                className="text-text-primary dark:text-text-primary"
+                style={{ fontSize: '13px', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {item.projectTitle}
+              </span>
+              <span
+                style={{ fontSize: '13px', color: ct.textSecondary, whiteSpace: 'nowrap' }}
+              >
+                {formatHours(item.hours)}h ({item.percentage}%)
+              </span>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

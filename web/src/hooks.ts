@@ -1,188 +1,126 @@
 /**
- * Custom hooks for OpenAI Apps SDK integration
- * Uses event-driven approach with useSyncExternalStore
+ * Widget hooks backed by MCP Apps SDK
+ *
+ * These hooks preserve the same names and signatures as the old OpenAI-based
+ * hooks so that inner widget components require zero changes.
  */
 
-import React, { useSyncExternalStore, useCallback } from 'react';
-import type { OpenAIWindow } from './types';
-
-const SET_GLOBALS_EVENT_TYPE = 'openai:set_globals';
-
-/**
- * Get OpenAI global value and subscribe to changes via events
- * This uses React's useSyncExternalStore to properly subscribe to ChatGPT's event system
- * Matches official OpenAI Apps SDK examples implementation
- */
-export function useOpenAIGlobal<T = any>(key: keyof OpenAIWindow): T | null {
-  return useSyncExternalStore(
-    // Subscribe to ChatGPT's data update event
-    (onChange) => {
-      if (typeof window === 'undefined') {
-        return () => {};
-      }
-
-      const handleSetGlobal = (event: any) => {
-        const value = event.detail?.globals?.[key];
-        if (value === undefined) {
-          return; // Don't trigger onChange if value is undefined
-        }
-        onChange();
-      };
-
-      window.addEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal, {
-        passive: true,
-      });
-
-      return () => {
-        window.removeEventListener(SET_GLOBALS_EVENT_TYPE, handleSetGlobal);
-      };
-    },
-    // Get current value from window.openai - returns null if not found (like official examples)
-    () => (window as any).openai?.[key] ?? null,
-    // Server-side rendering fallback - also returns null
-    () => null
-  );
-}
+import { useCallback } from 'react';
+import { useDocumentTheme } from '@modelcontextprotocol/ext-apps/react';
+import {
+  useMcpApp,
+  useMcpToolResult,
+  useMcpToolInput,
+  useMcpHostContext,
+} from './McpAppProvider';
 
 /**
- * Get and set widget state
- */
-export function useWidgetState<T>(defaultState: T): [T, (state: T) => void] {
-  const widgetState = useOpenAIGlobal<T>('widgetState');
-
-  const setWidgetState = useCallback((newState: T) => {
-    if (typeof window !== 'undefined' && (window as any).openai) {
-      (window as any).openai.setWidgetState(newState);
-    }
-  }, []);
-
-  return [widgetState ?? defaultState, setWidgetState];
-}
-
-/**
- * Get tool output - subscribes to ChatGPT's event system
- * Returns the data from the tool response
+ * Get tool output - returns the structuredContent from the latest tool result.
  */
 export function useToolOutput<T = any>(): T | null {
-  const toolOutput = useOpenAIGlobal<any>('toolOutput');
+  const toolResult = useMcpToolResult();
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('[useToolOutput] toolOutput:', toolOutput);
-    if (toolOutput) {
-      console.log('[useToolOutput] toolOutput type:', typeof toolOutput);
-      console.log('[useToolOutput] toolOutput keys:', Object.keys(toolOutput));
-
-      // Log different possible paths
-      if ('structuredContent' in toolOutput) {
-        console.log('[useToolOutput] Direct structuredContent:', toolOutput.structuredContent);
-      }
-      if ('result' in toolOutput) {
-        console.log('[useToolOutput] toolOutput.result:', toolOutput.result);
-        if (toolOutput.result && 'structuredContent' in toolOutput.result) {
-          console.log('[useToolOutput] result.structuredContent:', toolOutput.result.structuredContent);
-        }
-      }
-    }
-  }, [toolOutput]);
-
-  // Return null if no data
-  if (!toolOutput) {
+  if (!toolResult) {
     return null;
   }
 
-  // Try to extract structuredContent from various paths
-  // According to docs: window.openai.toolOutput should contain the data
-  // But it might be nested in different ways
-
-  // Path 1: Direct structuredContent (what our MCP server sends)
-  if ('structuredContent' in toolOutput) {
-    return toolOutput.structuredContent as T;
+  // The MCP Apps SDK delivers CallToolResult which has { content, structuredContent }
+  const sc = (toolResult as any).structuredContent;
+  if (sc !== undefined) {
+    return sc as T;
   }
 
-  // Path 2: Nested in result.structuredContent
-  if ('result' in toolOutput && toolOutput.result) {
-    if (typeof toolOutput.result === 'object' && 'structuredContent' in toolOutput.result) {
-      return toolOutput.result.structuredContent as T;
-    }
-    // Maybe result IS the structured content
-    return toolOutput.result as T;
-  }
-
-  // Path 3: toolOutput itself is the data
-  return toolOutput as T;
+  // Fallback: try content array
+  return toolResult as unknown as T;
 }
 
 /**
  * Get tool input
  */
 export function useToolInput<T = any>(): T | undefined {
-  const toolInput = useOpenAIGlobal<T>('toolInput');
-  return toolInput === null ? undefined : toolInput;
+  const toolInput = useMcpToolInput();
+  return (toolInput as T) ?? undefined;
 }
 
 /**
- * Get theme
+ * Get theme - returns 'light' or 'dark'
  */
 export function useTheme(): 'light' | 'dark' {
-  const theme = useOpenAIGlobal<'light' | 'dark'>('theme');
+  const theme = useDocumentTheme();
+  // useDocumentTheme returns McpUiTheme which is 'light' | 'dark'
   return theme || 'light';
 }
 
 /**
- * Call a tool
+ * Call a server tool through the MCP App host proxy
  */
 export function useCallTool() {
-  return useCallback((toolName: string, input: any) => {
-    if (typeof window !== 'undefined' && (window as any).openai) {
-      return (window as any).openai.callTool(toolName, input);
-    }
-    return Promise.reject(new Error('OpenAI API not available'));
-  }, []);
+  const app = useMcpApp();
+
+  return useCallback(
+    async (toolName: string, input: any) => {
+      if (!app) {
+        throw new Error('MCP App not connected');
+      }
+      const result = await app.callServerTool({
+        name: toolName,
+        arguments: input,
+      });
+      return result;
+    },
+    [app]
+  );
 }
 
-
 /**
- * Request display mode change
+ * Request display mode change (inline, fullscreen, pip)
  */
 export function useDisplayMode() {
-  return useCallback((mode: 'inline' | 'picture-in-picture' | 'fullscreen') => {
-    if (typeof window !== 'undefined' && (window as any).openai) {
-      (window as any).openai.requestDisplayMode(mode);
-    }
-  }, []);
+  const app = useMcpApp();
+
+  return useCallback(
+    async (mode: 'inline' | 'fullscreen' | 'pip') => {
+      if (!app) return;
+      await app.requestDisplayMode({ mode });
+    },
+    [app]
+  );
 }
 
 /**
- * Send follow-up message to chat
+ * Send a follow-up message to the chat conversation
  */
 export function useSendFollowUpMessage() {
-  return useCallback((message: string) => {
-    console.log('[useSendFollowUpMessage] Attempting to send message:', message);
+  const app = useMcpApp();
 
-    if (typeof window === 'undefined') {
-      console.warn('[useSendFollowUpMessage] Window is undefined');
-      return;
-    }
-
-    if (!(window as any).openai) {
-      console.warn('[useSendFollowUpMessage] window.openai is not available');
-      return;
-    }
-
-    if (typeof (window as any).openai.sendFollowUpMessage !== 'function') {
-      console.warn('[useSendFollowUpMessage] window.openai.sendFollowUpMessage is not a function');
-      console.log('[useSendFollowUpMessage] Available methods:', Object.keys((window as any).openai));
-      return;
-    }
-
-    console.log('[useSendFollowUpMessage] Calling sendFollowUpMessage with prompt object...');
-    try {
-      // OpenAI Apps SDK expects an object with a 'prompt' property
-      (window as any).openai.sendFollowUpMessage({prompt: message});
-      console.log('[useSendFollowUpMessage] Message sent successfully');
-    } catch (error) {
-      console.error('[useSendFollowUpMessage] Error sending message:', error);
-    }
-  }, []);
+  return useCallback(
+    async (message: string) => {
+      if (!app) {
+        console.warn('[useSendFollowUpMessage] MCP App not connected');
+        return;
+      }
+      try {
+        await app.sendMessage({
+          role: 'user',
+          content: [{ type: 'text', text: message }],
+        });
+        console.log('[useSendFollowUpMessage] Message sent successfully');
+      } catch (error) {
+        console.error('[useSendFollowUpMessage] Error sending message:', error);
+      }
+    },
+    [app]
+  );
 }
+
+/**
+ * Get and set widget state
+ * MCP Apps doesn't have persistent widget state yet, so this uses local React state.
+ */
+export function useWidgetState<T>(defaultState: T): [T, (state: T) => void] {
+  const [state, setState] = __useState<T>(defaultState);
+  return [state, setState];
+}
+
+// Re-import useState for useWidgetState
+import { useState as __useState } from 'react';

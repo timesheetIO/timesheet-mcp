@@ -1,6 +1,6 @@
 /**
  * Typed hooks for Timesheet MCP tool calls
- * These wrap window.openai.callTool() with proper TypeScript types
+ * These wrap app.callServerTool() with proper TypeScript types
  *
  * IMPORTANT: These make authenticated API calls through the MCP server.
  * The OAuth token is kept secure on the server side - never exposed to the browser.

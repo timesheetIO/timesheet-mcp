@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
+import { McpAppProvider } from '../../McpAppProvider';
 import { useToolOutput, useTheme } from '../../hooks';
 import { useApplyTheme } from '../../utils';
 import ProjectCard from './ProjectCard';
@@ -53,5 +54,9 @@ function ProjectCardApp() {
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
-  root.render(<ProjectCardApp />);
+  root.render(
+    <McpAppProvider appName="ProjectCard">
+      <ProjectCardApp />
+    </McpAppProvider>
+  );
 }

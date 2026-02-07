@@ -1,32 +1,7 @@
 /**
- * OpenAI Apps SDK Types
- * Based on https://developers.openai.com/apps-sdk/build/custom-ux
+ * Timesheet Widget Types
+ * SDK type re-exports and UI convenience extensions
  */
-
-export interface OpenAIWindow {
-  // Global state and metadata
-  toolInput: any;
-  toolOutput: any;
-  toolResponseMetadata: any;
-  widgetState: any;
-
-  // Actions
-  callTool: (toolName: string, input: any) => Promise<any>;
-  setWidgetState: (state: any) => void;
-  sendMessage: (message: string) => void;
-  navigate: (url: string) => void;
-  requestDisplayMode: (mode: 'inline' | 'picture-in-picture' | 'fullscreen') => void;
-
-  // Environment
-  theme: 'light' | 'dark';
-  locale: string;
-}
-
-declare global {
-  interface Window {
-    openai: OpenAIWindow;
-  }
-}
 
 // Re-export types from SDK (without Task and Timer - we extend those below)
 export type {
@@ -73,13 +48,33 @@ export interface Task extends SDKTask {
 export interface Statistics {
   totalHours: number;
   billableHours: number;
+  nonBillableHours: number;
+  totalTasks: number;
+  totalBreakHours: number;
+  startDate?: string;
+  endDate?: string;
   projectBreakdown: Array<{
+    projectId?: string;
     projectTitle: string;
+    projectColor?: number;
     hours: number;
+    billableHours: number;
+    nonBillableHours: number;
+    taskCount: number;
     percentage: number;
   }>;
   dailyHours: Array<{
     date: string;
     hours: number;
+    billableHours: number;
+    nonBillableHours: number;
+    breakHours: number;
+  }>;
+  weeklyHours?: Array<{
+    weekStart: string;
+    hours: number;
+    billableHours: number;
+    nonBillableHours: number;
+    breakHours: number;
   }>;
 }

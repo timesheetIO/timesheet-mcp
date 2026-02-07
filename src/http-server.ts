@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * HTTP Server for OpenAI Apps SDK / ChatGPT Integration
+ * HTTP Server for MCP Apps SDK / ChatGPT Integration
  *
  * Uses StreamableHTTPServerTransport in STATELESS mode to avoid session timeout issues.
  * Each request is independent - no session persistence required since the Timesheet API
@@ -25,7 +25,7 @@ import {
   extractBearerToken,
   getApiBaseUrl,
   getMcpServerUrl,
-} from './openai-helpers.js';
+} from './mcp-app-helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,7 +1,25 @@
 /**
- * OpenAI Apps SDK Helper Functions
- * Utilities for formatting tool responses with component metadata
+ * MCP Apps Helper Functions
+ * Utilities for formatting tool responses with MCP Apps metadata (SEP-1865)
+ *
+ * Uses the standardized MCP Apps schema:
+ * - URI scheme: ui://timesheet/<component>.html
+ * - MIME type: text/html;profile=mcp-app
+ * - Metadata: _meta.ui.* (with OpenAI compat keys retained)
  */
+
+import { RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
+
+export { RESOURCE_MIME_TYPE };
+
+const RESOURCE_URI_PREFIX = 'ui://timesheet';
+
+/**
+ * Get the resource URI for a component
+ */
+export function getComponentResourceUri(componentName: string): string {
+  return `${RESOURCE_URI_PREFIX}/${componentName}.html`;
+}
 
 // Get the component server base URL from environment or use ngrok URL
 export function getComponentBaseUrl(): string {
@@ -9,48 +27,37 @@ export function getComponentBaseUrl(): string {
 }
 
 /**
- * Add OpenAI component template metadata to a tool response
+ * Add MCP Apps component metadata to a tool response
  */
 export function addComponentMetadata(
   response: any,
   componentName: string,
   widgetDescription: string,
-  widgetDomain?: string
 ): any {
-  const componentUri = `widget://${componentName}.html`;
-
-  // Widget domain for OpenAI sandbox (configurable for ngrok/production)
-  const domain = widgetDomain || process.env.COMPONENT_BASE_URL || 'https://chatgpt.com';
-
-  // CSP configuration - widgets use window.openai.callTool, no direct API calls
-  const widgetCSP = {
-    connect_domains: [] as string[], // No direct fetch/XHR from widgets
-    resource_domains: [] as string[], // All resources are inline
-    // frame_domains omitted - not embedding iframes
-  };
+  const resourceUri = getComponentResourceUri(componentName);
 
   const result = {
     ...response,
     _meta: {
       ...((response as any)._meta || {}),
-      'openai/outputTemplate': componentUri,
-      'openai/widgetAccessible': true,
-      'openai/resultCanProduceWidget': true,
+      // MCP Apps standard metadata
+      ui: {
+        resourceUri,
+        csp: { connectDomains: [], resourceDomains: [] },
+        prefersBorder: false,
+        visibility: ['model', 'app'],
+      },
+      // Keep OpenAI-specific keys for ChatGPT backward compatibility
       'openai/widgetDescription': widgetDescription,
-      'openai/widgetCSP': widgetCSP,
-      'openai/widgetDomain': domain,
       'openai/toolInvocation/invoking': componentName,
       'openai/toolInvocation/invoked': componentName,
-      'openai/widgetPrefersBorder': false,
     },
   };
 
   // Debug logging
-  console.error(`[OpenAI] Component metadata for ${componentName}:`);
-  console.error(`  - Template URI: ${componentUri}`);
+  console.error(`[MCP App] Component metadata for ${componentName}:`);
+  console.error(`  - Resource URI: ${resourceUri}`);
   console.error(`  - Widget Description: ${widgetDescription}`);
-  console.error(`  - Widget Domain: ${domain}`);
-  console.error(`  - Full metadata:`, JSON.stringify(result._meta, null, 2));
 
   return result;
 }
@@ -232,12 +239,50 @@ export function formatTaskCardResponse(task: any) {
  * Format statistics response with component
  */
 export function formatStatisticsResponse(stats: any, profile?: any, settings?: any) {
+  // Build detailed text content for non-widget MCP clients
+  const lines: string[] = [];
+
+  if (stats.startDate && stats.endDate) {
+    lines.push(`Period: ${stats.startDate} to ${stats.endDate}`);
+  }
+
+  const billablePct = stats.totalHours > 0
+    ? Math.round((stats.billableHours / stats.totalHours) * 100)
+    : 0;
+
+  lines.push(`Total: ${stats.totalHours.toFixed(1)}h | Billable: ${stats.billableHours.toFixed(1)}h (${billablePct}%) | Tasks: ${stats.totalTasks ?? 0}`);
+
+  if (stats.totalBreakHours > 0) {
+    lines.push(`Breaks: ${stats.totalBreakHours.toFixed(1)}h`);
+  }
+
+  if (stats.projectBreakdown && stats.projectBreakdown.length > 0) {
+    lines.push('');
+    lines.push('Project Breakdown:');
+    for (const p of stats.projectBreakdown) {
+      lines.push(`  - ${p.projectTitle}: ${p.hours.toFixed(1)}h (${p.percentage}%, ${p.taskCount} tasks)`);
+    }
+  }
+
+  if (stats.dailyHours && stats.dailyHours.length > 0) {
+    lines.push('');
+    lines.push('Daily Hours:');
+    for (const d of stats.dailyHours.slice(0, 14)) {
+      lines.push(`  - ${d.date}: ${d.hours.toFixed(1)}h`);
+    }
+    if (stats.dailyHours.length > 14) {
+      lines.push(`  ... and ${stats.dailyHours.length - 14} more days`);
+    }
+  }
+
+  const textContent = lines.join('\n');
+
   return addComponentMetadata(
     {
       content: [
         {
           type: 'text',
-          text: `Total: ${stats.totalHours}h, Billable: ${stats.billableHours}h`,
+          text: textContent,
         },
       ],
       structuredContent: {
@@ -247,7 +292,7 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
       },
     },
     'Statistics',
-    `Time tracking statistics dashboard with ${stats.totalHours}h total time, ${stats.billableHours}h billable time, project breakdowns, and daily charts`
+    `Time tracking statistics dashboard showing ${stats.totalHours.toFixed(1)}h total (${stats.billableHours.toFixed(1)}h billable) across ${stats.totalTasks ?? 0} tasks with project breakdowns and ${stats.weeklyHours ? 'weekly' : 'daily'} charts`
   );
 }
 
@@ -294,26 +339,11 @@ export function formatExportTemplateListResponse(templates: any[], totalCount: n
  * Get component metadata for tool definition (not response)
  */
 export function getComponentMetadataForTool(componentName: string) {
-  // Use widget:// URI that matches registered resource
-  // MCP server will provide HTML with mimeType: "text/html+skybridge"
-  const componentUri = `widget://${componentName}.html`;
-
-  // Widget domain for OpenAI sandbox (configurable for ngrok/production)
-  const domain = process.env.COMPONENT_BASE_URL || 'https://chatgpt.com';
-
-  // CSP configuration - widgets use window.openai.callTool, no direct API calls
-  const widgetCSP = {
-    connect_domains: [] as string[], // No direct fetch/XHR from widgets
-    resource_domains: [] as string[], // All resources are inline
-  };
-
   return {
-    'openai/outputTemplate': componentUri,
-    'openai/widgetAccessible': true,
-    'openai/resultCanProduceWidget': true,
-    'openai/widgetPrefersBorder': false,
-    'openai/widgetCSP': widgetCSP,
-    'openai/widgetDomain': domain,
+    ui: {
+      resourceUri: getComponentResourceUri(componentName),
+      visibility: ['model', 'app'],
+    },
   };
 }
 

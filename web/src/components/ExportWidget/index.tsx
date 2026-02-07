@@ -5,6 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import { McpAppProvider } from '../../McpAppProvider';
 import { useTheme, useToolOutput, useCallTool, useSendFollowUpMessage } from '../../hooks';
 import { useApplyTheme } from '../../utils';
 import ExportView from './ExportView';
@@ -143,5 +144,9 @@ function formatBytes(bytes: number): string {
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
-  root.render(<ExportWidgetApp />);
+  root.render(
+    <McpAppProvider appName="ExportWidget">
+      <ExportWidgetApp />
+    </McpAppProvider>
+  );
 }

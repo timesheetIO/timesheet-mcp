@@ -1,5 +1,5 @@
 /**
- * Component Server for OpenAI Apps SDK
+ * Component Server for MCP Apps SDK
  * Serves built React components for ChatGPT integration
  */
 

@@ -18,11 +18,14 @@ import {
   formatProjectCardResponse,
   formatTaskListResponse,
   formatTaskCardResponse,
+  formatStatisticsResponse,
   formatExportTemplateListResponse,
   getOAuthMetadata,
   getComponentMetadataForTool,
   getStaticWidgetDescription,
-} from './openai-helpers.js';
+  getComponentResourceUri,
+  RESOURCE_MIME_TYPE,
+} from './mcp-app-helpers.js';
 
 dotenv.config();
 
@@ -194,6 +197,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_stop',
@@ -237,6 +241,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_pause',
@@ -268,6 +273,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_resume',
@@ -299,6 +305,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_status',
@@ -401,6 +408,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('TimerWidget'),
         },
 
         // Task Item Management
@@ -1866,6 +1874,7 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
+          _meta: getComponentMetadataForTool('ExportWidget'),
         },
         {
           name: 'export_template_get',
@@ -2052,6 +2061,81 @@ export class TimesheetMCPServer {
             openWorldHint: true,
           },
         },
+
+        // Statistics
+        {
+          name: 'statistics_get',
+          title: 'Get Statistics',
+          description: 'Use this when the user wants to see time tracking statistics, summaries, or reports for a date range. Returns aggregated totals, project breakdowns, and daily/weekly hour charts.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              startDate: {
+                type: 'string',
+                format: 'date',
+                description: 'Start date for the statistics period (YYYY-MM-DD)',
+              },
+              endDate: {
+                type: 'string',
+                format: 'date',
+                description: 'End date for the statistics period (YYYY-MM-DD)',
+              },
+              projectId: {
+                type: 'string',
+                description: 'Filter statistics for a specific project',
+              },
+              projectIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Filter statistics for multiple projects',
+              },
+              teamId: {
+                type: 'string',
+                description: 'Filter statistics for a specific team',
+              },
+              teamIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Filter statistics for multiple teams',
+              },
+              tagIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Filter statistics by tag IDs',
+              },
+              userIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Filter statistics by user IDs',
+              },
+              filter: {
+                type: 'string',
+                enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'outstanding'],
+                description: 'Filter by billing/payment status',
+              },
+            },
+            required: ['startDate', 'endDate'],
+          },
+          outputSchema: {
+            type: 'object',
+            properties: {
+              totalHours: { type: 'number', description: 'Total hours tracked' },
+              billableHours: { type: 'number', description: 'Billable hours' },
+              nonBillableHours: { type: 'number', description: 'Non-billable hours' },
+              totalTasks: { type: 'number', description: 'Total number of tasks' },
+              totalBreakHours: { type: 'number', description: 'Total break hours' },
+              startDate: { type: 'string', description: 'Period start date' },
+              endDate: { type: 'string', description: 'Period end date' },
+            },
+            required: ['totalHours', 'billableHours', 'startDate', 'endDate'],
+          },
+          annotations: {
+            readOnlyHint: true,
+            destructiveHint: false,
+            openWorldHint: true,
+          },
+          _meta: getComponentMetadataForTool('Statistics'),
+        },
       ];
 
         console.error(`[MCP] Returning ${tools.length} tools`);
@@ -2062,36 +2146,25 @@ export class TimesheetMCPServer {
       }
     });
 
-    // Register widget HTML resources with text/html+skybridge mimeType
+    // Register widget HTML resources with MCP Apps MIME type
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       console.error('[MCP] ListResources request received');
 
-      // Widget domain for OpenAI sandbox (configurable for ngrok/production)
-      const widgetDomain = process.env.COMPONENT_BASE_URL || 'https://chatgpt.com';
-
-      // CSP configuration - widgets use window.openai.callTool, no direct API calls
-      const widgetCSP = {
-        connect_domains: [] as string[], // No direct fetch/XHR from widgets
-        resource_domains: [] as string[], // All resources are inline
-        // frame_domains omitted - not embedding iframes
-      };
-
-      const components = ['TimerWidget', 'ProjectList', 'ProjectCard', 'TaskList', 'TaskCard', 'Statistics'];
+      const components = ['TimerWidget', 'ProjectList', 'ProjectCard', 'TaskList', 'TaskCard', 'Statistics', 'ExportWidget'];
       const resources = components.map(name => ({
-        uri: `widget://${name}.html`,
-        mimeType: 'text/html+skybridge',
+        uri: getComponentResourceUri(name),
+        mimeType: RESOURCE_MIME_TYPE,
         name: `${name} Component`,
-        description: `Interactive ${name} widget for ChatGPT`,
+        description: `Interactive ${name} widget`,
         _meta: {
-          'openai/widgetCSP': widgetCSP,
-          'openai/widgetDomain': widgetDomain,
-          'openai/widgetAccessible': true, // Enable window.openai.callTool
-          'openai/widgetPrefersBorder': false,
-          'openai/widgetDescription': getStaticWidgetDescription(name),
+          ui: {
+            csp: { connectDomains: [], resourceDomains: [] },
+            prefersBorder: false,
+          },
         },
       }));
 
-      console.error(`[MCP] Returning ${resources.length} resources with CSP and domain: ${widgetDomain}`);
+      console.error(`[MCP] Returning ${resources.length} resources`);
       return { resources };
     });
 
@@ -2099,8 +2172,8 @@ export class TimesheetMCPServer {
       const { uri } = request.params;
       console.error(`[MCP] ReadResource request for: ${uri}`);
 
-      // Extract component name from widget://ComponentName.html
-      const match = uri.match(/^widget:\/\/(.+)\.html$/);
+      // Extract component name from ui://timesheet/ComponentName.html
+      const match = uri.match(/^ui:\/\/timesheet\/(.+)\.html$/);
       if (!match) {
         throw new McpError(ErrorCode.InvalidRequest, `Invalid widget URI: ${uri}`);
       }
@@ -2125,33 +2198,20 @@ export class TimesheetMCPServer {
         const htmlContent = await fs.readFile(htmlPath, 'utf-8');
         const staticDescription = getStaticWidgetDescription(componentName);
 
-        // Widget domain for OpenAI sandbox (configurable for ngrok/production)
-        const widgetDomain = process.env.COMPONENT_BASE_URL || 'https://chatgpt.com';
-
-        // CSP configuration - widgets use window.openai.callTool, no direct API calls
-        const widgetCSP = {
-          connect_domains: [] as string[], // No direct fetch/XHR from widgets
-          resource_domains: [] as string[], // All resources are inline
-          // frame_domains omitted - not embedding iframes
-        };
-
         console.error(`[MCP] Serving ${componentName} (${htmlContent.length} bytes)`);
         console.error(`[MCP] Static widget description: ${staticDescription}`);
-        console.error(`[MCP] Widget domain: ${widgetDomain}`);
 
-        // IMPORTANT: _meta must be INSIDE each content item per OpenAI MCP spec
         return {
           contents: [
             {
               uri,
-              mimeType: 'text/html+skybridge',
+              mimeType: RESOURCE_MIME_TYPE,
               text: htmlContent,
               _meta: {
-                'openai/widgetDescription': staticDescription,
-                'openai/widgetCSP': widgetCSP,
-                'openai/widgetDomain': widgetDomain,
-                'openai/widgetAccessible': true, // Enable window.openai.callTool
-                'openai/widgetPrefersBorder': false,
+                ui: {
+                  csp: { connectDomains: [], resourceDomains: [] },
+                  prefersBorder: false,
+                },
               },
             },
           ],
@@ -2216,6 +2276,10 @@ export class TimesheetMCPServer {
             return this.handleTaskDelete(args);
           case 'task_get':
             return this.handleTaskGet(args);
+
+          // Statistics
+          case 'statistics_get':
+            return this.handleStatisticsGet(args);
 
           // Authentication
           case 'auth_configure':
@@ -3480,6 +3544,240 @@ export class TimesheetMCPServer {
     } catch (error) {
       return this.handleApiError(error);
     }
+  }
+
+  private async handleStatisticsGet(args: any) {
+    const client = this.getClient();
+    const { startDate, endDate, projectId, projectIds, teamId, teamIds, tagIds, userIds, filter } = args;
+
+    try {
+      // Fetch tasks with pagination (up to 5 pages / 500 tasks)
+      const allTasks: any[] = [];
+      const limit = 100;
+      const maxPages = 5;
+
+      for (let page = 1; page <= maxPages; page++) {
+        const searchParams: any = {
+          startDate,
+          endDate,
+          limit,
+          page,
+          populateTags: false,
+        };
+        if (projectId) searchParams.projectId = projectId;
+        if (projectIds) searchParams.projectIds = projectIds;
+        if (teamId) searchParams.teamId = teamId;
+        if (teamIds) searchParams.teamIds = teamIds;
+        if (tagIds) searchParams.tagIds = tagIds;
+        if (userIds) searchParams.userIds = userIds;
+        if (filter) searchParams.filter = filter;
+
+        const result = await client.tasks.search(searchParams);
+        const items = result.items;
+        allTasks.push(...items);
+
+        // Stop if we got fewer than limit (last page)
+        if (items.length < limit) break;
+      }
+
+      const [stats, userData] = await Promise.all([
+        Promise.resolve(this.computeStatistics(allTasks, startDate, endDate)),
+        this.getProfileAndSettings(),
+      ]);
+
+      return formatStatisticsResponse(stats, userData.profile, userData.settings);
+    } catch (error) {
+      return this.handleApiError(error);
+    }
+  }
+
+  private computeStatistics(tasks: any[], startDate: string, endDate: string) {
+    let totalSeconds = 0;
+    let billableSeconds = 0;
+    let nonBillableSeconds = 0;
+    let breakSeconds = 0;
+
+    // Project aggregation map: projectId -> { title, color, totalSec, billableSec, nonBillableSec, count }
+    const projectMap = new Map<string, {
+      title: string;
+      color?: number;
+      totalSec: number;
+      billableSec: number;
+      nonBillableSec: number;
+      count: number;
+    }>();
+
+    // Daily aggregation map: YYYY-MM-DD -> { totalSec, billableSec, nonBillableSec, breakSec }
+    const dailyMap = new Map<string, {
+      totalSec: number;
+      billableSec: number;
+      nonBillableSec: number;
+      breakSec: number;
+    }>();
+
+    for (const task of tasks) {
+      const duration = task.duration || 0;
+      const durationBreak = task.durationBreak || 0;
+
+      totalSeconds += duration;
+      breakSeconds += durationBreak;
+
+      if (task.billable) {
+        billableSeconds += duration;
+      } else {
+        nonBillableSeconds += duration;
+      }
+
+      // Project aggregation
+      const projId = task.project?.id || task.projectId || 'unknown';
+      const projTitle = task.project?.title || 'Unknown Project';
+      const projColor = task.project?.color;
+      const existing = projectMap.get(projId);
+      if (existing) {
+        existing.totalSec += duration;
+        existing.count += 1;
+        if (task.billable) {
+          existing.billableSec += duration;
+        } else {
+          existing.nonBillableSec += duration;
+        }
+      } else {
+        projectMap.set(projId, {
+          title: projTitle,
+          color: projColor,
+          totalSec: duration,
+          billableSec: task.billable ? duration : 0,
+          nonBillableSec: task.billable ? 0 : duration,
+          count: 1,
+        });
+      }
+
+      // Daily aggregation - use task start date
+      if (task.startDateTime) {
+        const dateKey = task.startDateTime.substring(0, 10); // YYYY-MM-DD
+        const dayEntry = dailyMap.get(dateKey);
+        if (dayEntry) {
+          dayEntry.totalSec += duration;
+          dayEntry.breakSec += durationBreak;
+          if (task.billable) {
+            dayEntry.billableSec += duration;
+          } else {
+            dayEntry.nonBillableSec += duration;
+          }
+        } else {
+          dailyMap.set(dateKey, {
+            totalSec: duration,
+            billableSec: task.billable ? duration : 0,
+            nonBillableSec: task.billable ? 0 : duration,
+            breakSec: durationBreak,
+          });
+        }
+      }
+    }
+
+    // Fill zero-days within the range
+    const start = new Date(startDate + 'T00:00:00');
+    const end = new Date(endDate + 'T00:00:00');
+    const current = new Date(start);
+    while (current <= end) {
+      const key = current.toISOString().substring(0, 10);
+      if (!dailyMap.has(key)) {
+        dailyMap.set(key, { totalSec: 0, billableSec: 0, nonBillableSec: 0, breakSec: 0 });
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Sort daily entries
+    const sortedDays = Array.from(dailyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    const dailyHours = sortedDays.map(([date, d]) => ({
+      date,
+      hours: Number((d.totalSec / 3600).toFixed(2)),
+      billableHours: Number((d.billableSec / 3600).toFixed(2)),
+      nonBillableHours: Number((d.nonBillableSec / 3600).toFixed(2)),
+      breakHours: Number((d.breakSec / 3600).toFixed(2)),
+    }));
+
+    // Weekly aggregation (when range > 14 days)
+    const rangeDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    let weeklyHours: Array<{
+      weekStart: string;
+      hours: number;
+      billableHours: number;
+      nonBillableHours: number;
+      breakHours: number;
+    }> | undefined;
+
+    if (rangeDays > 14) {
+      const weekMap = new Map<string, {
+        totalSec: number;
+        billableSec: number;
+        nonBillableSec: number;
+        breakSec: number;
+      }>();
+
+      for (const [dateStr, d] of sortedDays) {
+        // Get ISO week Monday
+        const date = new Date(dateStr + 'T00:00:00');
+        const day = date.getDay();
+        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+        const monday = new Date(date);
+        monday.setDate(diff);
+        const weekKey = monday.toISOString().substring(0, 10);
+
+        const w = weekMap.get(weekKey);
+        if (w) {
+          w.totalSec += d.totalSec;
+          w.billableSec += d.billableSec;
+          w.nonBillableSec += d.nonBillableSec;
+          w.breakSec += d.breakSec;
+        } else {
+          weekMap.set(weekKey, { ...d });
+        }
+      }
+
+      weeklyHours = Array.from(weekMap.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([weekStart, w]) => ({
+          weekStart,
+          hours: Number((w.totalSec / 3600).toFixed(2)),
+          billableHours: Number((w.billableSec / 3600).toFixed(2)),
+          nonBillableHours: Number((w.nonBillableSec / 3600).toFixed(2)),
+          breakHours: Number((w.breakSec / 3600).toFixed(2)),
+        }));
+    }
+
+    // Project breakdown sorted by hours descending
+    const totalHours = Number((totalSeconds / 3600).toFixed(2));
+    const projectBreakdown = Array.from(projectMap.entries())
+      .sort(([, a], [, b]) => b.totalSec - a.totalSec)
+      .map(([projectId, p]) => {
+        const hours = Number((p.totalSec / 3600).toFixed(2));
+        return {
+          projectId,
+          projectTitle: p.title,
+          projectColor: p.color,
+          hours,
+          billableHours: Number((p.billableSec / 3600).toFixed(2)),
+          nonBillableHours: Number((p.nonBillableSec / 3600).toFixed(2)),
+          taskCount: p.count,
+          percentage: totalHours > 0 ? Math.round((hours / totalHours) * 100) : 0,
+        };
+      });
+
+    return {
+      totalHours,
+      billableHours: Number((billableSeconds / 3600).toFixed(2)),
+      nonBillableHours: Number((nonBillableSeconds / 3600).toFixed(2)),
+      totalTasks: tasks.length,
+      totalBreakHours: Number((breakSeconds / 3600).toFixed(2)),
+      startDate,
+      endDate,
+      projectBreakdown,
+      dailyHours,
+      weeklyHours,
+    };
   }
 
   private handleApiError(error: any) {

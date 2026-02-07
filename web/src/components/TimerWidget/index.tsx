@@ -5,6 +5,7 @@
 
 import React from 'react';
 import {createRoot} from 'react-dom/client';
+import {McpAppProvider} from '../../McpAppProvider';
 import {DataProvider, useData} from './DataProvider';
 import {ViewRouterProvider, useViewRouter} from './ViewRouter';
 import TimerRunningView from './TimerRunningView';
@@ -87,11 +88,13 @@ function ViewRenderer() {
  */
 function TimerWidgetApp() {
   return (
-    <div className="w-full flex-auto grow">
-      <ViewRouterProvider>
-        <AppWithRouter />
-      </ViewRouterProvider>
-    </div>
+    <McpAppProvider appName="TimerWidget">
+      <div className="w-full flex-auto grow">
+        <ViewRouterProvider>
+          <AppWithRouter />
+        </ViewRouterProvider>
+      </div>
+    </McpAppProvider>
   );
 }
 
