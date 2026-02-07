@@ -55,7 +55,7 @@ export class TimesheetMCPServer {
     this.server = new Server(
       {
         name: 'timesheet-mcp',
-        version: '1.0.3',
+        version: '1.1.0',
       },
       {
         capabilities: {
@@ -133,7 +133,7 @@ export class TimesheetMCPServer {
         },
         serverInfo: {
           name: 'timesheet-mcp',
-          version: '1.0.3',
+          version: '1.1.0',
         },
         // Add OAuth 2.1 authorization metadata for ChatGPT
         authorization: oauthMeta,

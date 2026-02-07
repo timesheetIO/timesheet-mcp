@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.1.0] - 2026-02-07
+
+### Added
+- **`statistics_get` MCP Tool**: New tool for aggregated time tracking statistics
+  - Required params: `startDate`, `endDate` for defining the analysis period
+  - Optional filters: `projectId`, `projectIds`, `teamId`, `teamIds`, `tagIds`, `userIds`, `filter`
+  - Server-side aggregation: total hours, billable/non-billable breakdown, break hours, task count
+  - Project breakdown with hours, percentage, task count per project
+  - Daily hours with billable/non-billable/break split and zero-day fill
+  - Weekly hours auto-computed when date range exceeds 14 days (grouped by ISO week)
+  - Paginates up to 500 tasks (5 pages) for detailed breakdowns
+- **Recharts Statistics Widget**: Interactive charts replacing CSS-based visualizations
+  - `DailyChart`: Stacked `BarChart` with billable (green) and non-billable (amber) bars
+  - `ProjectBreakdown`: Donut `PieChart` with project colors from SDK and side legend
+  - `chartTheme.ts`: Theme-aware color palettes for light/dark mode
+  - Auto-switches between daily and weekly chart views based on data range
+  - Date range subtitle in widget header
+  - 4-column summary grid (Total Hours, Billable Hours, Billable %, Tasks)
+- **MCP Apps SDK Migration** (SEP-1865): Standardized widget communication protocol
+  - `McpAppProvider.tsx` wraps all widget roots with `useApp()` hook
+  - URI scheme: `ui://timesheet/<component>.html`
+  - MIME type: `text/html;profile=mcp-app`
+  - Metadata namespace: `_meta.ui.*` with OpenAI backward compatibility keys retained
+  - `useDocumentTheme` from ext-apps/react replaces old theme hook
+
+### Changed
+- `Statistics` type interface extended with `nonBillableHours`, `totalTasks`, `totalBreakHours`, `startDate`/`endDate`, and richer project/daily/weekly breakdown fields
+- `formatStatisticsResponse` now provides detailed text fallback with date range, project breakdown list, and daily summary for non-widget MCP clients
+- Widget hooks (`useToolOutput`, `useCallTool`, `useTheme`, `useDisplayMode`) backed by MCP Apps SDK while preserving identical signatures
+- `tsconfig.json` upgraded to `"module": "node16"` + `"moduleResolution": "node16"` for package.json `exports` support
+
+### Removed
+- `src/openai-helpers.ts` replaced by `src/mcp-app-helpers.ts`
+
+### Dependencies
+- Added `recharts` ^2.15.0
+- Added `@modelcontextprotocol/ext-apps` ^1.0.1
+
 ## [1.0.4] - 2026-01-06
 
 ### Added
