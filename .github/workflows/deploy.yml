@@ -49,6 +49,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
+          sed -i "s|/timesheet-mcp:latest|/timesheet-mcp:${{ github.sha }}|g" service.yaml
           gcloud run services replace service.yaml \
             --region=${{ env.REGION }} \
             --project=${{ env.PROJECT_ID }}
