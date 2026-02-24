@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/timesheetio-timesheet-mcp-badge.png)](https://mseep.ai/app/timesheetio-timesheet-mcp)
+
 # Timesheet MCP Server
 
 [![npm version](https://img.shields.io/npm/v/@timesheet/mcp.svg)](https://www.npmjs.com/package/@timesheet/mcp)
