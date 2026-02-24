@@ -8,7 +8,6 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
   McpError,
-  InitializeRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
 import dotenv from 'dotenv';
@@ -20,7 +19,6 @@ import {
   formatTaskCardResponse,
   formatStatisticsResponse,
   formatExportTemplateListResponse,
-  getOAuthMetadata,
   getComponentMetadataForTool,
   getStaticWidgetDescription,
   getComponentResourceUri,
@@ -55,7 +53,7 @@ export class TimesheetMCPServer {
     this.server = new Server(
       {
         name: 'timesheet-mcp',
-        version: '1.1.0',
+        version: '1.1.1',
       },
       {
         capabilities: {
@@ -122,24 +120,6 @@ export class TimesheetMCPServer {
   }
 
   private setupHandlers() {
-    // Initialize request handler with OAuth metadata
-    this.server.setRequestHandler(InitializeRequestSchema, async (request) => {
-      const oauthMeta = getOAuthMetadata();
-
-      return {
-        protocolVersion: '2024-11-05',
-        capabilities: {
-          tools: {},
-        },
-        serverInfo: {
-          name: 'timesheet-mcp',
-          version: '1.1.0',
-        },
-        // Add OAuth 2.1 authorization metadata for ChatGPT
-        authorization: oauthMeta,
-      };
-    });
-
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       try {
         console.error('[MCP] ListTools request received');
