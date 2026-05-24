@@ -24,6 +24,7 @@ import {
   getComponentResourceUri,
   RESOURCE_MIME_TYPE,
 } from './mcp-app-helpers.js';
+import { EXTENDED_TOOL_DEFINITIONS, dispatchExtendedTool } from './extended-tools.js';
 
 dotenv.config();
 
@@ -119,10 +120,18 @@ export class TimesheetMCPServer {
     return this.client;
   }
 
+  /**
+   * Page size for tools/list pagination (MCP 2025-11-25). Clients pass an opaque
+   * cursor to advance; servers may pick any page size. We use 50 so large
+   * clients can stream tools without hitting a huge initial payload.
+   */
+  private static readonly TOOLS_LIST_PAGE_SIZE = 50;
+
   private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler(ListToolsRequestSchema, async (request) => {
       try {
         console.error('[MCP] ListTools request received');
+        const cursor = request?.params?.cursor;
         const tools = [
           // Timer Management Tools
         {
@@ -366,11 +375,6 @@ export class TimesheetMCPServer {
                 type: 'boolean',
                 description: 'Whether this time should be billed to the client',
               },
-              tags: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Tags or categories to help organize this task (e.g., ["meeting", "development", "urgent"])',
-              },
             },
           },
           outputSchema: {
@@ -445,9 +449,8 @@ export class TimesheetMCPServer {
                 minLength: 1,
               },
               amount: {
-                type: 'number',
-                description: 'Expense amount in the user\'s default currency',
-                minimum: 0,
+                type: 'string',
+                description: 'Expense amount as a decimal string in the user\'s default currency (e.g. "12.50"). The API stores amounts as BigDecimal strings.',
               },
               dateTime: {
                 type: 'string',
@@ -469,8 +472,8 @@ export class TimesheetMCPServer {
                 description: 'The expense description',
               },
               amount: {
-                type: 'number',
-                description: 'The expense amount recorded',
+                type: 'string',
+                description: 'The expense amount recorded (decimal string)',
               },
             },
             required: ['success'],
@@ -559,10 +562,6 @@ export class TimesheetMCPServer {
                 type: 'string',
                 enum: ['asc', 'desc'],
                 description: 'Sort order (ascending or descending)',
-              },
-              statistics: {
-                type: 'boolean',
-                description: 'Include statistics with team data',
               },
             },
           },
@@ -833,6 +832,7 @@ export class TimesheetMCPServer {
           annotations: {
             readOnlyHint: false,
             destructiveHint: true,
+            idempotentHint: true,
             openWorldHint: true,
           },
         },
@@ -920,10 +920,6 @@ export class TimesheetMCPServer {
                 format: 'date',
                 description: 'Filter tasks ending on or before this date (YYYY-MM-DD format)',
               },
-              running: {
-                type: 'boolean',
-                description: 'If true, only return currently running tasks',
-              },
               organizationId: {
                 type: 'string',
                 description: 'Filter tasks by organization ID',
@@ -1008,10 +1004,6 @@ export class TimesheetMCPServer {
               populateTags: {
                 type: 'boolean',
                 description: 'Include tag details in task information',
-              },
-              performance: {
-                type: 'boolean',
-                description: 'Include performance metrics in task details',
               },
             },
           },
@@ -1186,6 +1178,7 @@ export class TimesheetMCPServer {
           annotations: {
             readOnlyHint: false,
             destructiveHint: true,
+            idempotentHint: true,
             openWorldHint: true,
           },
         },
@@ -1624,9 +1617,9 @@ export class TimesheetMCPServer {
           outputSchema: {
             type: 'object',
             properties: {
-              url: { type: 'string', description: 'Download URL for the export file' },
-              filename: { type: 'string', description: 'Export filename' },
+              url: { type: 'string', description: 'Signed download URL for the export file' },
             },
+            required: ['url'],
           },
           annotations: {
             readOnlyHint: true,
@@ -1740,8 +1733,8 @@ export class TimesheetMCPServer {
             properties: {
               scope: {
                 type: 'string',
-                enum: ['all', 'project', 'team'],
-                description: 'Scope filter for fields',
+                enum: ['project', 'team', 'task', 'todo'],
+                description: 'Scope filter for fields. Defaults to "task" on the server.',
               },
             },
           },
@@ -2038,6 +2031,7 @@ export class TimesheetMCPServer {
           annotations: {
             readOnlyHint: false,
             destructiveHint: true,
+            idempotentHint: true,
             openWorldHint: true,
           },
         },
@@ -2116,10 +2110,23 @@ export class TimesheetMCPServer {
           },
           _meta: getComponentMetadataForTool('Statistics'),
         },
+        ...EXTENDED_TOOL_DEFINITIONS,
       ];
 
-        console.error(`[MCP] Returning ${tools.length} tools`);
-        return { tools };
+        // Cursor-based pagination per MCP 2025-11-25. The cursor is an opaque
+        // offset string; we encode it as a base-10 integer.
+        const offset = typeof cursor === 'string' ? Math.max(0, parseInt(cursor, 10) || 0) : 0;
+        const pageSize = TimesheetMCPServer.TOOLS_LIST_PAGE_SIZE;
+        const slice = tools.slice(offset, offset + pageSize);
+        const nextOffset = offset + slice.length;
+        const hasMore = nextOffset < tools.length;
+        console.error(
+          `[MCP] Returning ${slice.length}/${tools.length} tools (offset=${offset}${hasMore ? `, nextCursor=${nextOffset}` : ''})`
+        );
+        return {
+          tools: slice,
+          ...(hasMore ? { nextCursor: String(nextOffset) } : {}),
+        };
       } catch (error) {
         console.error('[MCP] Error in ListTools handler:', error);
         throw error;
@@ -2317,11 +2324,16 @@ export class TimesheetMCPServer {
           case 'export_template_delete':
             return this.handleExportTemplateDelete(args);
 
-          default:
+          default: {
+            const extended = await dispatchExtendedTool(this.getClient(), name, args);
+            if (extended !== null) {
+              return extended as ReturnType<typeof this.handleTimerStatus>;
+            }
             throw new McpError(
               ErrorCode.MethodNotFound,
               `Unknown tool: ${name}`
             );
+          }
         }
       } catch (error) {
         if (error instanceof McpError) {
@@ -2513,10 +2525,11 @@ export class TimesheetMCPServer {
         };
       }
 
-      const note = await client.notes.create({
+      await client.notes.create({
         taskId: timer.task.id,
         text,
-        dateTime,
+        // NoteCreateRequest.dateTime is required; default to now per tool description
+        dateTime: dateTime ?? new Date().toISOString(),
       });
 
       return {
@@ -2555,11 +2568,14 @@ export class TimesheetMCPServer {
         };
       }
 
-      const expense = await client.expenses.create({
+      await client.expenses.create({
         taskId: timer.task.id,
         description,
-        amount,
-        dateTime,
+        // ExpenseCreateRequest.amount is a decimal string (BigDecimal). Coerce
+        // numbers for backward compatibility with older clients/tools.
+        amount: amount === undefined || amount === null ? undefined : String(amount),
+        // ExpenseCreateRequest.dateTime is required; default to now.
+        dateTime: dateTime ?? new Date().toISOString(),
       });
 
       return {
@@ -2599,7 +2615,7 @@ export class TimesheetMCPServer {
         };
       }
 
-      const pause = await client.pauses.create({
+      await client.pauses.create({
         taskId: timer.task.id,
         description,
         startDateTime,
@@ -2693,11 +2709,11 @@ export class TimesheetMCPServer {
     const client = this.getClient();
 
     try {
-      // Enable statistics to get duration data
+      // Statistics are always included in v1.1.0 (no flag needed).
       // All filter params (teamId, teamIds, projectIds, search, status, taskStartDate, etc.)
       // are passed through via the spread operator
       const [page, userData] = await Promise.all([
-        client.projects.list({ ...args, statistics: true }),
+        client.projects.list(args),
         this.getProfileAndSettings(),
       ]);
       // Use only items from the current page - don't iterate through all pages
@@ -2833,7 +2849,7 @@ export class TimesheetMCPServer {
     try {
       // All filter params (organizationId, teamId, teamIds, projectId, projectIds, userIds,
       // tagIds, taskIds, rateId, documentId, todoId, type, filter, feelings, startDate,
-      // endDate, populate flags, performance, etc.) are passed through directly
+      // endDate, populate flags, etc.) are passed through directly
       // Enable tag population by default unless explicitly set to false
       const searchParams = {
         ...args,
@@ -3258,13 +3274,11 @@ export class TimesheetMCPServer {
         content: [
           {
             type: 'text',
-            text: `Export generated successfully!\nDownload URL: ${result.url}\nFilename: ${result.filename || 'export'}`,
+            text: `Export generated successfully!\nDownload URL: ${result.url}`,
           },
         ],
         structuredContent: {
           url: result.url,
-          filename: result.filename,
-          contentType: result.contentType,
         },
       };
     } catch (error) {
@@ -3370,7 +3384,7 @@ export class TimesheetMCPServer {
     try {
       const result = await client.reports.export.getReportTypes();
 
-      const reportList = result.reports
+      const reportList = result.items
         .map((r: any) => `- ${r.id}: ${r.name}${r.description ? ` - ${r.description}` : ''}`)
         .join('\n');
 

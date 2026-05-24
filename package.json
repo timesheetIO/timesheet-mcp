@@ -56,20 +56,20 @@
     "@modelcontextprotocol/ext-apps": "^1.0.1",
     "@modelcontextprotocol/sdk": "^1.25.1",
     "@tailwindcss/forms": "^0.5.3",
-    "@timesheet/sdk": "^1.0.4",
+    "@timesheet/sdk": "^1.1.1",
     "cors": "^2.8.5",
     "date-fns": "^2.29.3",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",
     "i18next": "^25.6.0",
     "react-colorful": "^5.6.1",
-    "recharts": "^2.15.0",
     "react-hook-form": "^7.42.1",
     "react-i18next": "^16.1.4",
     "react-icons": "^4.7.1",
     "react-router-dom": "^7.9.4",
     "react-timer-hook": "^3.0.5",
-    "react-use": "^17.4.0"
+    "react-use": "^17.4.0",
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
