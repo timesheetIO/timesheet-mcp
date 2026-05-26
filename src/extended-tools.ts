@@ -644,12 +644,16 @@ add(
 
 add(
   'organization_member_remove',
-  'Remove a member from an organization.',
-  { organizationId: STR, memberId: STR },
+  'Remove a member from an organization. Use invited:true to permanently delete an invited (not-yet-activated) member.',
+  { organizationId: STR, memberId: STR, invited: BOOL },
   ['organizationId', 'memberId'],
   DESTRUCT_ANNOT,
   async (client, args) => {
-    await client.organizations.removeMember(args.organizationId, args.memberId);
+    if (args.invited) {
+      await client.organizations.removeInvitedMember(args.organizationId, args.memberId);
+    } else {
+      await client.organizations.removeMember(args.organizationId, args.memberId);
+    }
     return textOk(`Member ${args.memberId} removed.`, { deletedId: args.memberId });
   }
 );
