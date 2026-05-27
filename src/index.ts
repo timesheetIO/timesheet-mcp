@@ -9,7 +9,7 @@ import {
   ReadResourceRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
-import { TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
+import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
 import dotenv from 'dotenv';
 import {
   formatTimerResponse,
@@ -3775,9 +3775,58 @@ export class TimesheetMCPServer {
   }
 
   private handleApiError(error: any) {
-    const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-    const statusCode = error.response?.status;
-    
+    // Tier-gate rejection from the backend (402). Surface the required tier so
+    // the AI client can tell the user exactly what to upgrade.
+    if (error instanceof TimesheetApiError && error.statusCode === 402) {
+      let body: { error?: string; required?: string; current?: string } = {};
+      if (error.responseBody) {
+        try {
+          body = JSON.parse(error.responseBody);
+        } catch {
+          // Fall through with empty body
+        }
+      }
+      const code = body.error ?? 'tier_insufficient';
+      const required = body.required ?? null;
+      const current = body.current ?? null;
+
+      let text: string;
+      switch (code) {
+        case 'no_subscription':
+          text = 'This action requires an active Timesheet subscription. Ask the user to subscribe at https://timesheet.io/subscription/edit.';
+          break;
+        case 'subscription_expired':
+          text = `The user's${current ? ' ' + current : ''} Timesheet subscription has expired. Ask them to reactivate at https://timesheet.io/subscription/edit.`;
+          break;
+        case 'tier_insufficient':
+        default:
+          if (required && current) {
+            text = `This action requires the ${required} tier. The user is on ${current}. Ask them to upgrade at https://timesheet.io/subscription/edit.`;
+          } else if (required) {
+            text = `This action requires the ${required} tier. Ask the user to upgrade at https://timesheet.io/subscription/edit.`;
+          } else {
+            text = 'This action requires a higher Timesheet subscription tier. Ask the user to upgrade at https://timesheet.io/subscription/edit.';
+          }
+      }
+
+      return {
+        content: [{ type: 'text', text }],
+        structuredContent: {
+          error: code,
+          required,
+          current,
+          upgradeUrl: 'https://timesheet.io/subscription/edit',
+        },
+        isError: true,
+      };
+    }
+
+    const isApiError = error instanceof TimesheetApiError;
+    const errorMessage = isApiError
+      ? error.message
+      : error.response?.data?.message || error.message || 'Unknown error';
+    const statusCode = isApiError ? error.statusCode : error.response?.status;
+
     return {
       content: [
         {
