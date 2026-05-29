@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.0] - 2026-05-29
+
+### Changed
+- Upgraded `@timesheet/sdk` to `1.2.0`
+- List tools now call the SDK `search()` endpoint so filters that the plain list endpoint silently ignored are applied server-side: `absence_list`, `organization_list`, `todo_list`, `rate_list`, `note_list`, `expense_list`, `pause_list`, and the `team_list` / `project_list` tools
+
+### Fixed
+- `contract_list` now filters by user: the SDK renamed `ContractListParams.userId` to `user`, so the value was previously sent under a parameter the API did not recognize and was ignored (the tool still accepts `userId` and maps it internally)
+- Statistics aggregation no longer references the removed `Task.projectId` field; it reads the nested project object instead
+
 ## [1.1.0] - 2026-02-07
 
 ### Added

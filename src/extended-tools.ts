@@ -217,7 +217,7 @@ add(
   READ_ANNOT,
   async (client, args) => {
     const { organizationId, ...params } = args;
-    const page = await client.absences.list(organizationId, compact(params));
+    const page = await client.absences.search(organizationId, compact(params));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} absences.`);
   }
 );
@@ -430,8 +430,8 @@ add(
   ['organizationId'],
   READ_ANNOT,
   async (client, args) => {
-    const { organizationId, ...params } = args;
-    const page = await client.contracts.list(organizationId, compact(params));
+    const { organizationId, userId, ...params } = args;
+    const page = await client.contracts.list(organizationId, compact({ ...params, user: userId }));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} contracts.`);
   }
 );
@@ -535,7 +535,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.organizations.list(compact(args));
+    const page = await client.organizations.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} organizations.`);
   }
 );
@@ -877,7 +877,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.todos.list(compact(args));
+    const page = await client.todos.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} todos.`);
   }
 );
@@ -993,7 +993,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.rates.list(compact(args));
+    const page = await client.rates.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} rates.`);
   }
 );
@@ -1139,7 +1139,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.notes.list(compact(args));
+    const page = await client.notes.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} notes.`);
   }
 );
@@ -1217,7 +1217,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.expenses.list(compact(args));
+    const page = await client.expenses.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} expenses.`);
   }
 );
@@ -1330,7 +1330,7 @@ add(
   [],
   READ_ANNOT,
   async (client, args) => {
-    const page = await client.pauses.list(compact(args));
+    const page = await client.pauses.search(compact(args));
     return jsonOk({ items: page.items, totalCount: page.params?.count ?? page.items.length }, `Found ${page.items.length} pauses.`);
   }
 );

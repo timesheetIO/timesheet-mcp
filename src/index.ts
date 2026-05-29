@@ -54,7 +54,7 @@ export class TimesheetMCPServer {
     this.server = new Server(
       {
         name: 'timesheet-mcp',
-        version: '1.1.1',
+        version: '1.2.0',
       },
       {
         capabilities: {
@@ -2651,7 +2651,7 @@ export class TimesheetMCPServer {
     try {
       // All filter params (search, organizationId, sort, order, statistics, page, limit)
       // are passed through directly
-      const page = await client.teams.list(args);
+      const page = await client.teams.search(args);
       // Use only items from the current page - don't iterate through all pages
       const items = page.items;
       const totalCount = page.params?.count || items.length;
@@ -2713,7 +2713,7 @@ export class TimesheetMCPServer {
       // All filter params (teamId, teamIds, projectIds, search, status, taskStartDate, etc.)
       // are passed through via the spread operator
       const [page, userData] = await Promise.all([
-        client.projects.list(args),
+        client.projects.search(args),
         this.getProfileAndSettings(),
       ]);
       // Use only items from the current page - don't iterate through all pages
@@ -3623,7 +3623,7 @@ export class TimesheetMCPServer {
       }
 
       // Project aggregation
-      const projId = task.project?.id || task.projectId || 'unknown';
+      const projId = task.project?.id || 'unknown';
       const projTitle = task.project?.title || 'Unknown Project';
       const projColor = task.project?.color;
       const existing = projectMap.get(projId);
