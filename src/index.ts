@@ -11,6 +11,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
 import dotenv from 'dotenv';
+import { pathToFileURL } from 'url';
 import {
   formatTimerResponse,
   formatProjectListResponse,
@@ -3852,8 +3853,10 @@ export class TimesheetMCPServer {
   }
 }
 
-// Only run stdio server if executed directly (not imported)
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Only run stdio server if executed directly (not imported).
+// Use pathToFileURL so the comparison works on Windows, where process.argv[1]
+// is a backslash path and import.meta.url is a forward-slash file:// URL.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = new TimesheetMCPServer();
   server.runStdio().catch(console.error);
 }

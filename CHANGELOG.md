@@ -7,6 +7,7 @@
 - List tools now call the SDK `search()` endpoint so filters that the plain list endpoint silently ignored are applied server-side: `absence_list`, `organization_list`, `todo_list`, `rate_list`, `note_list`, `expense_list`, `pause_list`, and the `team_list` / `project_list` tools
 
 ### Fixed
+- Server now starts on Windows: the `import.meta.url === file://${process.argv[1]}` main-guard was always false on Windows (backslash argv path vs forward-slash file URL), so the process exited silently with code 0 and every stdio MCP client (Claude Desktop, Claude Code, Cursor) saw the connection close immediately. Both the stdio server (`index.ts`) and the component server (`component-server.ts`) now compare against `pathToFileURL(process.argv[1]).href`, which is correct on all platforms
 - `contract_list` now filters by user: the SDK renamed `ContractListParams.userId` to `user`, so the value was previously sent under a parameter the API did not recognize and was ignored (the tool still accepts `userId` and maps it internally)
 - Statistics aggregation no longer references the removed `Task.projectId` field; it reads the nested project object instead
 

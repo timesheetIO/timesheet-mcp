@@ -6,7 +6,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -136,8 +136,10 @@ export class ComponentServer {
   }
 }
 
-// Start component server if run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Start component server if run directly.
+// pathToFileURL keeps the main-guard working on Windows (backslash argv path
+// vs forward-slash file:// URL in import.meta.url).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const server = new ComponentServer({
     port: parseInt(process.env.COMPONENT_PORT || '4444'),
     host: process.env.COMPONENT_HOST || '0.0.0.0',
