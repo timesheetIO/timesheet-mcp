@@ -5,6 +5,7 @@ metadata:
   labels:
     cloud.googleapis.com/location: europe-west1
   annotations:
+    run.googleapis.com/ingress: internal-and-cloud-load-balancing
     run.googleapis.com/invoker-iam-disabled: "true"
 spec:
   template:
