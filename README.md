@@ -64,7 +64,7 @@ Add to your Claude Desktop configuration file:
   "mcpServers": {
     "timesheet": {
       "command": "npx",
-      "args": ["@timesheet/mcp-server"],
+      "args": ["@timesheet/mcp"],
       "env": {
         "TIMESHEET_API_TOKEN": "your-api-token"
       }
