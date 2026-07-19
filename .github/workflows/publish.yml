@@ -1,0 +1,55 @@
+# This workflow lives inside the package so the subtree mirror carries it to
+# the root of the public timesheetIO/timesheet-mcp repo, where it runs.
+# It is inert in the monorepo (GitHub only runs workflows under the repo-root
+# .github/workflows). Publishing from this repo makes the build source match
+# package.json `repository.url`, so npm generates provenance automatically.
+name: Build and Publish
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20.x'
+          cache: npm
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+  publish-npm:
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          package-manager-cache: false
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships npm 10.x.
+      - run: npm install -g npm@latest
+      - run: npm ci
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          [ "$TAG_VERSION" = "$PKG_VERSION" ] || { echo "Tag v$TAG_VERSION does not match package.json version $PKG_VERSION" >&2; exit 1; }
+      - run: npm run build
+      # Authenticated via OIDC trusted publishing (no NODE_AUTH_TOKEN). Because
+      # this repo matches package.json `repository.url`, npm attaches a
+      # provenance attestation automatically (no --provenance flag needed).
+      - name: Publish to NPM
+        run: npm publish --access public
