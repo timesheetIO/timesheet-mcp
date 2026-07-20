@@ -7,7 +7,8 @@ export default {
     '^.+\\.ts$': ['ts-jest', {
       useESM: true,
       tsconfig: {
-        moduleResolution: 'node',
+        module: 'esnext',
+        moduleResolution: 'bundler',
         allowSyntheticDefaultImports: true,
       },
     }],
@@ -15,6 +16,7 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^@modelcontextprotocol/sdk/(.*)$': '<rootDir>/node_modules/@modelcontextprotocol/sdk/dist/$1',
+    '^@modelcontextprotocol/ext-apps/server$': '<rootDir>/tests/__mocks__/ext-apps-server.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@modelcontextprotocol|@timesheet)/)',

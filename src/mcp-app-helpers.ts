@@ -520,3 +520,16 @@ export function isApiKeyToken(token: string): boolean {
   // Timesheet API keys have format: ts_{prefix}.{secret}
   return /^ts_[a-zA-Z0-9]+\.[a-zA-Z0-9]+$/.test(token);
 }
+
+/**
+ * Build SDK auth options for a token received via the HTTP Authorization header.
+ *
+ * MCP clients can only send the Bearer scheme, so personal API keys (ts_...)
+ * arrive as Bearer tokens too. The backend only accepts them with the ApiKey
+ * scheme, so route by token format.
+ */
+export function resolveTokenAuthOptions(
+  token: string
+): { apiKey: string } | { oauth2Token: string } {
+  return isApiKeyToken(token) ? { apiKey: token } : { oauth2Token: token };
+}

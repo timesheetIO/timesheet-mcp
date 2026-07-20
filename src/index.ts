@@ -24,6 +24,7 @@ import {
   getStaticWidgetDescription,
   getComponentResourceUri,
   RESOURCE_MIME_TYPE,
+  resolveTokenAuthOptions,
 } from './mcp-app-helpers.js';
 import { EXTENDED_TOOL_DEFINITIONS, dispatchExtendedTool } from './extended-tools.js';
 
@@ -91,10 +92,17 @@ export class TimesheetMCPServer {
         options.baseUrl = process.env.TIMESHEET_API_URL;
       }
 
-      // Priority 1: OAuth token from constructor (ChatGPT/HTTP)
+      // Priority 1: Token from constructor (HTTP Authorization header).
+      // MCP clients can only send Bearer, so personal API keys (ts_...) arrive
+      // here too — route them to the ApiKey scheme the backend expects.
       if (this.oauthToken) {
-        console.error('[Auth] Using OAuth token from request');
-        options.oauth2Token = this.oauthToken;
+        const tokenAuth = resolveTokenAuthOptions(this.oauthToken);
+        console.error(
+          'apiKey' in tokenAuth
+            ? '[Auth] Using API key from request'
+            : '[Auth] Using OAuth token from request'
+        );
+        Object.assign(options, tokenAuth);
       }
       // Priority 2: API key from environment (CLI usage)
       else if (process.env.TIMESHEET_API_TOKEN) {
