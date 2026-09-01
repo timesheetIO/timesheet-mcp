@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.1] - 2026-09-01
+
+### Fixed
+- Server now starts under `npx`. The main-guard compared `import.meta.url` against
+  `process.argv[1]`, but npx runs the bin through a symlink in `node_modules/.bin`, so
+  argv[1] was the link while `import.meta.url` was the real file. The guard was never
+  true, nothing started, and the process exited 0 in silence. This is the same failure
+  1.2.0 fixed for Windows, arriving by a different route. Both entry points (`index.ts` and
+  `component-server.ts`) now resolve the entry path with `realpathSync` before comparing.
+
+### Changed
+- Package metadata for npm: `homepage` now points at timesheet.io, and `author` is
+  normalized to `timesheet.io <support@timesheet.io>` across every Timesheet package.
+- Copyright reassigned from the previous holder to `Timesheet - Mobile Time Tracking OG`,
+  the registered company. The license itself is unchanged.
+
 ## [1.2.0] - 2026-05-29
 
 ### Changed
