@@ -7,6 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { realpathSync } from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -137,9 +138,23 @@ export class ComponentServer {
 }
 
 // Start component server if run directly.
-// pathToFileURL keeps the main-guard working on Windows (backslash argv path
-// vs forward-slash file:// URL in import.meta.url).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Resolve the entry path before comparing: npx runs the bin through a symlink in
+// node_modules/.bin, so process.argv[1] is the link while import.meta.url is the
+// real file. Without realpathSync the guard is never true under npx and the
+// process exits 0 without starting anything.
+// pathToFileURL keeps the comparison working on Windows, where process.argv[1]
+// is a backslash path and import.meta.url is a forward-slash file:// URL.
+function isMainModule(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return import.meta.url === pathToFileURL(entry).href;
+  }
+}
+
+if (isMainModule()) {
   const server = new ComponentServer({
     port: parseInt(process.env.COMPONENT_PORT || '4444'),
     host: process.env.COMPONENT_HOST || '0.0.0.0',

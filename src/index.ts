@@ -12,6 +12,7 @@ import {
 import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
 import dotenv from 'dotenv';
 import { pathToFileURL } from 'url';
+import { realpathSync } from 'fs';
 import {
   formatTimerResponse,
   formatProjectListResponse,
@@ -56,7 +57,7 @@ export class TimesheetMCPServer {
     this.server = new Server(
       {
         name: 'timesheet-mcp',
-        version: '1.2.0',
+        version: '1.2.1',
       },
       {
         capabilities: {
@@ -3862,9 +3863,23 @@ export class TimesheetMCPServer {
 }
 
 // Only run stdio server if executed directly (not imported).
-// Use pathToFileURL so the comparison works on Windows, where process.argv[1]
+// Resolve the entry path before comparing: npx runs the bin through a symlink in
+// node_modules/.bin, so process.argv[1] is the link while import.meta.url is the
+// real file. Without realpathSync the guard is never true under npx and the
+// process exits 0 without starting anything.
+// pathToFileURL keeps the comparison working on Windows, where process.argv[1]
 // is a backslash path and import.meta.url is a forward-slash file:// URL.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+function isMainModule(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(entry)).href;
+  } catch {
+    return import.meta.url === pathToFileURL(entry).href;
+  }
+}
+
+if (isMainModule()) {
   const server = new TimesheetMCPServer();
   server.runStdio().catch(console.error);
 }
