@@ -10,45 +10,62 @@ import {ClockIcon, CheckIcon, DotsHorizontalIcon} from '@heroicons/react/outline
 import {useData} from './DataProvider';
 import {useViewRouter} from './ViewRouter';
 import {useTimerOperations} from '../../utils/timesheet-hooks';
-import {useLocale, useTimeZone, useUpdateModelContext} from '../../hooks';
-import {formatDuration, formatTime, projectColor} from '../../format';
+import {useCanCallServerTools, useLocale, useTimeZone, useUpdateModelContext} from '../../hooks';
+import {formatDuration, formatTime, projectColor, toOffsetISOString} from '../../format';
 import Card from '../shared/Card';
 import IconTile from '../shared/IconTile';
 import Badge from '../shared/Badge';
 import Clock from '../shared/Clock';
 import ActionRow, {Button} from '../shared/ActionRow';
-import type {ExtendedTimer} from '../../utils/types';
+import type {ExtendedTimer, TimerTask} from '../../utils/types';
 
-/** Timestamps without seconds, as the web app writes them */
+/**
+ * Timestamps without seconds, as the web app writes them, with the local offset: the API keeps the
+ * offset it receives, and a UTC time would file the entry under the wrong day near midnight
+ */
 function nowWithoutSeconds(): string {
   const now = new Date();
   now.setSeconds(0, 0);
-  return now.toISOString();
+  return toOffsetISOString(now);
+}
+
+/** The entry as it was when the user stopped it, for servers that do not send the saved one */
+function entryStoppedAt(task: TimerTask, endDateTime: string): TimerTask {
+  const start = task.startDateTime ? Date.parse(task.startDateTime) : NaN;
+  const duration = Number.isFinite(start)
+    ? Math.max(0, Math.round((Date.parse(endDateTime) - start) / 1000))
+    : task.duration;
+  return {...task, endDateTime, duration};
 }
 
 export default function TimerCard({justStopped}: {justStopped?: boolean}) {
   const {t} = useTranslation();
   const locale = useLocale();
   const timeZone = useTimeZone();
-  const {timer, settings, applyTimer} = useData();
+  const {timer, stoppedTask, settings, applyTimer} = useData();
   const {navigate} = useViewRouter();
   const timerOps = useTimerOperations();
   const updateModelContext = useUpdateModelContext();
+  const canCallTools = useCanCallServerTools();
   const [busy, setBusy] = useState<null | 'pause' | 'resume' | 'stop' | 'start'>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const task = timer?.task;
+  const status = timer?.status;
+  const active = status === 'running' || status === 'paused';
+  // A stopped timer has no task: the summary shows the entry the stop saved
+  const task = active ? timer?.task : (stoppedTask ?? timer?.task);
   const project = task?.project;
   const projectTitle = project?.title || t('timerWidget.noProject');
-  const status = timer?.status;
   const relative = settings.showRelatives !== false;
+  // A finished entry's duration includes its breaks; the relative view leaves them out, as the clock did
+  const finishedSeconds = Math.max(0, (task?.duration || 0) - (relative ? task?.durationBreak || 0 : 0));
 
   // Net working time: breaks are left out when the user shows relative durations
   const elapsedAt = useCallback(
     (now: number) => {
       if (!task?.startDateTime) return 0;
       if (status !== 'running' && status !== 'paused') {
-        return (task.duration || 0) * 1000;
+        return finishedSeconds * 1000;
       }
       let elapsed = now - Date.parse(task.startDateTime);
       if (relative) {
@@ -59,24 +76,29 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
       }
       return Math.max(0, elapsed);
     },
-    [task?.startDateTime, task?.duration, task?.durationBreak, status, relative, timer?.pause?.startDateTime]
+    [task?.startDateTime, task?.durationBreak, finishedSeconds, status, relative, timer?.pause?.startDateTime]
   );
 
   const act = (action: 'pause' | 'resume' | 'stop' | 'start') => async () => {
-    if (busy) return;
+    if (busy || !task) return;
     setBusy(action);
     setActionError(null);
     try {
       const at = nowWithoutSeconds();
-      let next: ExtendedTimer | undefined;
-      if (action === 'pause') next = (await timerOps.pause({startDateTime: at})) as unknown as ExtendedTimer;
-      if (action === 'resume') next = (await timerOps.resume({endDateTime: at})) as unknown as ExtendedTimer;
-      if (action === 'stop') next = (await timerOps.stop({endDateTime: at})) as unknown as ExtendedTimer;
-      if (action === 'start' && project?.id) {
-        next = (await timerOps.start({projectId: project.id, startDateTime: at})) as unknown as ExtendedTimer;
+      if (action === 'stop') {
+        const stopped = await timerOps.stop({endDateTime: at});
+        applyTimer(stopped.timer as unknown as ExtendedTimer, stopped.stoppedTask ?? entryStoppedAt(task, at));
+      } else {
+        let next: ExtendedTimer | undefined;
+        if (action === 'pause') next = (await timerOps.pause({startDateTime: at})) as unknown as ExtendedTimer;
+        if (action === 'resume') next = (await timerOps.resume({endDateTime: at})) as unknown as ExtendedTimer;
+        if (action === 'start' && project?.id) {
+          next = (await timerOps.start({projectId: project.id, startDateTime: at})) as unknown as ExtendedTimer;
+        }
+        applyTimer(next);
       }
-      applyTimer(next);
-      // The model learns what happened without the user sending a message
+      // The model learns what happened without the user sending a message. A failed call
+      // throws before this line, so the model never hears of an action that did not happen.
       const time = formatTime(at, 'en', timeZone);
       const done = {
         pause: `The user paused the timer on ${projectTitle} at ${time}.`,
@@ -105,7 +127,6 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
   const ended = task.endDateTime ? formatTime(task.endDateTime, locale, timeZone) : null;
   const pausedAt = timer.pause?.startDateTime ? formatTime(timer.pause.startDateTime, locale, timeZone) : null;
   const dot = projectColor(project?.color as any);
-  const active = status === 'running' || status === 'paused';
 
   return (
     <Card className="p-4 sm:p-5">
@@ -141,7 +162,7 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
             : active && started
               ? t('timerWidget.runningSince', {time: started})
               : started && ended
-                ? `${started} - ${ended} · ${formatDuration(task.duration || 0)}`
+                ? `${started} - ${ended} · ${formatDuration(finishedSeconds, locale)}`
                 : null}
         </span>
       </div>
@@ -150,7 +171,8 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
         <p className="m-0 mt-3 text-body-small text-accent-danger" role="alert">{actionError}</p>
       )}
 
-      {active ? (
+      {/* Every action calls a server tool: a host that cannot proxy tool calls gets none */}
+      {canCallTools && (active ? (
         <div className="mt-4">
           <ActionRow>
             {status === 'running' ? (
@@ -183,7 +205,7 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
             </ActionRow>
           </div>
         )
-      )}
+      ))}
     </Card>
   );
 }

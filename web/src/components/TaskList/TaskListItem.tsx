@@ -7,6 +7,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Task } from '../../types';
 import { intToHexColor } from '../../utils.ts';
+import { useLocale, useTimeZone } from '../../hooks';
+import { calendarDateOf, formatDate, formatTime } from '../../format';
 import { TagList } from '../TagList';
 
 interface TaskListItemProps {
@@ -16,16 +18,14 @@ interface TaskListItemProps {
 
 export default function TaskListItem({ task, theme }: TaskListItemProps) {
   const { t } = useTranslation();
+  const locale = useLocale();
+  const timeZone = useTimeZone();
 
-  // Format time from ISO string
-  const formatTime = (isoString?: string) => {
+  // Time of day in the host's locale and time zone
+  const timeOf = (isoString?: string) => {
     if (!isoString) return '';
     try {
-      return new Date(isoString).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
+      return formatTime(isoString, locale, timeZone);
     } catch {
       return '';
     }
@@ -39,20 +39,15 @@ export default function TaskListItem({ task, theme }: TaskListItemProps) {
     return `${hours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  // Check if task spans multiple days
-  const spansMultipleDays = () => {
-    if (!task.startDateTime || !task.endDateTime) return false;
-    const start = new Date(task.startDateTime);
-    const end = new Date(task.endDateTime);
-    return start.toDateString() !== end.toDateString();
-  };
+  // The entry ends on another day than it started, as the user sees the days
+  const endDay = task.startDateTime && task.endDateTime && calendarDateOf(task.endDateTime, timeZone);
+  const hasMultipleDays = !!endDay && calendarDateOf(task.startDateTime!, timeZone) !== endDay;
 
-  const startTime = formatTime(task.startDateTime);
-  const endTime = formatTime(task.endDateTime);
+  const startTime = timeOf(task.startDateTime);
+  const endTime = timeOf(task.endDateTime);
   const duration = formatDuration(task.duration);
   const breakDuration = task.durationBreak && task.durationBreak > 0 ? formatDuration(task.durationBreak) : null;
   const projectColor = intToHexColor(task?.project?.color)
-  const hasMultipleDays = spansMultipleDays();
 
   return (
     <div className="px-4 py-2 hover:bg-background-secondary dark:hover:bg-background-secondary transition-colors">
@@ -60,10 +55,11 @@ export default function TaskListItem({ task, theme }: TaskListItemProps) {
       <div className="flex items-start gap-4">
         {/* Column 1: Time range (fixed width) */}
         <div className="w-24 flex-shrink-0 text-body-small text-secondary dark:text-secondary">
-          {startTime} - {endTime}
-          {hasMultipleDays && task.endDateTime && (
+          {/* 12-hour locales need two lines: break between the times, never inside one */}
+          <span className="whitespace-nowrap">{startTime}</span> - <span className="whitespace-nowrap">{endTime}</span>
+          {hasMultipleDays && endDay && (
             <div className="text-xs text-text-tertiary dark:text-text-tertiary mt-1">
-              ({new Date(task.endDateTime).toLocaleDateString('en-GB')})
+              ({formatDate(endDay, locale)})
             </div>
           )}
         </div>
@@ -100,7 +96,7 @@ export default function TaskListItem({ task, theme }: TaskListItemProps) {
             {duration}
           </div>
           {breakDuration && (
-            <div className="text-body-small text-orange-500 whitespace-nowrap mt-1">
+            <div className="text-body-small text-accent-text whitespace-nowrap mt-1">
               {breakDuration}
             </div>
           )}

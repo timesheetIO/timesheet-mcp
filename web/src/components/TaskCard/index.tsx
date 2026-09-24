@@ -9,12 +9,13 @@ import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, ClockIcon, PencilAltIcon } from '@heroicons/react/outline';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useLocale, useTimeZone, useToolOutput } from '../../hooks';
+import { useLocale, useTimeZone, useToolFailure, useToolOutput } from '../../hooks';
 import { formatDate, formatDuration, formatTime, projectColor } from '../../format';
 import Card from '../shared/Card';
 import IconTile from '../shared/IconTile';
 import Badge from '../shared/Badge';
 import Skeleton from '../shared/Skeleton';
+import StatusCard from '../shared/StatusCard';
 import type { Task } from '../../types';
 import '../../i18n';
 import '../../index.css';
@@ -24,8 +25,13 @@ type TaskCardData = Task & { action?: 'created' | 'updated'; durationBreak?: num
 function TaskCardApp() {
   const { t } = useTranslation();
   const task = useToolOutput<TaskCardData>();
+  const failure = useToolFailure();
   const locale = useLocale();
   const timeZone = useTimeZone();
+
+  if (failure) {
+    return <StatusCard status={failure} />;
+  }
 
   if (!task || !task.id) {
     return <Skeleton label={t('taskCard.loading')} />;
@@ -61,7 +67,7 @@ function TaskCardApp() {
           </p>
         </div>
         <span className="font-mono tabular-nums text-[22px] sm:text-[24px] leading-none pt-1 text-accent-text whitespace-nowrap">
-          {formatDuration(task.duration || 0)}
+          {formatDuration(task.duration || 0, locale)}
         </span>
       </div>
 
@@ -73,7 +79,7 @@ function TaskCardApp() {
           </span>
         )}
         {(task.durationBreak || 0) > 0 && (
-          <span>{t('taskCard.breaks', { duration: formatDuration(task.durationBreak || 0) })}</span>
+          <span>{t('taskCard.breaks', { duration: formatDuration(task.durationBreak || 0, locale) })}</span>
         )}
         {task.billable === true && <Badge tone="success">{t('taskList.billable')}</Badge>}
         {task.billable === false && <Badge tone="neutral">{t('taskList.nonBillable')}</Badge>}

@@ -24,6 +24,9 @@ export interface ExtendedTimer extends Omit<Timer, 'task' | 'pause'> {
   };
 }
 
+/** The entry a timer runs on, as the timer tools return it */
+export type TimerTask = NonNullable<ExtendedTimer['task']>;
+
 /**
  * Widget state for MCP context
  */

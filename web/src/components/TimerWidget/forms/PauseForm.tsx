@@ -4,7 +4,7 @@
  */
 
 import React, {useMemo, useState} from 'react';
-import {useForm, FormProvider} from 'react-hook-form';
+import {useForm} from 'react-hook-form';
 import {format, sub, differenceInMinutes} from 'date-fns';
 import {useData} from '../DataProvider';
 import {useViewRouter} from '../ViewRouter';
@@ -12,8 +12,9 @@ import {useTaskOperations} from '../../../utils/timesheet-hooks';
 import Input from '../../shared/Input';
 import Textarea from '../../shared/Textarea';
 import Spinner from '../../shared/Spinner';
-import FormattedMessage from '../../shared/FormattedMessage';
+import FormLayout from './FormLayout';
 import {useTranslation} from 'react-i18next';
+import {toOffsetISOString} from '../../../format';
 
 export default function PauseForm(): JSX.Element {
   const {t} = useTranslation();
@@ -21,7 +22,7 @@ export default function PauseForm(): JSX.Element {
   const {timer, settings, reloadTimer} = useData();
   const {goBack} = useViewRouter();
   const taskOps = useTaskOperations();
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Calculate initial pause start time
@@ -94,7 +95,7 @@ export default function PauseForm(): JSX.Element {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
       // Combine date and time into ISO strings
@@ -104,22 +105,21 @@ export default function PauseForm(): JSX.Element {
       endDateTime.setSeconds(0, 0);
 
       await taskOps.addPause({
-        startDateTime: startDateTime.toISOString(),
-        endDateTime: endDateTime.toISOString(),
+        startDateTime: toOffsetISOString(startDateTime),
+        endDateTime: toOffsetISOString(endDateTime),
         description: formValues.description,
       });
-
-      // Reload timer
-      await reloadTimer();
-
-      // Go back to timer view
-      goBack();
     } catch (err) {
+      // The form stays as it is, with what the user typed
       console.error('Failed to add pause:', err);
       setError(t('forms.saveFailed.pause'));
-    } finally {
-      setLoading(false);
+      setSaving(false);
+      return;
     }
+
+    // The break is saved: a timer that could not be reloaded only shows older numbers
+    await reloadTimer().catch(err => console.error('Failed to reload the timer:', err));
+    goBack();
   };
 
   if (!timer?.task || !settings.dateFormat) {
@@ -127,89 +127,57 @@ export default function PauseForm(): JSX.Element {
   }
 
   return (
-    <div className="w-full flex-auto grow">
-      {loading ? (
-        <div className="flex flex-col items-center justify-center p-8">
-          <Spinner />
-          <p className="mt-4 text-sm text-secondary">
-            <FormattedMessage id="pauseSaving" defaultMessage="Saving pause..." />
-          </p>
-        </div>
-      ) : (
-        <FormProvider {...formMethods}>
-          <form
-            onSubmit={formMethods.handleSubmit(onSubmit)}
-            className="p-4 grid grid-cols-2 gap-y-2 gap-x-4 divide-gray-200"
-          >
-            {error && (
-              <div className="col-span-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-400 px-4 py-3 rounded-md text-sm">
-                <strong className="font-semibold">Error: </strong>
-                {error}
-              </div>
-            )}
-            <Input
-              id="startDate"
-              type="date"
-              validation={{required: true}}
-              defaultValue={format(initialPauseTimes.startDateTime, 'yyyy-MM-dd')}
-              min={format(new Date(timer?.task.startDateTime || 0), 'yyyy-MM-dd')}
-              max={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
-              className="text-sm"
-              label={t('forms.pauseStartDate')}
-            />
-            <Input
-              id="startTime"
-              type="time"
-              validation={{required: true}}
-              className="text-sm"
-              defaultValue={format(initialPauseTimes.startDateTime, 'HH:mm')}
-              label={t('forms.pauseStartTime')}
-            />
-            <Input
-              id="endDate"
-              type="date"
-              className="text-sm"
-              validation={{required: true}}
-              defaultValue={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
-              min={format(new Date(timer?.task.startDateTime || 0), 'yyyy-MM-dd')}
-              max={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
-              label={t('forms.pauseEndDate')}
-            />
-            <Input
-              id="endTime"
-              type="time"
-              className="text-sm"
-              validation={{required: true}}
-              defaultValue={format(initialPauseTimes.endDateTime, 'HH:mm')}
-              label={t('forms.pauseEndTime')}
-            />
-            <Textarea
-              id="description"
-              wrapperClasses="col-span-2"
-              label={t('forms.description')}
-              rows={4}
-            />
-            <div className="pt-2 col-span-2">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => goBack()}
-                  className="bg-background-primary py-2 px-4 border border-border rounded-md shadow-sm text-sm font-medium text-text-primary hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FormattedMessage id="cancel" defaultMessage="Cancel" />
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md bg-submit-button hover:bg-submit-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <FormattedMessage id="pauseCreate" defaultMessage="Create Pause" />
-                </button>
-              </div>
-            </div>
-          </form>
-        </FormProvider>
-      )}
-    </div>
+    <FormLayout
+      methods={formMethods}
+      onSubmit={onSubmit}
+      onCancel={goBack}
+      saving={saving}
+      error={error}
+      submitLabel={t('forms.submit.pause')}
+      savingLabel={t('forms.saving.pause')}
+    >
+      <Input
+        id="startDate"
+        type="date"
+        validation={{required: true}}
+        defaultValue={format(initialPauseTimes.startDateTime, 'yyyy-MM-dd')}
+        min={format(new Date(timer?.task.startDateTime || 0), 'yyyy-MM-dd')}
+        max={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
+        className="text-sm"
+        label={t('forms.pauseStartDate')}
+      />
+      <Input
+        id="startTime"
+        type="time"
+        validation={{required: true}}
+        className="text-sm"
+        defaultValue={format(initialPauseTimes.startDateTime, 'HH:mm')}
+        label={t('forms.pauseStartTime')}
+      />
+      <Input
+        id="endDate"
+        type="date"
+        className="text-sm"
+        validation={{required: true}}
+        defaultValue={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
+        min={format(new Date(timer?.task.startDateTime || 0), 'yyyy-MM-dd')}
+        max={format(initialPauseTimes.endDateTime, 'yyyy-MM-dd')}
+        label={t('forms.pauseEndDate')}
+      />
+      <Input
+        id="endTime"
+        type="time"
+        className="text-sm"
+        validation={{required: true}}
+        defaultValue={format(initialPauseTimes.endDateTime, 'HH:mm')}
+        label={t('forms.pauseEndTime')}
+      />
+      <Textarea
+        id="description"
+        wrapperClasses="col-span-2"
+        label={t('forms.description')}
+        rows={4}
+      />
+    </FormLayout>
   );
 }

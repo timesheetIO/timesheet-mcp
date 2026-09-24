@@ -1,8 +1,8 @@
 {
   "projectList": {
     "title": "Projects",
-    "count": "{{count}} project",
-    "count_other": "{{count}} projects",
+    "count": "{{value}} project",
+    "count_other": "{{value}} projects",
     "loading": "Loading projects...",
     "error": "Error: No projects data received",
     "emptyState": {
@@ -10,7 +10,7 @@
       "description": "Create a project to start tracking time"
     },
     "archived": "Archived",
-    "viewAll": "View all {{count}} projects in Timesheet",
+    "viewAll": "View all {{value}} projects in Timesheet",
     "viewInTimesheet": "View in Timesheet"
   },
   "projectCard": {
@@ -58,10 +58,10 @@
     "pickProject": "Choose a project",
     "noProjectsYet": "You don't have any projects yet. Create your first one on timesheet.io.",
     "actionFailed": "That did not work. Please try again.",
-    "loadFailed": "The timer could not be loaded.",
     "idle": {
       "title": "No timer running",
-      "subtitle": "Pick a project to start tracking."
+      "subtitle": "Pick a project to start tracking.",
+      "askAssistant": "Ask the assistant to start one."
     },
     "actions": {
       "editTask": "Edit entry",
@@ -86,7 +86,7 @@
       "from": "From {{date}}",
       "until": "Until {{date}}"
     },
-    "viewAll": "View all {{count}} entries in Timesheet",
+    "viewAll": "View all {{value}} entries in Timesheet",
     "viewInTimesheet": "View in Timesheet"
   },
   "taskCard": {
@@ -108,18 +108,20 @@
     "expand": "Expand",
     "collapse": "Close",
     "entriesLabel": "Entries",
-    "entries": "{{count}} entry",
-    "entries_other": "{{count}} entries",
+    "entries": "{{value}} entry",
+    "entries_other": "{{value}} entries",
     "billable": "Billable",
     "nonBillable": "Non-billable",
     "billableFootnote": "{{duration}} billable",
     "weeklyHours": "Weekly hours",
-    "moreProjects": "and {{count}} more project",
-    "moreProjects_other": "and {{count}} more projects",
-    "empty": "No time tracked in this period."
+    "moreProjects": "and {{value}} more project",
+    "moreProjects_other": "and {{value}} more projects",
+    "empty": "No time tracked in this period.",
+    "noProject": "No project",
+    "week": "W{{week}}"
   },
   "common": {
-    "hours": "{{count}}h",
+    "hours": "{{value}}h",
     "minutes": "{{count}}m",
     "loading": "Loading...",
     "error": "Error",
@@ -127,7 +129,12 @@
     "back": "Back",
     "cancelled": "Cancelled",
     "durationHours": "{{hours}}h {{minutes}}m",
-    "durationMinutes": "{{minutes}}m"
+    "durationMinutes": "{{minutes}}m",
+    "failed": "Something went wrong.",
+    "retry": "Try again",
+    "linkBlocked": "The link could not be opened. Copy it and open it in your browser.",
+    "copyLink": "Copy link",
+    "copied": "Copied"
   },
   "resultCard": {
     "export": {
@@ -151,16 +158,17 @@
         "rejected": "Rejected",
         "cancelled": "Cancelled"
       },
-      "days": "{{count}} day",
-      "days_other": "{{count}} days",
-      "halfDay": "half day",
+      "days": "{{value}} day",
+      "days_other": "{{value}} days",
       "cancel": {
         "action": "Cancel request",
         "reasonLabel": "Why are you cancelling?",
         "confirm": "Cancel request",
         "reasonRequired": "Please enter a reason.",
         "failed": "The request could not be cancelled. Please try again."
-      }
+      },
+      "hours": "{{value}} h",
+      "defaultType": "Absence"
     }
   },
   "exportWidget": {
@@ -169,6 +177,14 @@
     "chooseTemplate": "Choose a template",
     "summarized": "Summarized",
     "splitTasks": "Split tasks",
+    "filters": {
+      "billable": "Billable",
+      "notBillable": "Not billable",
+      "paid": "Paid",
+      "unpaid": "Unpaid",
+      "billed": "Billed",
+      "outstanding": "Outstanding"
+    },
     "startDate": "Start date",
     "endDate": "End date",
     "presets": {
@@ -188,7 +204,8 @@
     "loading": "Loading templates...",
     "loadFailed": "The templates could not be loaded.",
     "empty": "No export templates yet",
-    "emptyHint": "Ask the assistant to save an export as a template first."
+    "emptyHint": "Ask the assistant to save an export as a template first.",
+    "askAssistant": "Ask the assistant to run this export."
   },
   "forms": {
     "date": "Date",
@@ -196,7 +213,7 @@
     "description": "Description",
     "descriptionRequired": "Please enter a description.",
     "amount": "Amount",
-    "paid": "Paid",
+    "refunded": "Refunded",
     "startDate": "Start date",
     "startTime": "Start time",
     "type": "Type",
@@ -217,6 +234,26 @@
       "expense": "The expense could not be saved.",
       "pause": "The break could not be saved.",
       "task": "The entry could not be saved."
+    },
+    "cancel": "Cancel",
+    "location": "Location",
+    "locationStart": "Start location",
+    "types": {
+      "task": "Task",
+      "mileage": "Mileage",
+      "call": "Call"
+    },
+    "submit": {
+      "pause": "Add break",
+      "note": "Add note",
+      "expense": "Add expense",
+      "task": "Save entry"
+    },
+    "saving": {
+      "pause": "Saving break...",
+      "note": "Saving note...",
+      "expense": "Saving expense...",
+      "task": "Saving entry..."
     }
   }
 }

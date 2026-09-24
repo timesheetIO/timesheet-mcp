@@ -7,7 +7,7 @@ import React, {useEffect, useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {useTranslation} from 'react-i18next';
 import {McpAppProvider} from '../../McpAppProvider';
-import {useDisplayMode, useHostContext, useToolMeta} from '../../hooks';
+import {useDisplayMode, useHostContext, useSafeAreaPadding, useToolMeta} from '../../hooks';
 import {DataProvider, useData} from './DataProvider';
 import {ViewRouterProvider, useViewRouter} from './ViewRouter';
 import TimerCard from './TimerCard';
@@ -17,15 +17,15 @@ import TaskEditForm from './forms/TaskEditForm';
 import PauseForm from './forms/PauseForm';
 import ExpenseForm from './forms/ExpenseForm';
 import NoteForm from './forms/NoteForm';
-import Card from '../shared/Card';
 import Skeleton from '../shared/Skeleton';
+import StatusCard from '../shared/StatusCard';
 import '../../i18n';
 import '../../index.css';
 
 function ViewRenderer() {
   const {t} = useTranslation();
   const {currentView} = useViewRouter();
-  const {timer, loading, error, changedInWidget} = useData();
+  const {timer, stoppedTask, loading, failure, changedInWidget} = useData();
   // Hosts that do not send toolInfo still get it from the result (UI-only _meta)
   const hostToolName = useHostContext()?.toolInfo?.tool?.name;
   const resultToolName = useToolMeta<string>('timesheet/tool');
@@ -35,14 +35,8 @@ function ViewRenderer() {
     return <Skeleton label={t('common.loading')} />;
   }
 
-  if (error) {
-    return (
-      <Card tone="plain" className="p-4">
-        <p className="m-0 text-body-small text-secondary" role="status">
-          {error === 'cancelled' ? t('common.cancelled') : t('timerWidget.loadFailed')}
-        </p>
-      </Card>
-    );
+  if (failure) {
+    return <StatusCard status={failure} />;
   }
 
   switch (currentView) {
@@ -58,9 +52,10 @@ function ViewRenderer() {
       return <NoteForm />;
     default: {
       const active = timer?.status === 'running' || timer?.status === 'paused';
-      // A finished entry is worth a summary right after it was stopped. Asked for the status
-      // with nothing running, the user wants to start something instead.
-      const showSummary = !!timer?.task && (toolName !== 'timer_status' || changedInWidget);
+      // A finished entry is worth a summary right after it was stopped: timer_stop sends the
+      // entry it saved (older servers kept it on the timer). Asked for the status with nothing
+      // running, the user wants to start something instead.
+      const showSummary = !!stoppedTask || (!!timer?.task && (toolName !== 'timer_status' || changedInWidget));
       if (active || showSummary) {
         return <TimerCard />;
       }
@@ -75,22 +70,28 @@ function ViewRenderer() {
 function AppWithRouter() {
   const {currentView} = useViewRouter();
   const {mode, canFullscreen, request} = useDisplayMode();
+  const safeArea = useSafeAreaPadding();
   const expandedByUs = useRef(false);
 
   useEffect(() => {
     if (currentView !== 'timer' && canFullscreen && mode === 'inline' && !expandedByUs.current) {
       expandedByUs.current = true;
       request('fullscreen');
-    } else if (currentView === 'timer' && mode === 'fullscreen' && expandedByUs.current) {
+    } else if (currentView === 'timer' && expandedByUs.current) {
+      // Also when the host declined: the next form may ask again
       expandedByUs.current = false;
-      request('inline');
+      if (mode === 'fullscreen') request('inline');
     }
   }, [currentView, canFullscreen, mode, request]);
 
+  // The same elements in both modes, so a form keeps what the user typed when the mode changes
+  const fullscreen = mode === 'fullscreen';
   return (
     <DataProvider currentView={currentView}>
-      <div className={mode === 'fullscreen' ? 'max-w-xl mx-auto p-4' : undefined}>
-        <ViewRenderer />
+      <div style={fullscreen ? safeArea : undefined}>
+        <div className={fullscreen ? 'max-w-xl mx-auto p-4' : undefined}>
+          <ViewRenderer />
+        </div>
       </div>
     </DataProvider>
   );

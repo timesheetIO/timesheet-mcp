@@ -6,7 +6,7 @@
 import React from 'react';
 import { getChartTheme } from './chartTheme';
 import i18n from '../../i18n';
-import { parseCalendarDate } from '../../format';
+import { formatHoursValue, parseCalendarDate } from '../../format';
 
 interface DailyHoursItem {
   date: string;
@@ -42,7 +42,8 @@ function formatDateLabel(dateStr: string, locale: string): string {
 
 function formatWeekLabel(weekStart: string, locale: string): string {
   const date = parseCalendarDate(weekStart);
-  return `W${getISOWeek(date)} ${date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
+  const week = i18n.t('statistics.week', { week: getISOWeek(date) });
+  return `${week} ${date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
 }
 
 function getISOWeek(date: Date): number {
@@ -138,7 +139,7 @@ export default function DailyChart({ data, weeklyData, formatHours, theme = 'lig
                   strokeDasharray={tick === 0 ? undefined : '3 3'}
                 />
                 <text x={MARGIN.left - 6} y={y(tick)} dy="0.32em" textAnchor="end" fill={ct.textSecondary}>
-                  {`${tick}h`}
+                  {formatHoursValue(tick, locale)}
                 </text>
               </g>
             ))}

@@ -6,6 +6,8 @@
 import React from 'react';
 import {useTranslation} from 'react-i18next';
 import ExternalLinkButton from '../shared/ExternalLinkButton';
+import {useLocale} from '../../hooks';
+import {formatNumber} from '../../format';
 import ProjectListItem from './ProjectListItem';
 import type {Project} from '../../types';
 
@@ -25,6 +27,8 @@ export default function ProjectListView({
                                             theme,
                                         }: ProjectListViewProps) {
     const {t} = useTranslation();
+    const locale = useLocale();
+    const total = formatNumber(totalCount, locale);
 
     // Build web app URL with query params
     const buildWebAppUrl = () => {
@@ -57,7 +61,7 @@ export default function ProjectListView({
                     {t('projectList.title')}
                 </div>
                 <div className="text-body-small text-text-secondary dark:text-text-secondary">
-                    {t('projectList.count', {count: totalCount})}
+                    {t('projectList.count', {count: totalCount, value: total})}
                 </div>
             </div>
 
@@ -97,7 +101,7 @@ export default function ProjectListView({
                     <div className="border-t border-card-border dark:border-card-border px-4 py-1">
                         <ExternalLinkButton url={webAppUrl}>
                             {hasMore
-                                ? t('projectList.viewAll', {count: totalCount})
+                                ? t('projectList.viewAll', {count: totalCount, value: total})
                                 : t('projectList.viewInTimesheet')}
                         </ExternalLinkButton>
                     </div>

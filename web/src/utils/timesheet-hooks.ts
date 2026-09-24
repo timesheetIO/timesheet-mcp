@@ -4,11 +4,15 @@
  *
  * IMPORTANT: These make authenticated API calls through the MCP server.
  * The OAuth token is kept secure on the server side - never exposed to the browser.
+ *
+ * Every operation rejects when the server answers with isError (see useCallTool), so callers
+ * show an error instead of treating the failure as data.
  */
 
 import {useCallback, useMemo} from 'react';
 import {useCallTool} from '../hooks';
 import type {Timer, Task, Project, Team} from '@timesheet/sdk';
+import type {TimerTask} from './types';
 
 /**
  * Timer Operations
@@ -33,9 +37,13 @@ export interface TimerResumeParams {
 
 export interface TimerUpdateParams {
   description?: string;
-  tags?: string[];
+  /** ISO 8601 with the user's offset, e.g. 2026-10-12T09:05:00+02:00 */
+  startDateTime?: string;
+  typeId?: number;
   location?: string;
   locationEnd?: string;
+  distance?: number;
+  phoneNumber?: string;
   billable?: boolean;
   feeling?: number;
 }
@@ -48,63 +56,62 @@ export interface TimerResponse extends Timer {
   settings?: any;
 }
 
+export interface TimerStopResponse {
+  timer: TimerResponse;
+  /** The entry the stop saved (UI-only _meta): the API clears the timer's task when it stops */
+  stoppedTask?: TimerTask;
+}
+
+/** UI-only _meta key of timer_stop results */
+export const STOPPED_TASK_META_KEY = 'timesheet/stoppedTask';
+
 export function useTimerOperations() {
   const callTool = useCallTool();
 
   const getStatus = useCallback(async (): Promise<TimerResponse> => {
-    console.log('[useTimerOperations] getStatus - calling timer_status');
     const result = await callTool('timer_status', {});
-    console.log('[useTimerOperations] getStatus - result:', result);
-    // Handle response structure from MCP tool - preserve full structuredContent including settings
-    const data = result?.structuredContent || result?.timer || result;
-    console.log('[useTimerOperations] getStatus - data:', data);
-    return data;
+    return result?.structuredContent;
   }, [callTool]);
 
   const start = useCallback(
     async (params: TimerStartParams): Promise<TimerResponse> => {
-      console.log('[useTimerOperations] start - params:', params);
       const result = await callTool('timer_start', params);
-      console.log('[useTimerOperations] start - result:', result);
-      const data = result?.structuredContent || result?.timer || result;
-      console.log('[useTimerOperations] start - data:', data);
-      return data;
+      return result?.structuredContent;
     },
     [callTool]
   );
 
   const stop = useCallback(
-    async (params?: TimerStopParams): Promise<TimerResponse> => {
-      console.log('[useTimerOperations] stop - params:', params);
+    async (params?: TimerStopParams): Promise<TimerStopResponse> => {
       const result = await callTool('timer_stop', params || {});
-      return result?.structuredContent || result?.timer || result;
+      return {
+        timer: result?.structuredContent,
+        stoppedTask: result?._meta?.[STOPPED_TASK_META_KEY] ?? undefined,
+      };
     },
     [callTool]
   );
 
   const pause = useCallback(
     async (params?: TimerPauseParams): Promise<TimerResponse> => {
-      console.log('[useTimerOperations] pause - params:', params);
       const result = await callTool('timer_pause', params || {});
-      return result?.structuredContent || result?.timer || result;
+      return result?.structuredContent;
     },
     [callTool]
   );
 
   const resume = useCallback(
     async (params?: TimerResumeParams): Promise<TimerResponse> => {
-      console.log('[useTimerOperations] resume - params:', params);
       const result = await callTool('timer_resume', params || {});
-      return result?.structuredContent || result?.timer || result;
+      return result?.structuredContent;
     },
     [callTool]
   );
 
   const update = useCallback(
     async (params: TimerUpdateParams): Promise<TimerResponse> => {
-      console.log('[useTimerOperations] update - params:', params);
       const result = await callTool('timer_update', params);
-      return result?.structuredContent || result?.timer || result;
+      return result?.structuredContent;
     },
     [callTool]
   );
@@ -149,16 +156,10 @@ export function useProjectOperations() {
 
   const list = useCallback(
     async (params?: ProjectListParams): Promise<ProjectListResponse> => {
-      console.log('[useProjectOperations] list - params:', params);
       const result = await callTool('project_list', params || {});
-      console.log('[useProjectOperations] list - result:', result);
-
-      // Handle response structure from MCP tool
-      const structuredData = result?.structuredContent || result;
+      const structuredData = result?.structuredContent;
       const projects = structuredData?.projects || [];
       const totalCount = structuredData?.totalCount || projects.length;
-
-      console.log('[useProjectOperations] list - projects count:', projects.length);
       return {
         projects,
         totalCount,
@@ -205,8 +206,11 @@ export interface TaskAddNoteParams {
 
 export interface TaskAddExpenseParams {
   description: string;
-  amount: number;
+  /** A decimal string, as the tool's schema and the API take it ("12.5") */
+  amount: string;
   dateTime?: string;
+  /** Already paid back to the user */
+  refunded?: boolean;
 }
 
 export interface TaskAddPauseParams {
@@ -220,14 +224,10 @@ export function useTaskOperations() {
 
   const list = useCallback(
     async (params?: TaskListParams): Promise<TaskListResponse> => {
-      console.log('[useTaskOperations] list - params:', params);
       const result = await callTool('task_list', params || {});
-
-      const structuredData = result?.structuredContent || result;
+      const structuredData = result?.structuredContent;
       const tasks = structuredData?.tasks || [];
       const totalCount = structuredData?.totalCount || tasks.length;
-
-      console.log('[useTaskOperations] list - tasks count:', tasks.length);
       return {
         tasks,
         totalCount,
@@ -238,7 +238,6 @@ export function useTaskOperations() {
 
   const addNote = useCallback(
     async (params: TaskAddNoteParams): Promise<void> => {
-      console.log('[useTaskOperations] addNote - params:', params);
       await callTool('task_add_note', params);
     },
     [callTool]
@@ -246,7 +245,6 @@ export function useTaskOperations() {
 
   const addExpense = useCallback(
     async (params: TaskAddExpenseParams): Promise<void> => {
-      console.log('[useTaskOperations] addExpense - params:', params);
       await callTool('task_add_expense', params);
     },
     [callTool]
@@ -254,7 +252,6 @@ export function useTaskOperations() {
 
   const addPause = useCallback(
     async (params: TaskAddPauseParams): Promise<void> => {
-      console.log('[useTaskOperations] addPause - params:', params);
       await callTool('task_add_pause', params);
     },
     [callTool]
@@ -292,14 +289,10 @@ export function useTeamOperations() {
 
   const list = useCallback(
     async (params?: TeamListParams): Promise<TeamListResponse> => {
-      console.log('[useTeamOperations] list - params:', params);
       const result = await callTool('team_list', params || {});
-
-      const structuredData = result?.structuredContent || result;
+      const structuredData = result?.structuredContent;
       const teams = structuredData?.teams || [];
       const totalCount = structuredData?.totalCount || teams.length;
-
-      console.log('[useTeamOperations] list - teams count:', teams.length);
       return {
         teams,
         totalCount,

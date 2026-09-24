@@ -66,6 +66,20 @@
 - Project colours set in the Android app show in the cards, and a project without a colour no
   longer turns black.
 - The timer text for the model names the project and description.
+- Cards whose tool failed or was cancelled show that, instead of loading forever.
+- A card action that fails shows an error and is not reported to the model as done. Forms keep
+  what was typed.
+- Times from the cards carry the local offset instead of UTC, so an entry started near midnight
+  no longer lands on the wrong day.
+- The timer card's edit form saves every field, and the start can move to an earlier day. The
+  expense form's "Refunded" switch is saved. The timer lists all projects, not only the first 100.
+- Durations no longer show a minute short, and numbers, dates, filter names and form texts
+  follow the host's language.
+- A link the host refuses to open offers its URL to copy, and is not reported as downloaded.
+- The cards follow the system theme when the host sends none, keep clear of safe areas in
+  fullscreen, and hide tool buttons in hosts that cannot call tools.
+- Contrast meets WCAG AA (focus rings, dropdowns, badges, chart bars, dark mode text), tap
+  targets are at least 44px, and the export card's fields are labelled for screen readers.
 
 ## [1.2.1] - 2026-09-01
 

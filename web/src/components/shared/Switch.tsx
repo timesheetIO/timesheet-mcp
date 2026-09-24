@@ -34,8 +34,8 @@ export default function SwitchComponent({
         checked={enabled}
         onChange={v => setValue(id, v)}
         className={classNames(
-          enabled ? 'bg-primary/100' : 'bg-gray-200 dark:bg-gray-700',
-          'relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50'
+          enabled ? 'bg-[color:var(--ts-accent-strong)]' : 'bg-gray-200 dark:bg-gray-700',
+          'relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100'
         )}
       >
         <input

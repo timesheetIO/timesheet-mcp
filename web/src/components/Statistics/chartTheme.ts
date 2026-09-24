@@ -19,7 +19,8 @@ export function getChartTheme(theme: 'light' | 'dark'): ChartTheme {
       textSecondary: '#a1a1aa',
       grid: 'rgba(255, 255, 255, 0.08)',
       billableBar: '#ff8800',
-      nonBillableBar: '#52525b',
+      // The muted token, as for projects without billable time: 3:1 or more on the card
+      nonBillableBar: 'var(--ts-fg-subtle)',
       axisLine: 'rgba(255, 255, 255, 0.15)',
     };
   }
@@ -27,8 +28,9 @@ export function getChartTheme(theme: 'light' | 'dark'): ChartTheme {
     text: '#18181b',
     textSecondary: '#52525b',
     grid: 'rgba(0, 0, 0, 0.08)',
-    billableBar: '#ff8800',
-    nonBillableBar: '#d4d4d8',
+    // The brand orange darkened to 3.2:1 on white, the contrast a chart's bars need (#ff8800 has 2.4:1)
+    billableBar: '#e07000',
+    nonBillableBar: 'var(--ts-fg-subtle)',
     axisLine: 'rgba(0, 0, 0, 0.15)',
   };
 }
@@ -45,7 +47,8 @@ export const PROJECT_COLOR_PALETTE = [
 
 /**
  * Convert Timesheet SDK integer color to hex string
- * SDK stores colors as decimal integers (e.g., 16711680 = #FF0000)
+ * SDK stores colors as decimal integers (e.g., 16711680 = #FF0000). 0 means "no color"
+ * (Project.color is a Java int that defaults to 0) and gets a palette color.
  */
 export function intToHexColor(color: number | undefined, fallbackIndex: number): string {
   // Colors are ARGB integers, and Android stores them signed (e.g. -8420), so any non-zero value is a color

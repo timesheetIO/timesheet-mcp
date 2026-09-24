@@ -2,33 +2,69 @@
  * Widget hooks backed by the MCP Apps SDK
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState, type CSSProperties } from 'react';
 import { useDocumentTheme } from '@modelcontextprotocol/ext-apps/react';
+import type { McpUiDisplayMode } from '@modelcontextprotocol/ext-apps';
+import type { CallToolResult } from '@modelcontextprotocol/client';
 import {
   useMcpApp,
   useMcpToolResult,
   useMcpToolInput,
   useMcpHostContext,
+  useMcpLifecycle,
+  useMcpSetDisplayMode,
 } from './McpAppProvider';
 
 export { useMcpHostContext as useHostContext, useMcpLifecycle as useLifecycle } from './McpAppProvider';
 
+/** The text blocks of a tool result, joined */
+export function resultText(result: CallToolResult | null | undefined): string {
+  return (result?.content ?? [])
+    .map(block => (block.type === 'text' ? block.text : ''))
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+/** A tool call the server answered with isError. The message is the result's text. */
+export class ToolCallError extends Error {
+  readonly result: CallToolResult;
+
+  constructor(toolName: string, result: CallToolResult) {
+    super(resultText(result) || `${toolName} failed`);
+    this.name = 'ToolCallError';
+    this.result = result;
+  }
+}
+
 /**
- * Get tool output - returns the structuredContent from the latest tool result.
+ * Get tool output - the structuredContent of the latest tool result. An error result has no
+ * output: see useToolFailure.
  */
 export function useToolOutput<T = any>(): T | null {
   const toolResult = useMcpToolResult();
 
-  if (!toolResult) {
+  if (!toolResult || toolResult.isError) {
     return null;
   }
 
-  const sc = (toolResult as any).structuredContent;
-  if (sc !== undefined) {
-    return sc as T;
-  }
+  return (toolResult.structuredContent as T | undefined) ?? null;
+}
 
-  return toolResult as unknown as T;
+export type ToolFailure = 'error' | 'cancelled';
+
+/**
+ * Why the widget has nothing to show: the tool call failed, or the host cancelled it before a
+ * result arrived. null while the widget waits for its result, and once it has one.
+ */
+export function useToolFailure(): ToolFailure | null {
+  const toolResult = useMcpToolResult();
+  const { cancelled } = useMcpLifecycle();
+
+  if (toolResult?.isError) {
+    return 'error';
+  }
+  return cancelled && !toolResult ? 'cancelled' : null;
 }
 
 /**
@@ -78,7 +114,17 @@ export function useTimeZone(): string | undefined {
 }
 
 /**
- * Call a server tool through the MCP App host proxy
+ * Whether the host proxies tool calls to the server. Buttons that call a tool are hidden when
+ * it does not.
+ */
+export function useCanCallServerTools(): boolean {
+  const app = useMcpApp();
+  return !!app?.getHostCapabilities()?.serverTools;
+}
+
+/**
+ * Call a server tool through the MCP App host proxy. Resolves with the result, and rejects with
+ * a ToolCallError when the server answered with isError.
  */
 export function useCallTool() {
   const app = useMcpApp();
@@ -89,10 +135,14 @@ export function useCallTool() {
       if (!app) {
         throw new Error('MCP App not connected');
       }
-      return app.callServerTool({
+      const result = await app.callServerTool({
         name: toolName,
         arguments: input,
       });
+      if (result?.isError) {
+        throw new ToolCallError(toolName, result);
+      }
+      return result;
     },
     [app]
   );
@@ -121,46 +171,55 @@ export function useUpdateModelContext() {
 }
 
 /**
- * Open a URL through the host (a sandboxed widget cannot navigate on its own).
+ * Open a URL through the host (a sandboxed widget cannot navigate on its own). Resolves with
+ * whether the link opened: false when the host refused it or a popup was blocked, so the
+ * widget can offer the URL instead.
  */
 export function useOpenLink() {
   const app = useMcpApp();
 
   return useCallback(
-    async (url: string) => {
-      try {
-        if (app && app.getHostCapabilities()?.openLinks) {
-          await app.openLink({ url });
-          return;
+    async (url: string): Promise<boolean> => {
+      if (app && app.getHostCapabilities()?.openLinks) {
+        try {
+          const result = await app.openLink({ url });
+          // The host (or the user, in its confirmation) declined: do not open it anyway
+          return !result?.isError;
+        } catch (error) {
+          console.error('[openLink] failed:', error);
         }
-      } catch (error) {
-        console.error('[openLink] failed:', error);
       }
-      window.open(url, '_blank', 'noopener,noreferrer');
+      // Without noopener, window.open reports a blocked popup as null
+      const opened = window.open(url, '_blank');
+      if (!opened) {
+        return false;
+      }
+      try {
+        opened.opener = null;
+      } catch {
+        // A cross-origin window may not allow it; the page is ours or the export host anyway
+      }
+      return true;
     },
     [app]
   );
 }
 
-type DisplayMode = 'inline' | 'fullscreen' | 'pip';
+type DisplayMode = McpUiDisplayMode;
 
 /**
  * Current display mode, whether fullscreen is available, and a request that only asks for
- * modes the host offers. The host decides: the returned mode is what we lay out for.
+ * modes the host offers. The host decides: the mode it returns, and any mode it later reports
+ * in the host context, is what we lay out for. Both land in the provider's host context, so
+ * every component sees the latest.
  */
 export function useDisplayMode() {
   const app = useMcpApp();
   const hostContext = useMcpHostContext();
-  const [granted, setGranted] = useState<DisplayMode | null>(null);
-  const hostMode = hostContext?.displayMode as DisplayMode | undefined;
-
-  // Whatever happened last wins: our granted request, or the host changing the mode itself
-  useEffect(() => {
-    if (hostMode) setGranted(hostMode);
-  }, [hostMode]);
-
-  const available = (hostContext?.availableDisplayModes ?? []) as DisplayMode[];
-  const mode: DisplayMode = granted ?? hostMode ?? 'inline';
+  const setDisplayMode = useMcpSetDisplayMode();
+  const mode: DisplayMode = (hostContext?.displayMode as DisplayMode | undefined) ?? 'inline';
+  const availableModes = hostContext?.availableDisplayModes;
+  const available = useMemo(() => (availableModes ?? []) as DisplayMode[], [availableModes]);
 
   const request = useCallback(
     async (target: DisplayMode): Promise<DisplayMode> => {
@@ -169,18 +228,32 @@ export function useDisplayMode() {
       }
       try {
         const result = await app.requestDisplayMode({ mode: target });
-        const next = (result?.mode as DisplayMode) ?? mode;
-        setGranted(next);
+        const next = (result?.mode as DisplayMode | undefined) ?? mode;
+        setDisplayMode(next);
         return next;
       } catch (error) {
         console.error('[requestDisplayMode] failed:', error);
         return mode;
       }
     },
-    [app, available, mode]
+    [app, available, mode, setDisplayMode]
   );
 
   return { mode, canFullscreen: available.includes('fullscreen'), request };
+}
+
+/**
+ * Padding for a fullscreen layout that keeps content out of the host's safe-area insets
+ * (notch, home indicator). Apply it to a full-width wrapper around the centered content.
+ */
+export function useSafeAreaPadding(): CSSProperties {
+  const insets = useMcpHostContext()?.safeAreaInsets;
+  return {
+    paddingTop: insets?.top ?? 0,
+    paddingRight: insets?.right ?? 0,
+    paddingBottom: insets?.bottom ?? 0,
+    paddingLeft: insets?.left ?? 0,
+  };
 }
 
 /**

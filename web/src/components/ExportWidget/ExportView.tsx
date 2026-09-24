@@ -3,10 +3,11 @@
  * Displays template selector, date range inputs, and generate button
  */
 
-import React from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import type { ExportTemplate } from './index';
 import TemplateSelect from './TemplateSelect';
 import Badge from '../shared/Badge';
+import LinkFallback from '../shared/LinkFallback';
 import { toCalendarDate } from '../../format';
 import { useOpenLink } from '../../hooks';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +22,8 @@ interface ExportViewProps {
   onEndDateChange: (date: string) => void;
   onGenerate: () => void;
   isLoading: boolean;
+  /** Generating calls a server tool: false when the host cannot proxy tool calls */
+  canGenerate: boolean;
   result: { success: boolean; message: string; downloadUrl?: string } | null;
   theme: 'light' | 'dark';
 }
@@ -35,12 +38,18 @@ export default function ExportView({
   onEndDateChange,
   onGenerate,
   isLoading,
+  canGenerate,
   result,
   theme,
 }: ExportViewProps) {
   const { t } = useTranslation();
   const selectedTemplate = templates.find(template => template.id === selectedTemplateId);
   const openLink = useOpenLink();
+  const ids = { template: useId(), startDate: useId(), endDate: useId() };
+  const [refused, setRefused] = useState(false);
+
+  // A new export has a new link, which the host may well open
+  useEffect(() => setRefused(false), [result?.downloadUrl]);
 
   return (
     <div className="p-4 space-y-4">
@@ -66,10 +75,11 @@ export default function ExportView({
 
       {/* Template Selection */}
       <div className="space-y-2">
-        <label className="block text-body-small font-medium text-secondary dark:text-secondary">
+        <label htmlFor={ids.template} className="block text-body-small font-medium text-secondary dark:text-secondary">
           {t('exportWidget.template')}
         </label>
         <TemplateSelect
+          id={ids.template}
           templates={templates}
           selectedTemplateId={selectedTemplateId}
           onChange={onTemplateChange}
@@ -83,32 +93,37 @@ export default function ExportView({
           {selectedTemplate.format && <Badge tone="accent">{selectedTemplate.format.toUpperCase()}</Badge>}
           {selectedTemplate.summarize && <Badge tone="success">{t('exportWidget.summarized')}</Badge>}
           {selectedTemplate.splitTask && <Badge tone="warning">{t('exportWidget.splitTasks')}</Badge>}
-          {selectedTemplate.filter && selectedTemplate.filter !== 'all' && <Badge>{selectedTemplate.filter}</Badge>}
+          {selectedTemplate.filter && selectedTemplate.filter !== 'all' && (
+            // The API's filter values (billable, notBillable, paid, ...), shown in the host's language
+            <Badge>{t(`exportWidget.filters.${selectedTemplate.filter}`, {defaultValue: selectedTemplate.filter})}</Badge>
+          )}
         </div>
       )}
 
       {/* Date Range */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
-          <label className="block text-body-small font-medium text-secondary dark:text-secondary">
+          <label htmlFor={ids.startDate} className="block text-body-small font-medium text-secondary dark:text-secondary">
             {t('exportWidget.startDate')}
           </label>
           <input
+            id={ids.startDate}
             type="date"
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body-small focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full px-3 py-2 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body-small focus:outline-none focus:ring-2 focus:ring-primary/100"
           />
         </div>
         <div className="space-y-2">
-          <label className="block text-body-small font-medium text-secondary dark:text-secondary">
+          <label htmlFor={ids.endDate} className="block text-body-small font-medium text-secondary dark:text-secondary">
             {t('exportWidget.endDate')}
           </label>
           <input
+            id={ids.endDate}
             type="date"
             value={endDate}
             onChange={(e) => onEndDateChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body-small focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full px-3 py-2 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body-small focus:outline-none focus:ring-2 focus:ring-primary/100"
           />
         </div>
       </div>
@@ -173,7 +188,7 @@ export default function ExportView({
           {result.downloadUrl && (
             <button
               type="button"
-              onClick={() => openLink(result.downloadUrl!)}
+              onClick={async () => setRefused(!(await openLink(result.downloadUrl!)))}
               className="ml-2 underline font-medium bg-transparent border-0 p-0 cursor-pointer text-inherit"
             >
               {t('exportWidget.download')}
@@ -181,38 +196,43 @@ export default function ExportView({
           )}
         </div>
       )}
+      {result?.downloadUrl && refused && <LinkFallback url={result.downloadUrl} />}
 
-      {/* Generate Button */}
-      <button
-        onClick={onGenerate}
-        disabled={!selectedTemplateId || isLoading}
-        type="button"
-        className="ts-button ts-button-primary w-full"
-      >
-        {isLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-                fill="none"
-              />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            {t('exportWidget.generating')}
-          </span>
-        ) : (
-          t('exportWidget.generate')
-        )}
-      </button>
+      {/* Generate Button: without the host's tool proxy, the assistant runs the export */}
+      {!canGenerate ? (
+        <p className="m-0 text-body-small text-secondary">{t('exportWidget.askAssistant')}</p>
+      ) : (
+        <button
+          onClick={onGenerate}
+          disabled={!selectedTemplateId || isLoading}
+          type="button"
+          className="ts-button ts-button-primary w-full"
+        >
+          {isLoading ? (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  fill="none"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              {t('exportWidget.generating')}
+            </span>
+          ) : (
+            t('exportWidget.generate')
+          )}
+        </button>
+      )}
 
       {/* Empty State */}
       {templates.length === 0 && (

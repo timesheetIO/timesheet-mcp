@@ -22,7 +22,7 @@
 
     --ts-fg: var(--color-text-primary, light-dark(#18181b, #fafafa));
     --ts-fg-muted: var(--color-text-secondary, light-dark(#52525b, #a1a1aa));
-    --ts-fg-subtle: var(--color-text-tertiary, light-dark(#71717a, #71717a));
+    --ts-fg-subtle: var(--color-text-tertiary, light-dark(#71717a, #8b8b94));
 
     --ts-bg: var(--color-background-primary, light-dark(#ffffff, #131315));
     --ts-bg-muted: var(--color-background-secondary, light-dark(#f4f4f5, #1c1c1f));
@@ -33,7 +33,7 @@
 
     --ts-success: var(--color-text-success, light-dark(#15803d, #4ade80));
     --ts-success-bg: var(--color-background-success, light-dark(#dcfce7, rgb(34 197 94 / 0.15)));
-    --ts-warning: var(--color-text-warning, light-dark(#a16207, #fbbf24));
+    --ts-warning: var(--color-text-warning, light-dark(#975a06, #fbbf24));
     --ts-warning-bg: var(--color-background-warning, light-dark(#fef3c7, rgb(251 191 36 / 0.12)));
     --ts-danger: var(--color-text-danger, light-dark(#b91c1c, #f87171));
     --ts-danger-bg: var(--color-background-danger, light-dark(#fee2e2, rgb(239 68 68 / 0.12)));
@@ -42,10 +42,15 @@
     --ts-accent-text: light-dark(#b35400, #ff8800);
     --ts-accent-soft: light-dark(rgb(230 119 0 / 0.07), rgb(230 119 0 / 0.08));
     --ts-accent-border: light-dark(rgb(230 119 0 / 0.3), rgb(230 119 0 / 0.35));
+    /* A filled accent surface under text or a control (active list option, switch track).
+       White on the brand orange is 2.4:1, so light mode fills with the darker shade */
+    --ts-accent-strong: light-dark(#b35400, #ff8800);
+    --ts-on-accent-strong: light-dark(#ffffff, #18181b);
 
     --ts-inverse-bg: var(--color-background-inverse, light-dark(#18181b, #fafafa));
     --ts-inverse-fg: var(--color-text-inverse, light-dark(#fafafa, #18181b));
-    --ts-ring: var(--color-ring-primary, #ff8800);
+    /* The brand orange is 2.4:1 on white; a focus ring needs 3:1, so it uses the text shade */
+    --ts-ring: var(--color-ring-primary, var(--ts-accent-text));
 
     --ts-radius-sm: var(--border-radius-sm, 6px);
     --ts-radius-control: var(--border-radius-md, 8px);
@@ -211,8 +216,7 @@
   .ring-primary\/0 { --tw-ring-color: transparent; }
 
   /* Primary action: the host's inverse surface, readable in both themes */
-  .bg-complementary\/100,
-  .bg-submit-button { background-color: var(--ts-inverse-bg); color: var(--ts-inverse-fg); }
+  .bg-complementary\/100 { background-color: var(--ts-inverse-bg); color: var(--ts-inverse-fg); }
 }
 
 /*
@@ -223,10 +227,8 @@
 .border-primary\/100,
 .focus\:border-primary\/100:focus { border-color: var(--ts-accent); }
 .focus\:ring-primary\/100:focus { --tw-ring-color: var(--ts-ring); }
-.focus\:ring-primary\/50:focus { --tw-ring-color: color-mix(in srgb, var(--ts-ring) 50%, transparent); }
 .bg-complementary\/90,
-.hover\:bg-complementary\/90:hover,
-.hover\:bg-submit-button-hover:hover { background-color: color-mix(in srgb, var(--ts-inverse-bg) 88%, transparent); }
+.hover\:bg-complementary\/90:hover { background-color: color-mix(in srgb, var(--ts-inverse-bg) 88%, transparent); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

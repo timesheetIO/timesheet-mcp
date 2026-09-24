@@ -6,6 +6,8 @@
 import React from 'react';
 import {useTranslation} from 'react-i18next';
 import ExternalLinkButton from '../shared/ExternalLinkButton';
+import {useLocale} from '../../hooks';
+import {formatDate, formatDateRange, formatNumber} from '../../format';
 import TaskListItem from './TaskListItem';
 import type {Task} from '../../types';
 
@@ -34,31 +36,33 @@ export default function TaskListView({
                                          theme,
                                      }: TaskListViewProps) {
     const {t} = useTranslation();
+    const locale = useLocale();
 
-    // Format date range for subtitle
-    const formatDateRange = () => {
+    // Date range for the subtitle. The dates are calendar dates (YYYY-MM-DD): parsed as local
+    // days, since new Date('2026-10-12') is UTC midnight and shows the day before west of UTC.
+    const describeDateRange = () => {
         if (!startDate && !endDate) return null;
 
-        const formatDate = (dateString: string) => {
+        const formatDay = (dateString: string) => {
             try {
-                return new Date(dateString).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                });
+                return formatDate(dateString, locale, {weekday: undefined});
             } catch {
                 return dateString;
             }
         };
 
         if (startDate && endDate) {
-            return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+            try {
+                return formatDateRange(startDate, endDate, locale);
+            } catch {
+                return `${startDate} - ${endDate}`;
+            }
         }
         if (startDate) {
-            return t('taskList.dateRange.from', {date: formatDate(startDate)});
+            return t('taskList.dateRange.from', {date: formatDay(startDate)});
         }
         if (endDate) {
-            return t('taskList.dateRange.until', {date: formatDate(endDate)});
+            return t('taskList.dateRange.until', {date: formatDay(endDate)});
         }
         return null;
     };
@@ -90,7 +94,7 @@ export default function TaskListView({
         return queryString ? `${baseUrl}?${queryString}` : baseUrl;
     };
 
-    const dateRange = formatDateRange();
+    const dateRange = describeDateRange();
     const hasMore = totalCount > 5;
     const webAppUrl = buildWebAppUrl();
     const totalTasks = taskGroups.reduce((sum, group) => sum + group.tasks.length, 0);
@@ -153,7 +157,7 @@ export default function TaskListView({
                     <div className="border-t border-card-border dark:border-card-border px-4 py-1">
                         <ExternalLinkButton url={webAppUrl}>
                             {hasMore
-                                ? t('taskList.viewAll', {count: totalCount})
+                                ? t('taskList.viewAll', {count: totalCount, value: formatNumber(totalCount, locale)})
                                 : t('taskList.viewInTimesheet')}
                         </ExternalLinkButton>
                     </div>

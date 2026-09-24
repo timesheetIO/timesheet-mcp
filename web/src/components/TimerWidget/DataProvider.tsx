@@ -8,25 +8,36 @@
 
 import React, {createContext, useContext, useState, useCallback, useEffect, ReactNode} from 'react';
 import type {Project, Tag, Rate, Settings} from '@timesheet/sdk';
-import type {ExtendedTimer} from '../../utils/types';
-import {useTimerOperations, useProjectOperations} from '../../utils/timesheet-hooks';
-import {useLifecycle, useProfileAndSettings, useToolOutput} from '../../hooks';
+import type {ExtendedTimer, TimerTask} from '../../utils/types';
+import {STOPPED_TASK_META_KEY, useTimerOperations, useProjectOperations} from '../../utils/timesheet-hooks';
+import {
+  type ToolFailure,
+  useCanCallServerTools,
+  useProfileAndSettings,
+  useToolFailure,
+  useToolMeta,
+  useToolOutput,
+} from '../../hooks';
 import type {ViewType} from './ViewRouter';
-import i18n from '../../i18n';
+
+export type ProjectsStatus = 'loading' | 'loaded' | 'error';
 
 interface DataContextType {
   timer: ExtendedTimer | null;
+  /** The entry the last stop saved: the API clears the timer's task when it stops */
+  stoppedTask: TimerTask | null;
   projects: Project[];
-  projectsLoaded: boolean;
+  projectsStatus: ProjectsStatus;
   tags: Tag[];
   rates: Rate[];
   settings: Settings;
   loading: boolean;
-  error: string | null;
+  /** There is no timer to show: the tool call failed or was cancelled */
+  failure: ToolFailure | null;
   selectedProject: string | null;
   setSelectedProject: (projectId: string | null) => void;
-  /** Replace the timer with the one a timer tool just returned */
-  applyTimer: (timer: ExtendedTimer | null | undefined) => void;
+  /** Replace the timer with the one a timer tool just returned (and the entry a stop saved) */
+  applyTimer: (timer: ExtendedTimer | null | undefined, stoppedTask?: TimerTask | null) => void;
   /** The user started, paused, resumed or stopped the timer from this widget */
   changedInWidget: boolean;
   reloadTimer: () => Promise<void>;
@@ -64,8 +75,17 @@ const DEFAULT_SETTINGS: Settings = {
   autofillProjectSelection: true,
 };
 
+/** project_list pages through the projects this many at a time */
+const PROJECT_PAGE_SIZE = 100;
+/** Enough for any real account; more would not fit a picker anyway */
+const MAX_PROJECTS = 1000;
+
 function mergeSettings(apiSettings: Partial<Settings> | null | undefined): Settings {
   return apiSettings ? {...DEFAULT_SETTINGS, ...apiSettings} : DEFAULT_SETTINGS;
+}
+
+function isTimer(value: unknown): value is ExtendedTimer {
+  return !!value && typeof value === 'object' && 'status' in value;
 }
 
 export function DataProvider({
@@ -78,24 +98,27 @@ export function DataProvider({
   const timerOps = useTimerOperations();
   const projectOps = useProjectOperations();
   const pushed = useToolOutput<ExtendedTimer>();
+  const pushedStoppedTask = useToolMeta<TimerTask>(STOPPED_TASK_META_KEY);
+  const toolFailure = useToolFailure();
+  const canCallTools = useCanCallServerTools();
   const {settings: pushedSettings} = useProfileAndSettings<unknown, Partial<Settings>>();
-  const {cancelled} = useLifecycle();
 
   const [timer, setTimer] = useState<ExtendedTimer | null>(null);
+  const [stoppedTask, setStoppedTask] = useState<TimerTask | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [projectsState, setProjectsState] = useState<'idle' | ProjectsStatus>('idle');
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const [error, setError] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [changedInWidget, setChangedInWidget] = useState(false);
 
-  // The result the host pushed for the tool call that rendered this widget
+  // The result the host pushed for the tool call that rendered this widget. timer_stop sends
+  // the entry it saved alongside, since the stopped timer has no task any more.
   useEffect(() => {
-    if (pushed && typeof pushed === 'object' && 'status' in pushed) {
+    if (isTimer(pushed)) {
       setTimer(pushed);
-      setError(null);
+      setStoppedTask(pushedStoppedTask ?? null);
     }
-  }, [pushed]);
+  }, [pushed, pushedStoppedTask]);
 
   useEffect(() => {
     if (pushedSettings) {
@@ -109,9 +132,10 @@ export function DataProvider({
     }
   }, [timer?.task?.project?.id]);
 
-  const applyTimer = useCallback((next: ExtendedTimer | null | undefined) => {
-    if (next && typeof next === 'object' && 'status' in next) {
+  const applyTimer = useCallback((next: ExtendedTimer | null | undefined, stopped: TimerTask | null = null) => {
+    if (isTimer(next)) {
       setTimer(next);
+      setStoppedTask(stopped);
       setChangedInWidget(true);
       const nextSettings = (next as any).settings;
       if (nextSettings) setSettings(mergeSettings(nextSettings));
@@ -123,43 +147,57 @@ export function DataProvider({
     applyTimer(result as ExtendedTimer);
   }, [timerOps, applyTimer]);
 
+  // All active projects, page by page. A failed page fails the load: an error result is not an
+  // empty project list.
   const reloadProjects = useCallback(async () => {
+    setProjectsState('loading');
     try {
-      const {projects: projectsData} = await projectOps.list({
-        limit: 100,
-        status: 'active',
-        sort: 'alpha',
-        order: 'asc',
-      });
-      setProjects(projectsData);
+      const loaded = new Map<string, Project>();
+      // A page count cap as well: a server that ignored `page` would answer page 1 forever
+      for (let page = 1; page <= MAX_PROJECTS / PROJECT_PAGE_SIZE; page++) {
+        const {projects: batch, totalCount} = await projectOps.list({
+          limit: PROJECT_PAGE_SIZE,
+          page,
+          status: 'active',
+          sort: 'alpha',
+          order: 'asc',
+        });
+        const before = loaded.size;
+        batch.forEach(project => loaded.set(project.id, project));
+        const lastPage = batch.length < PROJECT_PAGE_SIZE || loaded.size === before;
+        if (lastPage || loaded.size >= totalCount || loaded.size >= MAX_PROJECTS) break;
+      }
+      setProjects([...loaded.values()].slice(0, MAX_PROJECTS));
+      setProjectsState('loaded');
     } catch (err) {
       console.error('[TimerWidget] Failed to load projects:', err);
-      setError(i18n.t('timerWidget.projectsLoadFailed'));
-    } finally {
-      setProjectsLoaded(true);
+      setProjectsState('error');
     }
   }, [projectOps]);
 
-  // Projects are only needed to start a timer or to move the entry to another project
-  const idle = !!timer && !timer.task && timer.status !== 'running' && timer.status !== 'paused';
-  const needsProjects = idle || currentView === 'task/edit' || currentView === 'project/select';
+  // Projects are only needed to start a timer or to move the entry to another project (the edit
+  // form has no project field). The summary of an entry just stopped starts again on its own
+  // project.
+  const idle = !!timer && !timer.task && !stoppedTask && timer.status !== 'running' && timer.status !== 'paused';
+  const needsProjects = canCallTools && (idle || currentView === 'project/select');
   useEffect(() => {
-    if (needsProjects && !projectsLoaded) {
+    if (needsProjects && projectsState === 'idle') {
       reloadProjects();
     }
-  }, [needsProjects, projectsLoaded, reloadProjects]);
+  }, [needsProjects, projectsState, reloadProjects]);
 
   return (
     <DataContext.Provider
       value={{
         timer,
+        stoppedTask,
         projects,
-        projectsLoaded,
+        projectsStatus: projectsState === 'idle' ? 'loading' : projectsState,
         tags: [],
         rates: [],
         settings,
-        loading: !timer && !cancelled,
-        error: cancelled && !timer ? 'cancelled' : error,
+        loading: !timer && !toolFailure,
+        failure: timer ? null : toolFailure,
         selectedProject,
         setSelectedProject,
         applyTimer,

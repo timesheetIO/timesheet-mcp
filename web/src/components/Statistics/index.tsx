@@ -5,18 +5,19 @@
  * the host offers it and below the card otherwise.
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { ArrowsExpandIcon, ChartBarIcon, XIcon } from '@heroicons/react/outline';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useDisplayMode, useLocale, useTheme, useToolOutput } from '../../hooks';
-import { formatDateRange, formatDuration, hoursToSeconds, projectColor } from '../../format';
+import { useDisplayMode, useLocale, useSafeAreaPadding, useTheme, useToolFailure, useToolOutput } from '../../hooks';
+import { formatDateRange, formatDuration, formatNumber, formatPercent, hoursToSeconds, projectColor } from '../../format';
 import Card from '../shared/Card';
 import IconTile from '../shared/IconTile';
 import BarList, { type BarItem } from '../shared/BarList';
 import StatTotal from '../shared/StatTotal';
 import Skeleton from '../shared/Skeleton';
+import StatusCard from '../shared/StatusCard';
 import StatCard from './StatCard';
 import ProjectBreakdown from './ProjectBreakdown';
 import DailyChart from './DailyChart';
@@ -25,9 +26,23 @@ import '../../i18n';
 import '../../index.css';
 
 const MAX_BARS = 6;
-const formatHours = (hours: number) => formatDuration(hoursToSeconds(hours));
 
-function Details({ stats, locale, theme }: { stats: Statistics; locale: string; theme: 'light' | 'dark' }) {
+type ProjectStats = Statistics['projectBreakdown'][number] & { color?: string };
+
+/**
+ * A project's color. The integer is the source: 0 is "no color" (the bar takes the default),
+ * where older servers sent the hex string #000000 for it.
+ */
+function barColor(project: ProjectStats): string | undefined {
+  return typeof project.projectColor === 'number' ? projectColor(project.projectColor) : projectColor(project.color);
+}
+
+function Details({ stats, locale, theme, formatHours }: {
+  stats: Statistics;
+  locale: string;
+  theme: 'light' | 'dark';
+  formatHours: (hours: number) => string;
+}) {
   const { t } = useTranslation();
   const billablePercentage = stats.totalHours > 0 ? Math.round((stats.billableHours / stats.totalHours) * 100) : 0;
 
@@ -36,11 +51,11 @@ function Details({ stats, locale, theme }: { stats: Statistics; locale: string; 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard label={t('statistics.totalHours')} value={formatHours(stats.totalHours)} />
         <StatCard label={t('statistics.billableHours')} value={formatHours(stats.billableHours)} accent />
-        <StatCard label={t('statistics.billablePercentage')} value={`${billablePercentage}%`} />
-        <StatCard label={t('statistics.entriesLabel')} value={stats.totalTasks ?? 0} />
+        <StatCard label={t('statistics.billablePercentage')} value={formatPercent(billablePercentage, locale)} />
+        <StatCard label={t('statistics.entriesLabel')} value={formatNumber(stats.totalTasks ?? 0, locale)} />
       </div>
       {stats.projectBreakdown?.length > 0 && (
-        <ProjectBreakdown projects={stats.projectBreakdown} formatHours={formatHours} theme={theme} />
+        <ProjectBreakdown projects={stats.projectBreakdown} formatHours={formatHours} theme={theme} locale={locale} />
       )}
       {stats.dailyHours?.length > 0 && (
         <DailyChart
@@ -58,10 +73,17 @@ function Details({ stats, locale, theme }: { stats: Statistics; locale: string; 
 function StatisticsApp() {
   const { t } = useTranslation();
   const stats = useToolOutput<Statistics>();
+  const failure = useToolFailure();
   const theme = useTheme();
   const locale = useLocale();
+  const safeArea = useSafeAreaPadding();
   const { mode, canFullscreen, request } = useDisplayMode();
   const [expandedInline, setExpandedInline] = useState(false);
+  const formatHours = useCallback((hours: number) => formatDuration(hoursToSeconds(hours), locale), [locale]);
+
+  if (failure) {
+    return <StatusCard status={failure} />;
+  }
 
   if (!stats || typeof stats.totalHours !== 'number') {
     return <Skeleton label={t('common.loading')} />;
@@ -71,10 +93,11 @@ function StatisticsApp() {
   const projects = [...(stats.projectBreakdown || [])].sort((a, b) => b.hours - a.hours);
   const items: BarItem[] = projects.slice(0, MAX_BARS).map((project, index) => ({
     key: project.projectId || `${project.projectTitle}-${index}`,
-    label: project.projectTitle,
+    // Entries without a project arrive with an empty title
+    label: project.projectTitle || t('statistics.noProject'),
     value: project.hours,
     display: formatHours(project.hours),
-    color: (project as any).color || projectColor(project.projectColor),
+    color: barColor(project),
     // A project with time but nothing billable reads as internal work
     muted: project.hours > 0 && !(project.billableHours > 0),
   }));
@@ -95,48 +118,52 @@ function StatisticsApp() {
   };
 
   return (
-    <div className={fullscreen ? 'max-w-3xl mx-auto p-4 grid gap-6' : 'grid gap-4'}>
-      <Card className="p-4 sm:p-5">
-        <div className="flex items-start gap-4">
-          <IconTile><ChartBarIcon /></IconTile>
-          <div className="flex-1 min-w-0">
-            <StatTotal value={formatHours(stats.totalHours)} caption={period} />
+    // Fullscreen keeps clear of the host's safe-area insets; the same elements in both modes
+    <div style={fullscreen ? safeArea : undefined}>
+      <div className={fullscreen ? 'max-w-3xl mx-auto p-4 grid gap-6' : 'grid gap-4'}>
+        <Card className="p-4 sm:p-5">
+          <div className="flex items-start gap-4">
+            <IconTile><ChartBarIcon /></IconTile>
+            <div className="flex-1 min-w-0">
+              <StatTotal value={formatHours(stats.totalHours)} caption={period} />
+            </div>
+            <button
+              type="button"
+              className="ts-link-button -mt-2 -mr-1"
+              onClick={toggle}
+              aria-expanded={showDetails}
+            >
+              {showDetails ? <XIcon className="w-4 h-4" aria-hidden="true" /> : <ArrowsExpandIcon className="w-4 h-4" aria-hidden="true" />}
+              {showDetails ? t('statistics.collapse') : t('statistics.expand')}
+            </button>
           </div>
-          <button
-            type="button"
-            className="ts-link-button -mt-2 -mr-1"
-            onClick={toggle}
-            aria-expanded={showDetails}
-          >
-            {showDetails ? <XIcon className="w-4 h-4" aria-hidden="true" /> : <ArrowsExpandIcon className="w-4 h-4" aria-hidden="true" />}
-            {showDetails ? t('statistics.collapse') : t('statistics.expand')}
-          </button>
-        </div>
 
-        {items.length > 0 ? (
-          <div className="mt-4">
-            <BarList items={items} />
-            {hiddenProjects > 0 && (
-              <p className="m-0 mt-2 text-caption text-secondary">
-                {t('statistics.moreProjects', { count: hiddenProjects })}
-              </p>
-            )}
-          </div>
-        ) : (
-          <p className="m-0 mt-4 text-body-small text-secondary">{t('statistics.empty')}</p>
-        )}
+          {items.length > 0 ? (
+            <div className="mt-4">
+              <BarList items={items} />
+              {hiddenProjects > 0 && (
+                <p className="m-0 mt-2 text-caption text-secondary">
+                  {t('statistics.moreProjects', { count: hiddenProjects, value: formatNumber(hiddenProjects, locale) })}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="m-0 mt-4 text-body-small text-secondary">{t('statistics.empty')}</p>
+          )}
 
-        <p className="m-0 mt-4 text-body-small text-secondary">
-          {t('statistics.billableFootnote', { duration: formatHours(stats.billableHours) })}
-          {typeof stats.totalTasks === 'number' && ` · ${t('statistics.entries', { count: stats.totalTasks })}`}
-        </p>
-      </Card>
-
-      {showDetails && (
-        <Card tone="plain" className="p-4 sm:p-5">
-          <Details stats={stats} locale={locale} theme={theme} />
+          <p className="m-0 mt-4 text-body-small text-secondary">
+            {t('statistics.billableFootnote', { duration: formatHours(stats.billableHours) })}
+            {typeof stats.totalTasks === 'number'
+              && ` · ${t('statistics.entries', { count: stats.totalTasks, value: formatNumber(stats.totalTasks, locale) })}`}
+          </p>
         </Card>
-      )}
+
+        {showDetails && (
+          <Card tone="plain" className="p-4 sm:p-5">
+            <Details stats={stats} locale={locale} theme={theme} formatHours={formatHours} />
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next';
 import type { ExportTemplate } from './index';
 
 interface TemplateSelectProps {
+  /** For the label that names the select */
+  id: string;
   templates: ExportTemplate[];
   selectedTemplateId: string;
   onChange: (templateId: string) => void;
@@ -14,6 +16,7 @@ interface TemplateSelectProps {
 }
 
 export default function TemplateSelect({
+  id,
   templates,
   selectedTemplateId,
   onChange,
@@ -23,9 +26,10 @@ export default function TemplateSelect({
   return (
     <div className="relative">
       <select
+        id={id}
         value={selectedTemplateId}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent"
+        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/100"
       >
         <option value="" disabled>
           {t('exportWidget.chooseTemplate')}

@@ -6,9 +6,18 @@
 import React, { useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useTheme, useToolOutput, useCallTool, useUpdateModelContext } from '../../hooks';
-import { toCalendarDate } from '../../format';
+import {
+  useTheme,
+  useToolOutput,
+  useCallTool,
+  useCanCallServerTools,
+  useLocale,
+  useToolFailure,
+  useUpdateModelContext,
+} from '../../hooks';
+import { formatNumber, toCalendarDate } from '../../format';
 import { useApplyTheme } from '../../utils';
+import StatusCard from '../shared/StatusCard';
 import ExportView from './ExportView';
 import { useTranslation } from 'react-i18next';
 import '../../i18n';
@@ -38,8 +47,11 @@ interface ExportWidgetData {
 function ExportWidgetApp() {
   const { t } = useTranslation();
   const initialData = useToolOutput<ExportWidgetData>();
+  const failure = useToolFailure();
   const theme = useTheme();
+  const locale = useLocale();
   const callTool = useCallTool();
+  const canCallTools = useCanCallServerTools();
   const updateModelContext = useUpdateModelContext();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -80,7 +92,7 @@ function ExportWidgetApp() {
       } else if (content?.success) {
         setResult({
           success: true,
-          message: t('exportWidget.generated', { size: formatBytes(content.size) })
+          message: t('exportWidget.generated', { size: formatBytes(content.size, locale) })
         });
         updateModelContext(`The user generated an export from a template for ${startDate} to ${endDate}.`);
       } else {
@@ -92,7 +104,11 @@ function ExportWidgetApp() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTemplateId, startDate, endDate, callTool, updateModelContext, t]);
+  }, [selectedTemplateId, startDate, endDate, callTool, updateModelContext, t, locale]);
+
+  if (failure) {
+    return <StatusCard status={failure} />;
+  }
 
   // Loading state
   if (!initialData) {
@@ -105,15 +121,9 @@ function ExportWidgetApp() {
     );
   }
 
-  // Error state
+  // A result without templates
   if (!initialData.templates) {
-    return (
-      <div className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-4">
-        <div className="text-body-small text-accent-danger">
-          {t('exportWidget.loadFailed')}
-        </div>
-      </div>
-    );
+    return <StatusCard status="error" message={t('exportWidget.loadFailed')} />;
   }
 
   return (
@@ -128,6 +138,7 @@ function ExportWidgetApp() {
         onEndDateChange={setEndDate}
         onGenerate={handleGenerate}
         isLoading={isLoading}
+        canGenerate={canCallTools}
         result={result}
         theme={theme}
       />
@@ -146,10 +157,10 @@ function getDefaultEndDate(): string {
   return toCalendarDate(new Date());
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function formatBytes(bytes: number, locale: string): string {
+  if (bytes < 1024) return `${formatNumber(bytes, locale)} B`;
+  if (bytes < 1024 * 1024) return `${formatNumber(bytes / 1024, locale, { maximumFractionDigits: 1 })} KB`;
+  return `${formatNumber(bytes / (1024 * 1024), locale, { maximumFractionDigits: 1 })} MB`;
 }
 
 // Mount the component

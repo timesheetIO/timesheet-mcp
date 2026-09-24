@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { getChartTheme, intToHexColor } from './chartTheme';
+import { formatPercent } from '../../format';
 import i18n from '../../i18n';
 
 interface ProjectBreakdownItem {
@@ -23,14 +24,23 @@ interface ProjectBreakdownProps {
   projects: ProjectBreakdownItem[];
   formatHours: (hours: number) => string;
   theme?: 'light' | 'dark';
+  locale: string;
 }
+
+/** Entries without a project arrive with an empty title */
+const titleOf = (item: ProjectBreakdownItem) => item.projectTitle || i18n.t('statistics.noProject');
 
 /** Same rule as the compact card's bars: a project with no billable time is shown muted. */
 function sliceColor(item: ProjectBreakdownItem, index: number): string {
   if (item.hours > 0 && !(item.billableHours > 0)) {
     return 'var(--ts-fg-subtle)';
   }
-  return item.color || intToHexColor(item.projectColor, index);
+  // The integer is the source: 0 is "no color" and gets a palette color, where older servers
+  // sent the hex string #000000 for it
+  if (typeof item.projectColor === 'number') {
+    return intToHexColor(item.projectColor, index);
+  }
+  return item.color || intToHexColor(undefined, index);
 }
 
 const DONUT_SIZE = 180;
@@ -79,11 +89,11 @@ function Donut({ slices, formatHours, label }: {
   );
 }
 
-export default function ProjectBreakdown({ projects, formatHours, theme = 'light' }: ProjectBreakdownProps) {
+export default function ProjectBreakdown({ projects, formatHours, theme = 'light', locale }: ProjectBreakdownProps) {
   const ct = getChartTheme(theme);
 
   const chartData = projects.map((item, index) => ({
-    name: item.projectTitle,
+    name: titleOf(item),
     value: Number(item.hours.toFixed(2)),
     fill: sliceColor(item, index),
     percentage: item.percentage,
@@ -119,12 +129,12 @@ export default function ProjectBreakdown({ projects, formatHours, theme = 'light
                 className="text-text-primary dark:text-text-primary"
                 style={{ fontSize: '13px', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
               >
-                {item.projectTitle}
+                {titleOf(item)}
               </span>
               <span
                 style={{ fontSize: '13px', color: ct.textSecondary, whiteSpace: 'nowrap' }}
               >
-                {formatHours(item.hours)} ({item.percentage}%)
+                {formatHours(item.hours)} ({formatPercent(item.percentage, locale)})
               </span>
             </div>
           ))}

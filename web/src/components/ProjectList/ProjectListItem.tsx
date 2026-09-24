@@ -6,6 +6,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { intToHexColor } from '../../utils';
+import { useLocale } from '../../hooks';
+import { formatNumber } from '../../format';
 import type { Project } from '../../types';
 
 interface ProjectListItemProps {
@@ -16,6 +18,7 @@ interface ProjectListItemProps {
 
 export default function ProjectListItem({ project, onClick, theme }: ProjectListItemProps) {
   const { t } = useTranslation();
+  const locale = useLocale();
 
   // Calculate hours and minutes from duration (in seconds)
   const hours = project.duration ? Math.floor(project.duration / 3600) : 0;
@@ -65,7 +68,7 @@ export default function ProjectListItem({ project, onClick, theme }: ProjectList
 
       {/* Duration display */}
       <div className="flex-shrink-0 text-body text-text-primary dark:text-text-primary font-bold">
-        {hours > 0 && t('common.hours', { count: hours })}
+        {hours > 0 && t('common.hours', { count: hours, value: formatNumber(hours, locale) })}
         {hours > 0 && minutes > 0 && ' '}
         {minutes > 0 && t('common.minutes', { count: minutes })}
       </div>

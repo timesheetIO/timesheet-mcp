@@ -11,13 +11,23 @@ import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { CalendarIcon, DocumentDownloadIcon, DocumentTextIcon, MailIcon } from '@heroicons/react/outline';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useCallTool, useLocale, useOpenLink, useToolOutput, useUpdateModelContext } from '../../hooks';
-import { formatDateRange, projectColor } from '../../format';
+import {
+  useCallTool,
+  useCanCallServerTools,
+  useLocale,
+  useOpenLink,
+  useToolFailure,
+  useToolOutput,
+  useUpdateModelContext,
+} from '../../hooks';
+import { formatDateRange, formatNumber, projectColor } from '../../format';
 import Card from '../shared/Card';
 import IconTile from '../shared/IconTile';
 import Badge, { type BadgeTone } from '../shared/Badge';
 import ActionRow, { Button } from '../shared/ActionRow';
 import Skeleton from '../shared/Skeleton';
+import StatusCard from '../shared/StatusCard';
+import LinkFallback from '../shared/LinkFallback';
 import '../../i18n';
 import '../../index.css';
 
@@ -42,12 +52,15 @@ interface AbsenceResult {
   action: AbsenceAction;
   absence: {
     id: string;
-    typeName: string;
+    /** Absent when the type is unknown */
+    typeName?: string;
     typeColor?: string | number;
     startDate: string;
     endDate: string;
     totalDays?: number;
-    halfDay?: boolean;
+    /** false for an absence of part of a day, shown in hours */
+    fullDay?: boolean;
+    totalHours?: number;
     status: string;
     note?: string;
     userName?: string;
@@ -88,6 +101,7 @@ function ExportCard({ result }: { result: ExportResult['export'] }) {
   const locale = useLocale();
   const openLink = useOpenLink();
   const updateModelContext = useUpdateModelContext();
+  const [refused, setRefused] = useState(false);
 
   const period = result.startDate ? formatDateRange(result.startDate, result.endDate, locale) : undefined;
   const details = [
@@ -112,8 +126,12 @@ function ExportCard({ result }: { result: ExportResult['export'] }) {
 
   const download = async () => {
     if (!result.downloadUrl) return;
-    await openLink(result.downloadUrl);
-    updateModelContext(`The user downloaded the export${result.filename ? ` ${result.filename}` : ''}.`);
+    const opened = await openLink(result.downloadUrl);
+    setRefused(!opened);
+    // A refused link downloaded nothing: the model only hears of a download that started
+    if (opened) {
+      updateModelContext(`The user downloaded the export${result.filename ? ` ${result.filename}` : ''}.`);
+    }
   };
 
   return (
@@ -128,6 +146,11 @@ function ExportCard({ result }: { result: ExportResult['export'] }) {
           <Button variant="primary" icon={<DocumentDownloadIcon />} onClick={download}>
             {t('resultCard.export.download')}
           </Button>
+          {refused && (
+            <div className="mt-3">
+              <LinkFallback url={result.downloadUrl} />
+            </div>
+          )}
         </div>
       )}
     </Card>
@@ -158,6 +181,7 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
   const { t } = useTranslation();
   const locale = useLocale();
   const callTool = useCallTool();
+  const canCallTools = useCanCallServerTools();
   const updateModelContext = useUpdateModelContext();
   const [result, setResult] = useState(initial);
   const [cancelMode, setCancelMode] = useState<'idle' | 'reason' | 'busy'>('idle');
@@ -172,6 +196,10 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
 
   const { absence, action } = result;
   const status = statusTone(absence.status);
+  // The server leaves the type name out when it does not know the type
+  const typeName = absence.typeName || t('resultCard.absence.defaultType');
+  // Cancelling calls a server tool: a host that cannot proxy tool calls gets no button
+  const cancellable = canCallTools && offersCancel(result);
 
   const confirmCancel = async () => {
     const text = reason.trim();
@@ -195,7 +223,7 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
       setCancelMode('idle');
       setReason('');
       updateModelContext(
-        `The user cancelled their ${absence.typeName} request for ${absence.startDate} to ${absence.endDate}. Reason: ${text}`
+        `The user cancelled their ${absence.typeName || 'absence'} request for ${absence.startDate} to ${absence.endDate}. Reason: ${text}`
       );
     } catch (err) {
       console.error('[ResultCard] Cancelling the absence failed:', err);
@@ -206,10 +234,16 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
   const dot = projectColor(absence.typeColor as any);
 
   const range = formatDateRange(absence.startDate, absence.endDate !== absence.startDate ? absence.endDate : undefined, locale);
-  const days = typeof absence.totalDays === 'number'
-    ? t('resultCard.absence.days', { count: absence.totalDays })
-    : undefined;
-  const subtitle = [range, days, absence.halfDay ? t('resultCard.absence.halfDay') : undefined, absence.userName]
+  // Part of a day reads in hours ("4 h"), whole days in days ("1,5 Tage")
+  const length = absence.fullDay === false && typeof absence.totalHours === 'number'
+    ? t('resultCard.absence.hours', { value: formatNumber(absence.totalHours, locale, { maximumFractionDigits: 2 }) })
+    : typeof absence.totalDays === 'number'
+      ? t('resultCard.absence.days', {
+        count: absence.totalDays,
+        value: formatNumber(absence.totalDays, locale, { maximumFractionDigits: 2 }),
+      })
+      : undefined;
+  const subtitle = [range, length, absence.userName]
     .filter(Boolean)
     .join(' · ');
 
@@ -217,7 +251,7 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
     <Card className="p-4 sm:p-5">
       <CardHeader
         icon={<CalendarIcon />}
-        title={t(`resultCard.absence.title.${action || 'viewed'}`, { type: absence.typeName })}
+        title={t(`resultCard.absence.title.${action || 'viewed'}`, { type: typeName })}
         subtitle={
           <span className="inline-flex items-center gap-1.5">
             {dot && <i className="inline-block w-2 h-2 rounded-full flex-none" style={{ background: dot }} aria-hidden="true" />}
@@ -235,12 +269,12 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
           {absence.note}
         </p>
       )}
-      {offersCancel(result) && cancelMode === 'idle' && (
+      {cancellable && cancelMode === 'idle' && (
         <div className="mt-4 pl-0 min-[480px]:pl-[60px]">
           <Button onClick={() => setCancelMode('reason')}>{t('resultCard.absence.cancel.action')}</Button>
         </div>
       )}
-      {offersCancel(result) && cancelMode !== 'idle' && (
+      {cancellable && cancelMode !== 'idle' && (
         <div className="mt-4 pl-0 min-[480px]:pl-[60px] space-y-3">
           <label htmlFor="cancel-reason" className="block text-xs font-medium text-secondary">
             {t('resultCard.absence.cancel.reasonLabel')}
@@ -287,6 +321,11 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
 function ResultCardApp() {
   const { t } = useTranslation();
   const result = useToolOutput<Result>();
+  const failure = useToolFailure();
+
+  if (failure) {
+    return <StatusCard status={failure} />;
+  }
 
   if (!result || !('kind' in result)) {
     return <Skeleton label={t('common.loading')} />;

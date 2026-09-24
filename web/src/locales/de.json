@@ -1,8 +1,8 @@
 {
   "projectList": {
     "title": "Projekte",
-    "count": "{{count}} Projekt",
-    "count_other": "{{count}} Projekte",
+    "count": "{{value}} Projekt",
+    "count_other": "{{value}} Projekte",
     "loading": "Projekte werden geladen...",
     "error": "Fehler: Keine Projektdaten empfangen",
     "emptyState": {
@@ -10,7 +10,7 @@
       "description": "Erstellen Sie ein Projekt, um mit der Zeiterfassung zu beginnen"
     },
     "archived": "Archiviert",
-    "viewAll": "Alle {{count}} Projekte in Timesheet anzeigen",
+    "viewAll": "Alle {{value}} Projekte in Timesheet anzeigen",
     "viewInTimesheet": "In Timesheet anzeigen"
   },
   "projectCard": {
@@ -58,10 +58,10 @@
     "pickProject": "Projekt auswählen",
     "noProjectsYet": "Sie haben noch keine Projekte. Erstellen Sie Ihr erstes auf timesheet.io.",
     "actionFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
-    "loadFailed": "Der Timer konnte nicht geladen werden.",
     "idle": {
       "title": "Kein Timer aktiv",
-      "subtitle": "Wählen Sie ein Projekt, um die Zeiterfassung zu starten."
+      "subtitle": "Wählen Sie ein Projekt, um die Zeiterfassung zu starten.",
+      "askAssistant": "Der Assistent kann einen Timer starten."
     },
     "actions": {
       "editTask": "Eintrag bearbeiten",
@@ -86,7 +86,7 @@
       "from": "Ab {{date}}",
       "until": "Bis {{date}}"
     },
-    "viewAll": "Alle {{count}} Einträge in Timesheet anzeigen",
+    "viewAll": "Alle {{value}} Einträge in Timesheet anzeigen",
     "viewInTimesheet": "In Timesheet anzeigen"
   },
   "taskCard": {
@@ -108,18 +108,20 @@
     "expand": "Erweitern",
     "collapse": "Schließen",
     "entriesLabel": "Einträge",
-    "entries": "{{count}} Eintrag",
-    "entries_other": "{{count}} Einträge",
+    "entries": "{{value}} Eintrag",
+    "entries_other": "{{value}} Einträge",
     "billable": "Verrechenbar",
     "nonBillable": "Nicht verrechenbar",
     "billableFootnote": "{{duration}} verrechenbar",
     "weeklyHours": "Stunden pro Woche",
-    "moreProjects": "und {{count}} weiteres Projekt",
-    "moreProjects_other": "und {{count}} weitere Projekte",
-    "empty": "In diesem Zeitraum wurde keine Zeit erfasst."
+    "moreProjects": "und {{value}} weiteres Projekt",
+    "moreProjects_other": "und {{value}} weitere Projekte",
+    "empty": "In diesem Zeitraum wurde keine Zeit erfasst.",
+    "noProject": "Kein Projekt",
+    "week": "KW {{week}}"
   },
   "common": {
-    "hours": "{{count}} Std",
+    "hours": "{{value}} Std",
     "minutes": "{{count}} Min",
     "loading": "Lädt...",
     "error": "Fehler",
@@ -127,7 +129,12 @@
     "back": "Zurück",
     "cancelled": "Abgebrochen",
     "durationHours": "{{hours}} Std {{minutes}} Min",
-    "durationMinutes": "{{minutes}} Min"
+    "durationMinutes": "{{minutes}} Min",
+    "failed": "Etwas ist schiefgelaufen.",
+    "retry": "Erneut versuchen",
+    "linkBlocked": "Der Link konnte nicht geöffnet werden. Zum Öffnen im Browser kopieren.",
+    "copyLink": "Link kopieren",
+    "copied": "Kopiert"
   },
   "resultCard": {
     "export": {
@@ -151,16 +158,17 @@
         "rejected": "Abgelehnt",
         "cancelled": "Storniert"
       },
-      "days": "{{count}} Tag",
-      "days_other": "{{count}} Tage",
-      "halfDay": "halber Tag",
+      "days": "{{value}} Tag",
+      "days_other": "{{value}} Tage",
       "cancel": {
         "action": "Antrag stornieren",
         "reasonLabel": "Warum stornieren Sie den Antrag?",
         "confirm": "Antrag stornieren",
         "reasonRequired": "Bitte geben Sie einen Grund an.",
         "failed": "Der Antrag konnte nicht storniert werden. Bitte versuchen Sie es erneut."
-      }
+      },
+      "hours": "{{value}} Std.",
+      "defaultType": "Abwesenheit"
     }
   },
   "exportWidget": {
@@ -169,6 +177,14 @@
     "chooseTemplate": "Vorlage auswählen",
     "summarized": "Zusammengefasst",
     "splitTasks": "Aufgaben aufteilen",
+    "filters": {
+      "billable": "Verrechenbar",
+      "notBillable": "Nicht verrechenbar",
+      "paid": "Bezahlt",
+      "unpaid": "Unbezahlt",
+      "billed": "Verrechnet",
+      "outstanding": "Offen"
+    },
     "startDate": "Startdatum",
     "endDate": "Enddatum",
     "presets": {
@@ -188,7 +204,8 @@
     "loading": "Vorlagen werden geladen...",
     "loadFailed": "Die Vorlagen konnten nicht geladen werden.",
     "empty": "Noch keine Exportvorlagen",
-    "emptyHint": "Bitten Sie den Assistenten, einen Export zuerst als Vorlage zu speichern."
+    "emptyHint": "Bitten Sie den Assistenten, einen Export zuerst als Vorlage zu speichern.",
+    "askAssistant": "Der Assistent kann diesen Export erstellen."
   },
   "forms": {
     "date": "Datum",
@@ -196,7 +213,7 @@
     "description": "Beschreibung",
     "descriptionRequired": "Bitte geben Sie eine Beschreibung ein.",
     "amount": "Betrag",
-    "paid": "Bezahlt",
+    "refunded": "Erstattet",
     "startDate": "Startdatum",
     "startTime": "Startzeit",
     "type": "Typ",
@@ -217,6 +234,26 @@
       "expense": "Die Auslage konnte nicht gespeichert werden.",
       "pause": "Die Pause konnte nicht gespeichert werden.",
       "task": "Der Eintrag konnte nicht gespeichert werden."
+    },
+    "cancel": "Abbrechen",
+    "location": "Standort",
+    "locationStart": "Standort am Anfang",
+    "types": {
+      "task": "Aufgabe",
+      "mileage": "Kilometerstand",
+      "call": "Anruf"
+    },
+    "submit": {
+      "pause": "Pause hinzufügen",
+      "note": "Notiz hinzufügen",
+      "expense": "Auslage hinzufügen",
+      "task": "Eintrag speichern"
+    },
+    "saving": {
+      "pause": "Pause wird gespeichert...",
+      "note": "Notiz wird gespeichert...",
+      "expense": "Auslage wird gespeichert...",
+      "task": "Eintrag wird gespeichert..."
     }
   }
 }

@@ -40,6 +40,8 @@ export default function Select({
   } = useFormContext();
 
   const [selected, setSelected] = useState(options[0]);
+  // The label comes from the current options, so it follows a language change
+  const selectedLabel = options.find(o => o.value === selected?.value)?.label ?? selected?.label;
 
   useEffect(() => {
     const subscription = watch((data, {name}) => {
@@ -75,8 +77,8 @@ export default function Select({
             {label}
           </Listbox.Label>
           <div className="mt-1 relative">
-            <Listbox.Button className="bg-background-primary relative w-full border border-border rounded-xl pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/100 focus:border-primary/100 text-sm text-text-primary min-h-[38px]">
-              <span className="block min-h-5 truncate">{selected?.label}</span>
+            <Listbox.Button className="bg-background-primary relative w-full border border-border rounded-xl pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/100 focus:border-primary/100 text-sm text-text-primary min-h-[44px]">
+              <span className="block min-h-5 truncate">{selectedLabel}</span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                 <SelectorIcon
                   className="h-5 w-5 text-gray-400 dark:text-gray-500"
@@ -99,7 +101,7 @@ export default function Select({
                     className={({active}) =>
                       classNames(
                         active
-                          ? 'text-white bg-primary/100'
+                          ? 'bg-[color:var(--ts-accent-strong)] text-[color:var(--ts-on-accent-strong)]'
                           : 'text-text-primary',
                         'cursor-pointer select-none relative py-2 pl-3 pr-9'
                       )
@@ -120,7 +122,7 @@ export default function Select({
                         {selected?.value === option.value ? (
                           <span
                             className={classNames(
-                              active ? 'text-white' : 'text-primary/100',
+                              active ? 'text-[color:var(--ts-on-accent-strong)]' : 'text-primary/100',
                               'absolute inset-y-0 right-0 flex items-center pr-4'
                             )}
                           >

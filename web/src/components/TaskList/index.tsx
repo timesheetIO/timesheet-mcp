@@ -7,8 +7,10 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {useTranslation} from 'react-i18next';
 import {McpAppProvider} from '../../McpAppProvider';
-import {useTheme, useToolOutput} from '../../hooks';
+import {useLocale, useTheme, useTimeZone, useToolFailure, useToolOutput} from '../../hooks';
 import {useApplyTheme} from '../../utils';
+import {calendarDateOf, formatDate} from '../../format';
+import StatusCard from '../shared/StatusCard';
 import TaskListView from './TaskListView';
 import type {Task} from '../../types';
 import '../../i18n';
@@ -16,6 +18,8 @@ import '../../index.css';
 
 interface TaskListData {
     tasks: Task[];
+    /** Entries matching the query across all pages (the list holds one page) */
+    totalCount?: number;
     queryParams?: {
         startDate?: string;
         endDate?: string;
@@ -46,10 +50,17 @@ interface TaskGroup {
 function TaskListApp() {
     const {t} = useTranslation();
     const taskData = useToolOutput<TaskListData>();
+    const failure = useToolFailure();
     const theme = useTheme();
+    const locale = useLocale();
+    const timeZone = useTimeZone();
 
     // Apply theme
     useApplyTheme();
+
+    if (failure) {
+        return <StatusCard status={failure}/>;
+    }
 
     // Loading state
     if (!taskData || !taskData.tasks) {
@@ -70,13 +81,12 @@ function TaskListApp() {
         tasks.forEach((task) => {
             if (!task.startDateTime) return;
 
-            // Get date in YYYY-MM-DD format for grouping
-            const date = task.startDateTime.split('T')[0];
+            // The day the entry started for the user (YYYY-MM-DD), for grouping
+            const date = calendarDateOf(task.startDateTime, timeZone);
 
             if (!groups.has(date)) {
-                // Format date as DD.MM.YYYY for display
-                const [year, month, day] = date.split('-');
-                const dateDisplay = `${day}.${month}.${year}`;
+                // The date in the host's locale, e.g. "Tue, Sep 23" or "Di., 23. Sept."
+                const dateDisplay = formatDate(date, locale);
 
                 groups.set(date, {
                     date,
@@ -126,7 +136,8 @@ function TaskListApp() {
 
     const allGroups = groupTasksByDate(taskData.tasks);
     const displayGroups = limitTaskGroups(allGroups, 5);
-    const totalCount = taskData.tasks.length;
+    // The whole result, not only the page the list holds
+    const totalCount = taskData.totalCount ?? taskData.tasks.length;
 
     return (
         <div

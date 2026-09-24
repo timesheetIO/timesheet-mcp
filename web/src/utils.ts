@@ -7,12 +7,14 @@ import { useTheme } from './hooks';
 
 /**
  * Converts a decimal color integer to hex color string
- * @param colorInt - Decimal color value (e.g., 16734003 for #FF5733)
- * @param defaultColor - Default hex color to use if colorInt is undefined/invalid
+ * @param colorInt - Decimal color value (e.g., 16734003 for #FF5733). ARGB values from Android
+ *   are signed (-8420 is #ffdf1c). 0 means "no color": Project.color is a Java int that
+ *   defaults to 0.
+ * @param defaultColor - Default hex color to use if colorInt is undefined/invalid/0
  * @returns Hex color string (e.g., "#FF5733")
  */
 export function intToHexColor(colorInt?: number, defaultColor = '#6b7280'): string {
-  if (colorInt === undefined || colorInt === null) {
+  if (colorInt === undefined || colorInt === null || !Number.isFinite(colorInt) || colorInt === 0) {
     return defaultColor;
   }
 

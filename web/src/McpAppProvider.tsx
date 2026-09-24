@@ -5,8 +5,8 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import { useApp, useHostStyles } from '@modelcontextprotocol/ext-apps/react';
-import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
+import { applyDocumentTheme, useApp, useHostStyles } from '@modelcontextprotocol/ext-apps/react';
+import type { App, McpUiDisplayMode, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
 import type { CallToolResult } from '@modelcontextprotocol/client';
 import { updateLocaleFromHostContext } from './i18n';
 
@@ -21,6 +21,8 @@ interface McpAppContextType {
   cancelled: boolean;
   /** The host is tearing the widget down: stop timers and pending work */
   tornDown: boolean;
+  /** Record the display mode the host granted in answer to requestDisplayMode */
+  setDisplayMode: (mode: McpUiDisplayMode) => void;
 }
 
 const McpAppContext = createContext<McpAppContextType>({
@@ -32,6 +34,7 @@ const McpAppContext = createContext<McpAppContextType>({
   hostContext: undefined,
   cancelled: false,
   tornDown: false,
+  setDisplayMode: () => {},
 });
 
 interface McpAppProviderProps {
@@ -63,6 +66,8 @@ export function McpAppProvider({ appName, children }: McpAppProviderProps) {
       setters.current.setCancelled(true);
     };
 
+    // Every notification is applied, even one that repeats a value: the display mode may have
+    // changed in between through a requestDisplayMode answer (see setDisplayMode)
     app.onhostcontextchanged = (params) => {
       setters.current.setHostContext(prev => ({ ...prev, ...params }));
     };
@@ -83,6 +88,20 @@ export function McpAppProvider({ appName, children }: McpAppProviderProps) {
   // Apply host styles (CSS variables, theme, fonts)
   useHostStyles(app, hostContext ?? app?.getHostContext());
 
+  // Hosts that send no theme: the color tokens already follow the system through light-dark(),
+  // so Tailwind's dark: variant, useTheme() and the charts follow it too, live
+  const hostTheme = hostContext?.theme ?? app?.getHostContext()?.theme;
+  useEffect(() => {
+    if (!app || hostTheme || typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => applyDocumentTheme(query.matches ? 'dark' : 'light');
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
+  }, [app, hostTheme]);
+
   // Sync initial host context after connection
   useEffect(() => {
     if (isConnected && app) {
@@ -98,9 +117,13 @@ export function McpAppProvider({ appName, children }: McpAppProviderProps) {
     updateLocaleFromHostContext(hostContext?.locale);
   }, [hostContext?.locale]);
 
+  const setDisplayMode = useCallback((mode: McpUiDisplayMode) => {
+    setHostContext(prev => ({ ...prev, displayMode: mode }));
+  }, []);
+
   return (
     <McpAppContext.Provider
-      value={{ app, isConnected, error, toolResult, toolInput, hostContext, cancelled, tornDown }}
+      value={{ app, isConnected, error, toolResult, toolInput, hostContext, cancelled, tornDown, setDisplayMode }}
     >
       {children}
     </McpAppContext.Provider>
@@ -137,4 +160,9 @@ export function useMcpConnection(): { isConnected: boolean; error: Error | null 
 export function useMcpLifecycle(): { cancelled: boolean; tornDown: boolean } {
   const { cancelled, tornDown } = useContext(McpAppContext);
   return { cancelled, tornDown };
+}
+
+/** Record a display mode the host granted */
+export function useMcpSetDisplayMode(): (mode: McpUiDisplayMode) => void {
+  return useContext(McpAppContext).setDisplayMode;
 }

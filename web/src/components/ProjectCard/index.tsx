@@ -7,8 +7,9 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useToolOutput, useTheme } from '../../hooks';
+import { useToolFailure, useToolOutput, useTheme } from '../../hooks';
 import { useApplyTheme } from '../../utils';
+import StatusCard from '../shared/StatusCard';
 import ProjectCard from './ProjectCard';
 import type { Project } from '../../types';
 import '../../i18n';
@@ -17,10 +18,15 @@ import '../../index.css';
 function ProjectCardApp() {
   const { t } = useTranslation();
   const project = useToolOutput<Project>();
+  const failure = useToolFailure();
   const theme = useTheme();
 
   // Apply theme
   useApplyTheme();
+
+  if (failure) {
+    return <StatusCard status={failure} />;
+  }
 
   // Loading state
   if (!project) {
@@ -31,13 +37,9 @@ function ProjectCardApp() {
     );
   }
 
-  // Error state
+  // A result without a project
   if (!project.id) {
-    return (
-      <div className="text-body-small text-accent-danger p-4">
-        {t('projectCard.error')}
-      </div>
-    );
+    return <StatusCard status="error" message={t('projectCard.error')} />;
   }
 
   return (

@@ -7,8 +7,9 @@ import React, {useEffect, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {useTranslation} from 'react-i18next';
 import {McpAppProvider} from '../../McpAppProvider';
-import {useTheme, useToolOutput} from '../../hooks';
+import {useTheme, useToolFailure, useToolOutput} from '../../hooks';
 import {useApplyTheme} from '../../utils';
+import StatusCard from '../shared/StatusCard';
 import ProjectListView from './ProjectListView';
 import type {Project} from '../../types';
 import '../../i18n';
@@ -24,6 +25,7 @@ interface ProjectListData {
 function ProjectListApp() {
     const {t} = useTranslation();
     const initialData = useToolOutput<ProjectListData>();
+    const failure = useToolFailure();
     const theme = useTheme();
     const [projectData, setProjectData] = useState<ProjectListData | null>(null);
 
@@ -35,6 +37,10 @@ function ProjectListApp() {
             setProjectData(initialData);
         }
     }, [initialData]);
+
+    if (failure) {
+        return <StatusCard status={failure}/>;
+    }
 
     // Loading state
     if (!projectData) {
@@ -48,16 +54,9 @@ function ProjectListApp() {
         );
     }
 
-    // Error state
+    // A result without projects
     if (!projectData.projects) {
-        return (
-            <div
-                className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-4">
-                <div className="text-body-small text-accent-danger">
-                    {t('projectList.error')}
-                </div>
-            </div>
-        );
+        return <StatusCard status="error" message={t('projectList.error')}/>;
     }
 
     return (
