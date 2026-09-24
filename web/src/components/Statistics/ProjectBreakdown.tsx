@@ -1,16 +1,9 @@
 /**
  * ProjectBreakdown Component
- * Displays project hours breakdown as a donut chart with side legend
+ * Displays project hours breakdown as a donut chart (plain SVG) with side legend
  */
 
 import React from 'react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 import { getChartTheme, intToHexColor } from './chartTheme';
 import i18n from '../../i18n';
 
@@ -40,6 +33,52 @@ function sliceColor(item: ProjectBreakdownItem, index: number): string {
   return item.color || intToHexColor(item.projectColor, index);
 }
 
+const DONUT_SIZE = 180;
+const DONUT_OUTER = 80;
+const DONUT_INNER = 45;
+
+/** Ring segments drawn as dashed circle strokes, with a small gap between projects. */
+function Donut({ slices, formatHours, label }: {
+  slices: { name: string; value: number; fill: string }[];
+  formatHours: (hours: number) => string;
+  label: string;
+}) {
+  const center = DONUT_SIZE / 2;
+  const radius = (DONUT_OUTER + DONUT_INNER) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+  const gap = slices.length > 1 ? 2 : 0;
+  let offset = 0;
+
+  return (
+    <svg width={DONUT_SIZE} height={DONUT_SIZE} role="img" aria-label={label} style={{ flexShrink: 0 }}>
+      <g transform={`rotate(-90 ${center} ${center})`}>
+        {slices.map((slice, index) => {
+          const length = total > 0 ? (slice.value / total) * circumference : 0;
+          const visible = Math.max(length - gap, 0);
+          const segment = (
+            <circle
+              key={index}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              strokeWidth={DONUT_OUTER - DONUT_INNER}
+              strokeDasharray={`${visible} ${circumference - visible}`}
+              strokeDashoffset={-offset}
+              style={{ stroke: slice.fill }}
+            >
+              <title>{`${slice.name}: ${formatHours(slice.value)}`}</title>
+            </circle>
+          );
+          offset += length;
+          return segment;
+        })}
+      </g>
+    </svg>
+  );
+}
+
 export default function ProjectBreakdown({ projects, formatHours, theme = 'light' }: ProjectBreakdownProps) {
   const ct = getChartTheme(theme);
 
@@ -58,36 +97,7 @@ export default function ProjectBreakdown({ projects, formatHours, theme = 'light
       </h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         {/* Donut chart */}
-        <div style={{ width: '180px', height: '180px', flexShrink: 0 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={45}
-                outerRadius={80}
-                paddingAngle={2}
-                dataKey="value"
-                stroke="none"
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={index} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: ct.tooltipBg,
-                  border: `1px solid ${ct.tooltipBorder}`,
-                  borderRadius: '8px',
-                  color: ct.tooltipText,
-                  fontSize: '13px',
-                }}
-                formatter={(value: number, name: string) => [formatHours(value), name]}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        <Donut slices={chartData} formatHours={formatHours} label={i18n.t('statistics.projectBreakdown')} />
 
         {/* Legend list */}
         <div style={{ flex: 1, display: 'grid', gap: '8px' }}>

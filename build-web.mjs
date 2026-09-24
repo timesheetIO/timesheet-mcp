@@ -70,6 +70,19 @@ const createHTML = (componentName, jsFile) => {
 </html>`;
 };
 
+// zod, which the MCP SDK and ext-apps pull in, re-exports every error-message locale from one
+// index. Widgets only ever handle English protocol errors, so that index is replaced with English
+// alone, keeping 60+ languages (about 260 KB) out of every widget.
+const zodEnglishOnly = {
+  name: 'zod-english-only',
+  setup(build) {
+    build.onLoad({ filter: /[\\/]zod[\\/]v4[\\/]locales[\\/]index\.js$/ }, () => ({
+      contents: 'export { default as en } from "./en.js";',
+      loader: 'js',
+    }));
+  },
+};
+
 async function buildComponent(component) {
   const inputFile = path.join(__dirname, 'web', 'src', 'components', component.file);
   const htmlFile = path.join(distDir, `${component.name}.html`);
@@ -104,6 +117,7 @@ async function buildComponent(component) {
         '.css': 'empty', // Ignore CSS imports since we process CSS separately
       },
       external: [],
+      plugins: [zodEnglishOnly],
       define: {
         'process.env.NODE_ENV': watch ? '"development"' : '"production"',
       },
@@ -193,7 +207,7 @@ async function watchComponents() {
       },
       write: false,
       logLevel: 'info',
-      plugins: [{
+      plugins: [zodEnglishOnly, {
         name: 'inline-html-writer',
         setup(build) {
           build.onEnd(async (result) => {

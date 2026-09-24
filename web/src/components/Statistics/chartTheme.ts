@@ -1,15 +1,12 @@
 /**
  * Chart Theme Utility
- * Provides theme-aware color palettes for recharts components
+ * Provides theme-aware colors for the statistics charts
  */
 
 export interface ChartTheme {
   text: string;
   textSecondary: string;
   grid: string;
-  tooltipBg: string;
-  tooltipBorder: string;
-  tooltipText: string;
   billableBar: string;
   nonBillableBar: string;
   axisLine: string;
@@ -21,9 +18,6 @@ export function getChartTheme(theme: 'light' | 'dark'): ChartTheme {
       text: '#fafafa',
       textSecondary: '#a1a1aa',
       grid: 'rgba(255, 255, 255, 0.08)',
-      tooltipBg: '#18181b',
-      tooltipBorder: 'rgba(255, 255, 255, 0.15)',
-      tooltipText: '#fafafa',
       billableBar: '#ff8800',
       nonBillableBar: '#52525b',
       axisLine: 'rgba(255, 255, 255, 0.15)',
@@ -33,9 +27,6 @@ export function getChartTheme(theme: 'light' | 'dark'): ChartTheme {
     text: '#18181b',
     textSecondary: '#52525b',
     grid: 'rgba(0, 0, 0, 0.08)',
-    tooltipBg: '#ffffff',
-    tooltipBorder: 'rgba(0, 0, 0, 0.1)',
-    tooltipText: '#18181b',
     billableBar: '#ff8800',
     nonBillableBar: '#d4d4d8',
     axisLine: 'rgba(0, 0, 0, 0.15)',

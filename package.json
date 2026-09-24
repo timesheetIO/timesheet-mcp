@@ -71,8 +71,7 @@
     "react-icons": "^4.7.1",
     "react-router-dom": "^7.9.4",
     "react-timer-hook": "^3.0.5",
-    "react-use": "^17.4.0",
-    "recharts": "^2.15.0"
+    "react-use": "^17.4.0"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
