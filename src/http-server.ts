@@ -20,11 +20,14 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { TimesheetMCPServer } from './index.js';
 import {
   getProtectedResourceMetadata,
-  getAuthorizationServerMetadata,
   getWWWAuthenticateHeader,
+  getAuthChallenge,
+  getJsonRpcRequestId,
+  createDocumentProxy,
   extractBearerToken,
   getApiBaseUrl,
   getMcpServerUrl,
+  type ProxiedDocument,
 } from './mcp-app-helpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -53,8 +56,9 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id'],
-  exposedHeaders: ['mcp-session-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'MCP-Protocol-Version'],
+  // Browser clients can only read the 401 challenge if it is exposed
+  exposedHeaders: ['mcp-session-id', 'WWW-Authenticate'],
 }));
 
 // Parse JSON for all requests
@@ -107,34 +111,33 @@ app.get('/.well-known/oauth-protected-resource', (req, res) => {
 });
 
 /**
- * Authorization Server Metadata (RFC 8414)
- * ChatGPT fetches this to discover OAuth endpoints and PKCE support
+ * Authorization Server Metadata (RFC 8414) and OpenID Configuration
+ *
+ * The authorization server is the API, and current clients read these documents there, as the
+ * protected resource metadata says. Clients of the 2025-03-26 MCP spec look for them on this
+ * origin instead, so they are served here as live copies of the API's documents.
  */
-app.get('/.well-known/oauth-authorization-server', (req, res) => {
+const authorizationServerMetadata = createDocumentProxy(
+  `${getApiBaseUrl()}/.well-known/oauth-authorization-server`
+);
+const openIdConfiguration = createDocumentProxy(`${getApiBaseUrl()}/.well-known/openid-configuration`);
+
+async function sendProxiedDocument(res: express.Response, load: () => Promise<ProxiedDocument>) {
+  const { status, body } = await load();
+  if (status === 200) {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+  res.status(status).json(body);
+}
+
+app.get('/.well-known/oauth-authorization-server', async (req, res) => {
   console.error('[OAuth] Authorization Server Metadata request');
-
-  const metadata = getAuthorizationServerMetadata();
-
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.setHeader('Content-Type', 'application/json');
-
-  console.error('[OAuth] Returning auth server metadata:', JSON.stringify(metadata, null, 2));
-  res.json(metadata);
+  await sendProxiedDocument(res, authorizationServerMetadata);
 });
 
-/**
- * OpenID Configuration (alias for authorization server metadata)
- * Some clients look for this endpoint instead
- */
-app.get('/.well-known/openid-configuration', (req, res) => {
+app.get('/.well-known/openid-configuration', async (req, res) => {
   console.error('[OAuth] OpenID Configuration request');
-
-  const metadata = getAuthorizationServerMetadata();
-
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.setHeader('Content-Type', 'application/json');
-
-  res.json(metadata);
+  await sendProxiedDocument(res, openIdConfiguration);
 });
 
 // List available components
@@ -203,6 +206,22 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
     console.error(`[MCP] Authorization header present but not Bearer: ${authHeader.substring(0, 20)}...`);
   } else {
     console.error('[MCP] No Authorization header - will use environment API key if available');
+  }
+
+  // Refuse before doing any work: MCP clients only start OAuth on a 401 (MCP authorization spec)
+  const challenge = getAuthChallenge(bearerToken, !!process.env.TIMESHEET_API_TOKEN);
+  if (challenge) {
+    console.error(`[MCP] 401 ${challenge.error ?? 'no credentials'}`);
+    res.setHeader('WWW-Authenticate', getWWWAuthenticateHeader(challenge.error, challenge.errorDescription));
+    res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Authentication required',
+      },
+      id: getJsonRpcRequestId(req.body),
+    });
+    return;
   }
 
   try {
