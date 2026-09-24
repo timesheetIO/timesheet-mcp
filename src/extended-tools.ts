@@ -5,11 +5,10 @@
  * (and their members), team/project member management, todos, rates, tags,
  * and full CRUD for notes/expenses/pauses.
  *
- * The main server (src/index.ts) concatenates EXTENDED_TOOL_DEFINITIONS into
- * its tools array and calls dispatchExtendedTool() before throwing
- * MethodNotFound in its tool-call switch.
+ * The tool list (src/tool-definitions.ts) includes EXTENDED_TOOL_DEFINITIONS,
+ * and the server's tool-call dispatch falls back to dispatchExtendedTool()
+ * before reporting an unknown tool.
  */
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { TimesheetClient } from '@timesheet/sdk';
 import { formatAbsenceResultResponse, toAbsenceCard, type AbsenceCardAction } from './mcp-app-helpers.js';
 
@@ -850,7 +849,8 @@ add(
   async (client, args) => {
     const { projectId, role, ...data } = args;
     if (!data.email && !data.userId) {
-      throw new McpError(ErrorCode.InvalidParams, 'Either email or userId must be provided.');
+      // A tool error, not a protocol error, so the model can correct the call (SEP-1303)
+      return { content: [{ type: 'text', text: 'Either email or userId must be provided.' }], isError: true };
     }
     const m = await client.projects.addMember(projectId, {
       ...data,
@@ -1481,7 +1481,7 @@ const handlerMap: Record<string, ToolHandler> = Object.fromEntries(
  * Dispatch an extended tool call.
  *
  * @returns The MCP tool response, or `null` if `name` is not an extended tool
- *          (so the caller can fall through to MethodNotFound).
+ *          (so the caller can report an unknown tool).
  */
 export async function dispatchExtendedTool(
   client: TimesheetClient,
@@ -1493,7 +1493,6 @@ export async function dispatchExtendedTool(
   try {
     return await handler(client, (args ?? {}) as Record<string, unknown>);
   } catch (error) {
-    if (error instanceof McpError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     return {
       content: [{ type: 'text', text: `Error executing ${name}: ${message}` }],

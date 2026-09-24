@@ -2,9 +2,9 @@
 /**
  * HTTP Server for MCP Apps SDK / ChatGPT Integration
  *
- * Uses StreamableHTTPServerTransport in STATELESS mode to avoid session timeout issues.
- * Each request is independent - no session persistence required since the Timesheet API
- * maintains all actual state (running timers, tasks, projects, etc.)
+ * Serves protocol 2026-07-28 and 2025-era clients on one endpoint through the SDK's
+ * createMcpHandler. Every request gets a fresh server instance (stateless): the Timesheet API
+ * keeps all real state (running timers, tasks, projects, etc.).
  *
  * OAuth 2.1 Support:
  * - Serves /.well-known/oauth-protected-resource for ChatGPT discovery
@@ -16,7 +16,8 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createMcpHandler } from '@modelcontextprotocol/server';
+import { toNodeHandler } from '@modelcontextprotocol/node';
 import { TimesheetMCPServer } from './index.js';
 import {
   getProtectedResourceMetadata,
@@ -25,6 +26,7 @@ import {
   getJsonRpcRequestId,
   createDocumentProxy,
   extractBearerToken,
+  toAuthInfo,
   getApiBaseUrl,
   getMcpServerUrl,
   type ProxiedDocument,
@@ -56,7 +58,9 @@ app.use(cors({
   ],
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'MCP-Protocol-Version'],
+  // Mcp-Method / Mcp-Name ride on every 2026-07-28 request; without them a browser client's
+  // preflight fails and it silently falls back to the 2025 protocol
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id', 'MCP-Protocol-Version', 'Mcp-Method', 'Mcp-Name'],
   // Browser clients can only read the 401 challenge if it is exposed
   exposedHeaders: ['mcp-session-id', 'WWW-Authenticate'],
 }));
@@ -178,21 +182,25 @@ app.get('/components', (req, res) => {
 const MCP_ENDPOINT_PATH = process.env.MCP_ENDPOINT_PATH || '/';
 
 /**
- * MCP endpoint using StreamableHTTPServerTransport in STATELESS mode
- *
- * Key: sessionIdGenerator is set to undefined to disable session management.
- * This means each request is completely independent - no session persistence required.
- *
- * OAuth 2.1 Support:
- * - Extracts Bearer token from Authorization header
- * - Passes token to MCP server for API authentication
- * - Returns 401 with WWW-Authenticate header if auth fails
- *
- * This solves the "Session not found" errors that occur when:
- * - ChatGPT doesn't maintain session headers between calls
- * - SSE connections timeout
- * - Network interruptions occur
+ * One handler for both protocol eras. 2026-07-28 requests (per-request _meta envelope) are served
+ * by the SDK directly; 2025-era requests (initialize, claim-less calls) get the stateless fallback,
+ * a fresh instance over a streamable HTTP transport, which is what this server always did.
+ * The factory receives the bearer token that passed the 401 gate as authInfo.
  */
+const mcpHandler = createMcpHandler(
+  ({ authInfo }) => new TimesheetMCPServer({ oauthToken: authInfo?.token }).getServer(),
+  {
+    legacy: 'stateless',
+    // A subscriptions/listen stream holds a Cloud Run request slot for its lifetime, and this server
+    // never publishes list changes, so keep the number an instance serves low.
+    maxSubscriptions: 16,
+    onerror: (error) => console.error('[MCP] handler:', error),
+  }
+);
+const handleMcp = toNodeHandler(mcpHandler, {
+  onerror: (error) => console.error('[MCP] adapter:', error),
+});
+
 app.post(MCP_ENDPOINT_PATH, async (req, res) => {
   console.error(`[MCP] POST request from: ${req.headers.origin || 'unknown'}`);
 
@@ -208,7 +216,9 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
     console.error('[MCP] No Authorization header - will use environment API key if available');
   }
 
-  // Refuse before doing any work: MCP clients only start OAuth on a 401 (MCP authorization spec)
+  // Refuse before doing any work, for every era alike: MCP clients only start OAuth on a 401, and
+  // a 2026-07-28 client reads a 401 on its server/discover probe as "sign in", never as a reason
+  // to fall back to the 2025 protocol.
   const challenge = getAuthChallenge(bearerToken, !!process.env.TIMESHEET_API_TOKEN);
   if (challenge) {
     console.error(`[MCP] 401 ${challenge.error ?? 'no credentials'}`);
@@ -224,68 +234,9 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
     return;
   }
 
-  try {
-    // Create a new MCP server instance for each request (stateless)
-    // Pass the OAuth token if present
-    const mcpServer = new TimesheetMCPServer({ oauthToken: bearerToken || undefined });
-    const server = mcpServer.getServer();
-
-    // Create transport in STATELESS mode (sessionIdGenerator: undefined)
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined, // STATELESS MODE - no sessions!
-    });
-
-    // Connect server to transport
-    await server.connect(transport);
-
-    // Handle the request
-    await transport.handleRequest(req, res, req.body);
-
-    // Clean up after request
-    await transport.close();
-    await server.close();
-
-  } catch (error) {
-    console.error('[MCP] Error handling request:', error);
-
-    if (!res.headersSent) {
-      // Check if this is an authentication error
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const isAuthError = errorMessage.toLowerCase().includes('auth') ||
-                          errorMessage.toLowerCase().includes('unauthorized') ||
-                          errorMessage.toLowerCase().includes('401') ||
-                          errorMessage.toLowerCase().includes('token');
-
-      if (isAuthError) {
-        // Return 401 with WWW-Authenticate header for OAuth discovery
-        res.setHeader('WWW-Authenticate', getWWWAuthenticateHeader('invalid_token', errorMessage));
-        res.status(401).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32001,
-            message: 'Authentication required',
-            data: {
-              error: 'invalid_token',
-              error_description: errorMessage,
-              authorization_server: getApiBaseUrl(),
-              protected_resource_metadata: `${getMcpServerUrl()}/.well-known/oauth-protected-resource`,
-            },
-          },
-          id: null,
-        });
-      } else {
-        res.status(500).json({
-          jsonrpc: '2.0',
-          error: {
-            code: -32603,
-            message: 'Internal server error',
-            data: error instanceof Error ? error.message : String(error),
-          },
-          id: null,
-        });
-      }
-    }
-  }
+  // API keys and OAuth tokens pass through unchanged; the API verifies them on every call
+  const auth = bearerToken ? toAuthInfo(bearerToken) : undefined;
+  await handleMcp(Object.assign(req, { auth }), res, req.body);
 });
 
 // Landing page path
@@ -384,22 +335,18 @@ const server = app.listen(PORT, HOST, () => {
   console.error('');
 });
 
-// Graceful shutdown
-process.on('SIGINT', () => {
+// Graceful shutdown: end in-flight 2026-07-28 exchanges and listen streams, then stop listening
+async function shutdown() {
   console.error('\n👋 Shutting down server...');
+  await mcpHandler.close().catch((error) => console.error('[MCP] close:', error));
   server.close(() => {
     console.error('✅ Server closed');
     process.exit(0);
   });
-});
+}
 
-process.on('SIGTERM', () => {
-  console.error('\n👋 Shutting down server...');
-  server.close(() => {
-    console.error('✅ Server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
@@ -407,7 +354,8 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+// Logged, not fatal: the SDK aborts a handler when its client disconnects, and a late rejection
+// from such an abandoned request must not take down an instance serving everyone else.
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
-  process.exit(1);
 });

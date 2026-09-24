@@ -18,7 +18,11 @@ describe('Basic Tests', () => {
 
   test('required dependencies are present', () => {
     const packageJson = require('../package.json');
-    expect(packageJson.dependencies['@modelcontextprotocol/sdk']).toBeDefined();
+    expect(packageJson.dependencies['@modelcontextprotocol/server']).toBeDefined();
+    expect(packageJson.dependencies['@modelcontextprotocol/node']).toBeDefined();
+    // The v1 SDK is gone, and ext-apps is only needed to build the widgets
+    expect(packageJson.dependencies['@modelcontextprotocol/sdk']).toBeUndefined();
+    expect(packageJson.dependencies['@modelcontextprotocol/ext-apps']).toBeUndefined();
     expect(packageJson.dependencies['@timesheet/sdk']).toBeDefined();
     expect(packageJson.dependencies['dotenv']).toBeDefined();
   });

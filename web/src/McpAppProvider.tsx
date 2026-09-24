@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { useApp, useHostStyles } from '@modelcontextprotocol/ext-apps/react';
 import type { App, McpUiHostContext } from '@modelcontextprotocol/ext-apps';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from '@modelcontextprotocol/client';
 import { updateLocaleFromHostContext } from './i18n';
 
 interface McpAppContextType {

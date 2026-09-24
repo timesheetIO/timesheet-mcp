@@ -1,5 +1,4 @@
 import { describe, expect, test } from '@jest/globals';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 describe('Tool Definitions', () => {
   const toolDefinitions = [

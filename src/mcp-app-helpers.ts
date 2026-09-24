@@ -8,9 +8,43 @@
  * - Tool results: only data the widget needs and the model does not, under `_meta["timesheet/..."]`
  */
 
-import { RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
+import type { AuthInfo, CacheHint } from '@modelcontextprotocol/server';
 
-export { RESOURCE_MIME_TYPE };
+/**
+ * The MCP Apps constants, as `@modelcontextprotocol/ext-apps/server` defines them. Inlined so the
+ * server does not depend on ext-apps at runtime: only the widget build (web/) needs that package.
+ */
+export const RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app';
+export const EXTENSION_ID = 'io.modelcontextprotocol/ui';
+
+const HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * Cache hints for the cacheable results of protocol 2026-07-28 (never sent on 2025-era responses,
+ * never on tools/call). Only data that is identical for every user may be public: the tool list,
+ * the ui:// widget resources and discover. Widget HTML changes on deploy, so it is kept shorter.
+ * A per-user resource must never be served under the resources/read hint (see the ui:// test).
+ */
+export const CACHE_HINTS = {
+  'server/discover': { ttlMs: HOUR_MS, cacheScope: 'public' },
+  'tools/list': { ttlMs: HOUR_MS, cacheScope: 'public' },
+  'resources/list': { ttlMs: HOUR_MS, cacheScope: 'public' },
+  'resources/read': { ttlMs: 15 * 60 * 1000, cacheScope: 'public' },
+} as const satisfies Record<string, CacheHint>;
+
+/** tools/list page size. Clients follow the opaque cursor; large lists stay in small payloads. */
+export const TOOLS_LIST_PAGE_SIZE = 50;
+
+/**
+ * One page of a list plus the cursor of the next one. The cursor is the offset as a base-10
+ * string; anything unreadable starts from the beginning.
+ */
+export function paginate<T>(items: readonly T[], cursor: unknown, pageSize: number): { page: T[]; nextCursor?: string } {
+  const offset = typeof cursor === 'string' ? Math.max(0, parseInt(cursor, 10) || 0) : 0;
+  const page = items.slice(offset, offset + pageSize);
+  const nextOffset = offset + page.length;
+  return nextOffset < items.length ? { page, nextCursor: String(nextOffset) } : { page };
+}
 
 const RESOURCE_URI_PREFIX = 'ui://timesheet';
 
@@ -742,7 +776,7 @@ export function getAuthChallenge(
 }
 
 /** The exp claim of a JWT in seconds, or null when the payload cannot be read. */
-function getJwtExpiry(token: string): number | null {
+export function getJwtExpiry(token: string): number | null {
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'));
     return typeof payload?.exp === 'number' ? payload.exp : null;
@@ -855,6 +889,21 @@ export function isJwtToken(token: string): boolean {
 export function isApiKeyToken(token: string): boolean {
   // Timesheet API keys have format: ts_{prefix}.{secret}
   return /^ts_[a-zA-Z0-9]+\.[a-zA-Z0-9]+$/.test(token);
+}
+
+/**
+ * What the MCP handler passes to the per-request server factory for a bearer token that got past
+ * the 401 gate. No verification happens here: the API checks the token on every call.
+ */
+export function toAuthInfo(token: string): AuthInfo {
+  const exp = isJwtToken(token) ? getJwtExpiry(token) : null;
+  return {
+    token,
+    clientId: 'unknown',
+    scopes: [],
+    ...(exp !== null ? { expiresAt: exp } : {}),
+    extra: { scheme: isApiKeyToken(token) ? 'apiKey' : 'oauth' },
+  };
 }
 
 /**

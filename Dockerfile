@@ -7,7 +7,7 @@
 # For Cloud Run (HTTP mode), this container runs: node dist/http-server.js
 
 # Build stage - compile TypeScript and bundle widgets
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ COPY web/ ./web/
 RUN npm run build
 
 # Production stage - minimal runtime image
-FROM node:20-slim AS production
+FROM node:22-slim AS production
 
 WORKDIR /app
 
@@ -37,7 +37,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist ./dist

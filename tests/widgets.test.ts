@@ -1,6 +1,4 @@
 import { describe, expect, jest, test } from '@jest/globals';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import {
   applyToolUiMeta,
   calendarDate,
@@ -22,24 +20,17 @@ import {
   TOOL_WIDGET_LINKS,
   WIDGET_NAMES,
 } from '../src/mcp-app-helpers.js';
-import { EXTENDED_TOOL_DEFINITIONS, dispatchExtendedTool } from '../src/extended-tools.js';
+import { dispatchExtendedTool } from '../src/extended-tools.js';
+import { TOOL_DEFINITIONS } from '../src/tool-definitions.js';
 import { computeStatistics, fetchAllPages } from '../src/statistics.js';
 
 const PROFILE = { firstname: 'Ada' };
 const SETTINGS = { timeFormat: '24h' };
 
-/** Tool names defined in index.ts, read from the source (index.ts cannot load under jest). */
-function indexToolNames(): string[] {
-  const source = readFileSync(join(__dirname, '..', 'src', 'index.ts'), 'utf8');
-  return Array.from(source.matchAll(/^ {10}name: '([a-z_]+)',$/gm), (m) => m[1]);
-}
 
 describe('tool descriptors link their widget', () => {
   test('every linked tool exists', () => {
-    const defined = new Set([
-      ...indexToolNames(),
-      ...EXTENDED_TOOL_DEFINITIONS.map((d) => d.name as string),
-    ]);
+    const defined = new Set(TOOL_DEFINITIONS.map((tool) => tool.name));
     for (const name of Object.keys(TOOL_WIDGET_LINKS)) {
       expect(defined.has(name)).toBe(true);
     }

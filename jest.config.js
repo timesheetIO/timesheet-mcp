@@ -19,8 +19,6 @@ export default {
   },
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@modelcontextprotocol/sdk/(.*)$': '<rootDir>/node_modules/@modelcontextprotocol/sdk/dist/cjs/$1',
-    '^@modelcontextprotocol/ext-apps/server$': '<rootDir>/tests/__mocks__/ext-apps-server.ts',
   },
   transformIgnorePatterns: [
     'node_modules/(?!(@modelcontextprotocol|@timesheet)/)',
