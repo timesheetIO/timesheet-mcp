@@ -48,9 +48,9 @@ export const PROJECT_COLOR_PALETTE = [
  * SDK stores colors as decimal integers (e.g., 16711680 = #FF0000)
  */
 export function intToHexColor(color: number | undefined, fallbackIndex: number): string {
-  if (color !== undefined && color > 0) {
-    const hex = color.toString(16).padStart(6, '0');
-    return `#${hex}`;
+  // Colors are ARGB integers, and Android stores them signed (e.g. -8420), so any non-zero value is a color
+  if (color !== undefined && Number.isFinite(color) && color !== 0) {
+    return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
   }
   return PROJECT_COLOR_PALETTE[fallbackIndex % PROJECT_COLOR_PALETTE.length];
 }

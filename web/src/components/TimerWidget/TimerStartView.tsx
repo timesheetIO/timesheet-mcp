@@ -7,6 +7,7 @@
 import React, {useState} from 'react';
 import {useTranslation} from 'react-i18next';
 import {ClockIcon} from '@heroicons/react/outline';
+import {SelectorIcon} from '@heroicons/react/solid';
 import {useData} from './DataProvider';
 import {useTimerOperations} from '../../utils/timesheet-hooks';
 import {useTimeZone, useUpdateModelContext} from '../../hooks';
@@ -63,25 +64,31 @@ export default function TimerStartView() {
 
       <div className="mt-4 pl-0 min-[480px]:pl-[60px] grid gap-3">
         {!projectsLoaded ? (
-          <SkeletonLine height={44} />
+          <SkeletonLine height={40} />
         ) : projects.length === 0 ? (
           <p className="m-0 text-body-small text-secondary">{t('timerWidget.noProjectsYet')}</p>
         ) : (
           <>
             <label className="grid gap-1.5">
               <span className="text-caption font-medium text-secondary">{t('timerWidget.project')}</span>
-              <select
-                value={projectId}
-                onChange={event => setProjectId(event.target.value)}
-                className="min-h-[44px] w-full rounded-md border border-border bg-background-primary text-text-primary px-3 text-body-small"
-              >
-                <option value="">{t('timerWidget.pickProject')}</option>
-                {projects.map(project => (
-                  <option key={project.id} value={project.id}>
-                    {project.title}{project.employer ? ` · ${project.employer}` : ''}
-                  </option>
-                ))}
-              </select>
+              {/* Native select (its list can't be clipped by the host), styled like the shared Select */}
+              <span className="relative block">
+                <select
+                  value={projectId}
+                  onChange={event => setProjectId(event.target.value)}
+                  className="block w-full min-h-[40px] appearance-none rounded-xl border border-border bg-background-primary pl-3 pr-10 text-sm text-text-primary cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/100 focus:border-primary/100"
+                >
+                  <option value="">{t('timerWidget.pickProject')}</option>
+                  {projects.map(project => (
+                    <option key={project.id} value={project.id}>
+                      {project.title}{project.employer ? ` · ${project.employer}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                  <SelectorIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+                </span>
+              </span>
             </label>
             {error && <p className="m-0 text-body-small text-accent-danger" role="alert">{error}</p>}
             <ActionRow>

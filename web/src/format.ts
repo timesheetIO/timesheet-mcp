@@ -100,6 +100,9 @@ export function formatDateRange(start: string, end: string | undefined, locale: 
 /** Hex color for a Timesheet integer color (16711680 = #ff0000), or undefined */
 export function projectColor(color?: number | string | null): string | undefined {
   if (typeof color === 'string' && color) return color.startsWith('#') ? color : `#${color}`;
-  if (typeof color === 'number' && color > 0) return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+  // Colors are ARGB integers, and Android stores them signed (e.g. -8420), so any non-zero value is a color
+  if (typeof color === 'number' && Number.isFinite(color) && color !== 0) {
+    return `#${(color & 0xffffff).toString(16).padStart(6, '0')}`;
+  }
   return undefined;
 }
