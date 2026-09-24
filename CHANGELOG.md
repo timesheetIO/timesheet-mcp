@@ -61,6 +61,9 @@
   every tool's result against its schema.
 - A tool call without `arguments` failed with a protocol error for several tools.
 - `export_from_template` returns a download link instead of dropping the file.
+- `format: "pdf"` on `export_generate` and `export_send` delivers a real PDF. The reports service
+  used to write an Excel workbook under a `.pdf` name; it now renders every report type as a PDF
+  table (needs the reports service from the same release).
 - Statistics are exact up to 5,000 entries (they stopped at 500), entries that two pages both
   return are counted once, and daily bars no longer shift by a day east of UTC.
 - Project colours set in the Android app show in the cards, and a project without a colour no
