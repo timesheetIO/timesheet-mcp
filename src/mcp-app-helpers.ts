@@ -2,10 +2,10 @@
  * MCP Apps Helper Functions
  * Utilities for formatting tool responses with MCP Apps metadata (SEP-1865)
  *
- * Uses the standardized MCP Apps schema:
- * - URI scheme: ui://timesheet/<component>.html
- * - MIME type: text/html;profile=mcp-app
- * - Metadata: _meta.ui.* (with OpenAI compat keys retained)
+ * Where each piece of MCP Apps metadata lives:
+ * - Tool descriptors: `_meta.ui.resourceUri` + `visibility`, plus ChatGPT's invoking/invoked status text
+ * - Resources (list and read): `_meta.ui.csp` + `prefersBorder`, plus ChatGPT's widget description
+ * - Tool results: only data the widget needs and the model does not, under `_meta["timesheet/..."]`
  */
 
 import { RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
@@ -15,10 +15,64 @@ export { RESOURCE_MIME_TYPE };
 const RESOURCE_URI_PREFIX = 'ui://timesheet';
 
 /**
+ * Every widget the server ships. Resources, the widget build and the tool links all use this list.
+ */
+export const WIDGET_NAMES = [
+  'TimerWidget',
+  'ProjectList',
+  'ProjectCard',
+  'TaskList',
+  'TaskCard',
+  'Statistics',
+  'ExportWidget',
+  'ResultCard',
+] as const;
+
+export type WidgetName = (typeof WIDGET_NAMES)[number];
+
+/** Result `_meta` keys for UI-only data (the model reads content and structuredContent, not these). */
+export const PROFILE_META_KEY = 'timesheet/profile';
+export const SETTINGS_META_KEY = 'timesheet/settings';
+
+/**
  * Get the resource URI for a component
  */
 export function getComponentResourceUri(componentName: string): string {
   return `${RESOURCE_URI_PREFIX}/${componentName}.html`;
+}
+
+/** The widget a `ui://timesheet/<Name>.html` URI points at, or null if it names none. */
+export function parseWidgetUri(uri: string): WidgetName | null {
+  const match = uri.match(/^ui:\/\/timesheet\/(.+)\.html$/);
+  if (!match) {
+    return null;
+  }
+  return (WIDGET_NAMES as readonly string[]).includes(match[1]) ? (match[1] as WidgetName) : null;
+}
+
+/**
+ * `_meta` for a widget resource, on resources/list entries and resources/read contents alike.
+ * The resource domain lets the widget load the fonts Claude injects as host styles.
+ */
+export function getWidgetResourceMeta(name: WidgetName) {
+  return {
+    ui: {
+      csp: { connectDomains: [] as string[], resourceDomains: ['https://assets.claude.ai'] },
+      prefersBorder: false,
+    },
+    'openai/widgetDescription': getStaticWidgetDescription(name),
+  };
+}
+
+/** resources/list entries for every widget. */
+export function listWidgetResources() {
+  return WIDGET_NAMES.map((name) => ({
+    uri: getComponentResourceUri(name),
+    mimeType: RESOURCE_MIME_TYPE,
+    name: `${name} Component`,
+    description: getStaticWidgetDescription(name),
+    _meta: getWidgetResourceMeta(name),
+  }));
 }
 
 // Get the component server base URL from environment or use ngrok URL
@@ -26,54 +80,132 @@ export function getComponentBaseUrl(): string {
   return process.env.COMPONENT_BASE_URL || process.env.NGROK_URL || 'http://localhost:3000';
 }
 
+interface ToolWidgetLink {
+  widget: WidgetName;
+  /** Status line while the tool runs (ChatGPT), at most 64 characters. */
+  invoking: string;
+  /** Status line once it finished (ChatGPT), at most 64 characters. */
+  invoked: string;
+}
+
 /**
- * Add MCP Apps component metadata to a tool response
+ * Which widget renders which tool's result. The single source of truth: tools/list stamps the
+ * descriptor `_meta` from this table for tools defined in index.ts and extended-tools.ts alike.
  */
-export function addComponentMetadata(
-  response: any,
-  componentName: string,
-  widgetDescription: string,
-): any {
-  const resourceUri = getComponentResourceUri(componentName);
+export const TOOL_WIDGET_LINKS: Record<string, ToolWidgetLink> = {
+  timer_start: { widget: 'TimerWidget', invoking: 'Starting the timer', invoked: 'Timer started' },
+  timer_stop: { widget: 'TimerWidget', invoking: 'Stopping the timer', invoked: 'Timer stopped' },
+  timer_pause: { widget: 'TimerWidget', invoking: 'Pausing the timer', invoked: 'Timer paused' },
+  timer_resume: { widget: 'TimerWidget', invoking: 'Resuming the timer', invoked: 'Timer resumed' },
+  timer_status: { widget: 'TimerWidget', invoking: 'Checking the timer', invoked: 'Timer checked' },
+  timer_update: { widget: 'TimerWidget', invoking: 'Updating the timer', invoked: 'Timer updated' },
+  project_list: { widget: 'ProjectList', invoking: 'Loading projects', invoked: 'Projects loaded' },
+  project_get: { widget: 'ProjectCard', invoking: 'Loading the project', invoked: 'Project loaded' },
+  task_list: { widget: 'TaskList', invoking: 'Loading time entries', invoked: 'Time entries loaded' },
+  task_get: { widget: 'TaskCard', invoking: 'Loading the time entry', invoked: 'Time entry loaded' },
+  task_create: { widget: 'TaskCard', invoking: 'Adding the time entry', invoked: 'Time entry added' },
+  task_update: { widget: 'TaskCard', invoking: 'Updating the time entry', invoked: 'Time entry updated' },
+  statistics_get: { widget: 'Statistics', invoking: 'Adding up your hours', invoked: 'Hours added up' },
+  export_template_list: { widget: 'ExportWidget', invoking: 'Loading export templates', invoked: 'Export templates loaded' },
+  export_generate: { widget: 'ResultCard', invoking: 'Creating the export', invoked: 'Export ready' },
+  export_send: { widget: 'ResultCard', invoking: 'Sending the export', invoked: 'Export sent' },
+  export_from_template: { widget: 'ResultCard', invoking: 'Creating the export from the template', invoked: 'Export ready' },
+  absence_create: { widget: 'ResultCard', invoking: 'Requesting the absence', invoked: 'Absence requested' },
+  absence_get: { widget: 'ResultCard', invoking: 'Loading the absence', invoked: 'Absence loaded' },
+  absence_update: { widget: 'ResultCard', invoking: 'Updating the absence', invoked: 'Absence updated' },
+  absence_approve: { widget: 'ResultCard', invoking: 'Approving the absence', invoked: 'Absence approved' },
+  absence_reject: { widget: 'ResultCard', invoking: 'Rejecting the absence', invoked: 'Absence rejected' },
+  absence_cancel: { widget: 'ResultCard', invoking: 'Cancelling the absence', invoked: 'Absence cancelled' },
+};
 
-  const result = {
-    ...response,
-    _meta: {
-      ...((response as any)._meta || {}),
-      // MCP Apps standard metadata
-      ui: {
-        resourceUri,
-        csp: { connectDomains: [], resourceDomains: [] },
-        prefersBorder: false,
-        visibility: ['model', 'app'],
-      },
-      // Keep OpenAI-specific keys for ChatGPT backward compatibility
-      'openai/widgetDescription': widgetDescription,
-      'openai/toolInvocation/invoking': componentName,
-      'openai/toolInvocation/invoked': componentName,
+/** Descriptor `_meta` for a tool that renders a widget, or undefined for a plain tool. */
+export function getToolUiMeta(toolName: string) {
+  const link = TOOL_WIDGET_LINKS[toolName];
+  if (!link) {
+    return undefined;
+  }
+  return {
+    ui: {
+      resourceUri: getComponentResourceUri(link.widget),
+      visibility: ['model', 'app'],
     },
+    'openai/toolInvocation/invoking': link.invoking,
+    'openai/toolInvocation/invoked': link.invoked,
   };
+}
 
-  // Debug logging
-  console.error(`[MCP App] Component metadata for ${componentName}:`);
-  console.error(`  - Resource URI: ${resourceUri}`);
-  console.error(`  - Widget Description: ${widgetDescription}`);
+/** Stamps the widget link onto every tool descriptor that has one. */
+export function applyToolUiMeta<T extends { name: string; _meta?: Record<string, unknown> }>(tools: T[]): T[] {
+  return tools.map((tool) => {
+    const meta = getToolUiMeta(tool.name);
+    return meta ? { ...tool, _meta: { ...(tool._meta || {}), ...meta } } : tool;
+  });
+}
 
-  return result;
+/**
+ * Puts the profile and settings, which only the widget uses, into the result's `_meta`.
+ * Keys whose value is undefined are left out.
+ */
+export function withUiData<T extends Record<string, any>>(result: T, profile?: unknown, settings?: unknown): T {
+  const meta: Record<string, unknown> = { ...(result._meta || {}) };
+  if (profile !== undefined) {
+    meta[PROFILE_META_KEY] = profile;
+  }
+  if (settings !== undefined) {
+    meta[SETTINGS_META_KEY] = settings;
+  }
+  return Object.keys(meta).length > 0 ? { ...result, _meta: meta } : result;
+}
+
+/** A color stored as a decimal RGB integer, as a "#rrggbb" string. */
+export function intToHexColor(colorInt?: number | null): string | undefined {
+  if (colorInt === undefined || colorInt === null || !Number.isFinite(colorInt)) {
+    return undefined;
+  }
+  return `#${('000000' + (colorInt & 0xffffff).toString(16)).slice(-6)}`;
+}
+
+/** YYYY-MM-DD of a Date in the process's local timezone (never via toISOString, which is UTC). */
+export function toLocalDateKey(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * The calendar date of an API date-time. The API writes the user's offset into the string
+ * (e.g. 2026-10-12T00:00:00+02:00), so its date part is already the user's date. A UTC "Z"
+ * value is converted to the local date instead.
+ */
+export function calendarDate(dateTime?: string | null): string | undefined {
+  if (!dateTime) {
+    return undefined;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateTime) || /[+-]\d{2}:?\d{2}$/.test(dateTime)) {
+    return dateTime.substring(0, 10);
+  }
+  const parsed = new Date(dateTime);
+  return Number.isNaN(parsed.getTime()) ? dateTime.substring(0, 10) : toLocalDateKey(parsed);
 }
 
 /**
  * Format timer response with component
  */
-export function formatTimerResponse(timerData: any, profile?: any, settings?: any) {
+/** UI-only: which timer tool produced the result, for hosts that do not tell the widget. */
+export const TOOL_META_KEY = 'timesheet/tool';
+
+export function formatTimerResponse(timerData: any, profile?: any, settings?: any, toolName?: string) {
   // Build text content for non-widget MCP clients
   let textContent = `Timer status: ${timerData.status}`;
 
-  if (timerData.projectTitle) {
-    textContent += `\nProject: ${timerData.projectTitle}`;
+  // The timer data nests the task and its project (see formatCompleteTimerData)
+  const projectTitle = timerData.task?.project?.title;
+  const description = timerData.task?.description;
+  if (projectTitle) {
+    textContent += `\nProject: ${projectTitle}`;
   }
-  if (timerData.description) {
-    textContent += `\nDescription: ${timerData.description}`;
+  if (description) {
+    textContent += `\nDescription: ${description}`;
   }
   if (timerData.duration !== undefined) {
     const hours = timerData.hours || 0;
@@ -81,7 +213,7 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
     textContent += `\nDuration: ${hours}h ${minutes}m`;
   }
 
-  return addComponentMetadata(
+  const result = withUiData(
     {
       content: [
         {
@@ -89,15 +221,12 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
           text: textContent,
         },
       ],
-      structuredContent: {
-        ...timerData,
-        profile,
-        settings,
-      },
+      structuredContent: timerData,
     },
-    'TimerWidget',
-    'Interactive timer display showing current status, duration, and controls to pause, resume, or stop the timer'
+    profile,
+    settings
   );
+  return toolName ? { ...result, _meta: { ...(result as any)._meta, [TOOL_META_KEY]: toolName } } : result;
 }
 
 /**
@@ -120,7 +249,7 @@ export function formatProjectListResponse(projects: any[], totalCount: number, q
 
   const textContent = `Found ${totalCount} project${totalCount !== 1 ? 's' : ''}:\n\n${projectList}`;
 
-  return addComponentMetadata(
+  return withUiData(
     {
       content: [
         {
@@ -132,12 +261,10 @@ export function formatProjectListResponse(projects: any[], totalCount: number, q
         projects,
         totalCount,
         queryParams,
-        profile,
-        settings,
       },
     },
-    'ProjectList',
-    `List of ${totalCount} projects with color-coded indicators and clickable start buttons for each active project`
+    profile,
+    settings
   );
 }
 
@@ -155,19 +282,15 @@ export function formatProjectCardResponse(project: any) {
     textContent += `\nStatus: Archived`;
   }
 
-  return addComponentMetadata(
-    {
-      content: [
-        {
-          type: 'text',
-          text: textContent,
-        },
-      ],
-      structuredContent: project,
-    },
-    'ProjectCard',
-    `Project card displaying details for "${project.title || 'project'}" including description and status`
-  );
+  return {
+    content: [
+      {
+        type: 'text',
+        text: textContent,
+      },
+    ],
+    structuredContent: project,
+  };
 }
 
 /**
@@ -192,7 +315,7 @@ export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?
 
   const textContent = `Found ${tasks.length} time entr${tasks.length !== 1 ? 'ies' : 'y'}:\n\n${taskList}`;
 
-  return addComponentMetadata(
+  return withUiData(
     {
       content: [
         {
@@ -203,36 +326,41 @@ export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?
       structuredContent: {
         tasks,
         queryParams,
-        profile,
-        settings,
       },
     },
-    'TaskList',
-    `List of ${tasks.length} time entries grouped by date, showing project details, durations, tags, and billable status`
+    profile,
+    settings
   );
 }
 
+export type TaskCardAction = 'created' | 'updated';
+
 /**
- * Format task card response with component
+ * Format task card response with component. task_create and task_update pass the action, so
+ * the card can say what happened; task_get passes none.
  */
-export function formatTaskCardResponse(task: any) {
+export function formatTaskCardResponse(task: any, action?: TaskCardAction) {
   const duration = task.duration || 0;
   const hours = Math.floor(duration / 3600);
   const minutes = Math.floor((duration % 3600) / 60);
+  const summary = `${task.description || 'No description'} (${hours}h ${minutes}m)${task.project?.title ? ` - ${task.project.title}` : ''}`;
 
-  return addComponentMetadata(
-    {
-      content: [
-        {
-          type: 'text',
-          text: `Task: ${task.description || 'No description'} (${hours}h ${minutes}m)${task.project?.title ? ` - ${task.project.title}` : ''}`,
-        },
-      ],
-      structuredContent: task,
-    },
-    'TaskCard',
-    `Time entry card showing "${task.description || 'task'}" with ${hours}h ${minutes}m duration${task.project?.title ? ` on ${task.project.title}` : ''}`
-  );
+  let text = `Task: ${summary}`;
+  if (action === 'created') {
+    text = `Task created (ID: ${task.id}): ${summary}`;
+  } else if (action === 'updated') {
+    text = `Task updated successfully (ID: ${task.id}): ${summary}`;
+  }
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text,
+      },
+    ],
+    structuredContent: action ? { ...task, action } : task,
+  };
 }
 
 /**
@@ -277,7 +405,7 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
 
   const textContent = lines.join('\n');
 
-  return addComponentMetadata(
+  return withUiData(
     {
       content: [
         {
@@ -285,14 +413,10 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
           text: textContent,
         },
       ],
-      structuredContent: {
-        ...stats,
-        profile,
-        settings,
-      },
+      structuredContent: stats,
     },
-    'Statistics',
-    `Time tracking statistics dashboard showing ${stats.totalHours.toFixed(1)}h total (${stats.billableHours.toFixed(1)}h billable) across ${stats.totalTasks ?? 0} tasks with project breakdowns and ${stats.weeklyHours ? 'weekly' : 'daily'} charts`
+    profile,
+    settings
   );
 }
 
@@ -317,32 +441,157 @@ export function formatExportTemplateListResponse(templates: any[], totalCount: n
 
   const textContent = `Found ${totalCount} export template${totalCount !== 1 ? 's' : ''}:\n\n${templateList || 'No templates found'}${totalCount > 10 ? '\n...and more' : ''}`;
 
-  return addComponentMetadata(
-    {
-      content: [
-        {
-          type: 'text',
-          text: textContent,
-        },
-      ],
-      structuredContent: {
-        templates,
-        totalCount,
+  return {
+    content: [
+      {
+        type: 'text',
+        text: textContent,
       },
+    ],
+    structuredContent: {
+      templates,
+      totalCount,
     },
-    'ExportWidget',
-    `Export widget with ${totalCount} template${totalCount !== 1 ? 's' : ''} available for generating timesheet exports`
-  );
+  };
+}
+
+/** What the ResultCard shows for an export (contract: kind "export"). */
+export interface ExportCard {
+  status: 'ready' | 'sent';
+  format: string;
+  startDate?: string;
+  endDate?: string;
+  email?: string;
+  downloadUrl?: string;
+  filename?: string;
+  reportName?: string;
 }
 
 /**
- * Get component metadata for tool definition (not response)
+ * ResultCard result for an export. `legacy` keeps the fields each tool returned before (and its
+ * outputSchema declares) at the top level of structuredContent, next to the card data.
  */
-export function getComponentMetadataForTool(componentName: string) {
+export function formatExportResultResponse(text: string, card: ExportCard, legacy: Record<string, unknown>) {
+  const exportCard = Object.fromEntries(
+    Object.entries(card).filter(([, value]) => value !== undefined && value !== null && value !== '')
+  ) as unknown as ExportCard;
   return {
-    ui: {
-      resourceUri: getComponentResourceUri(componentName),
-      visibility: ['model', 'app'],
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      ...legacy,
+      kind: 'export',
+      export: exportCard,
+    },
+  };
+}
+
+/** An export's file format: as requested, else read from the download URL, else the Excel default. */
+export function exportFormat(format?: string, url?: string): string {
+  if (format) {
+    return format;
+  }
+  const extension = url ? new URL(url, 'https://x').pathname.split('.').pop()?.toLowerCase() : undefined;
+  return extension && ['pdf', 'xlsx', 'csv'].includes(extension) ? extension : 'xlsx';
+}
+
+/** Export templates store their id lists as JSON strings when read back; accept both forms. */
+export function idList(value: unknown): any[] | undefined {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+export type AbsenceCardAction = 'requested' | 'updated' | 'approved' | 'rejected' | 'cancelled' | 'viewed';
+
+/** What the ResultCard shows for an absence (contract: kind "absence"). */
+export interface AbsenceCard {
+  id: string;
+  typeName: string;
+  typeColor?: string;
+  startDate: string;
+  endDate: string;
+  totalDays?: number;
+  status: string;
+  note?: string;
+  userName?: string;
+  /** Needed by the card to cancel the absence through absence_cancel. */
+  organizationId?: string;
+  /** As the API reports it for the calling user. */
+  canCancel?: boolean;
+}
+
+function absenceNote(absence: any): string | undefined {
+  const status = String(absence.status ?? '').toUpperCase();
+  if (status === 'CANCELLED' && absence.cancellationReason) {
+    return absence.cancellationReason;
+  }
+  if (status === 'REJECTED' && absence.rejectionReason) {
+    return absence.rejectionReason;
+  }
+  return absence.reason;
+}
+
+/**
+ * Normalizes an API absence for the ResultCard. `type` is the resolved absence type when the
+ * absence itself only carries the type id.
+ */
+export function toAbsenceCard(
+  absence: any,
+  type?: { name?: string; color?: number } | null,
+  organizationId?: string
+): AbsenceCard {
+  const absenceType = absence.absenceType ?? type ?? undefined;
+  const member = absence.member ?? absence.requestedByMember;
+  const memberName = member
+    ? member.displayName || [member.firstname, member.lastname].filter(Boolean).join(' ') || undefined
+    : undefined;
+  const totalDays = absence.totalDays !== undefined && absence.totalDays !== null
+    ? Number(absence.totalDays)
+    : undefined;
+
+  const card: AbsenceCard = {
+    id: absence.id,
+    typeName: absenceType?.name || 'Absence',
+    typeColor: intToHexColor(absenceType?.color),
+    startDate: calendarDate(absence.startDateTime) ?? '',
+    endDate: calendarDate(absence.endDateTime) ?? '',
+    totalDays: totalDays !== undefined && Number.isFinite(totalDays) ? totalDays : undefined,
+    status: absence.status ?? '',
+    // The reason that explains the current status: why it was cancelled or rejected, else the request's own
+    note: absenceNote(absence) || undefined,
+    userName: memberName,
+    organizationId,
+    canCancel: typeof absence.canCancel === 'boolean' ? absence.canCancel : undefined,
+  };
+  return Object.fromEntries(Object.entries(card).filter(([, value]) => value !== undefined)) as unknown as AbsenceCard;
+}
+
+/**
+ * ResultCard result for an absence. `legacy` keeps the fields each tool returned before at the
+ * top level of structuredContent, next to the card data.
+ */
+export function formatAbsenceResultResponse(
+  text: string,
+  action: AbsenceCardAction,
+  absence: AbsenceCard,
+  legacy: Record<string, unknown>
+) {
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      ...legacy,
+      kind: 'absence',
+      action,
+      absence,
     },
   };
 }
@@ -357,9 +606,10 @@ export function getStaticWidgetDescription(componentName: string): string {
     ProjectList: 'Interactive list of projects with color-coded indicators, descriptions, and clickable start buttons to begin time tracking',
     ProjectCard: 'Detailed project card showing project information, description, team, and status',
     TaskList: 'Comprehensive time entries list grouped by date, showing project details, descriptions, durations, tags, and billable status',
-    TaskCard: 'Individual time entry card displaying task details, duration, project association, and billing information',
+    TaskCard: 'Time entry card showing the project, times, duration and billing status, including entries just added or updated',
     Statistics: 'Time tracking statistics dashboard with total hours, billable hours, project breakdowns with progress bars, and daily time charts',
     ExportWidget: 'Interactive export widget with template selector, date range inputs, quick date presets, and generate button to create timesheet exports',
+    ResultCard: 'Result card confirming an export (download link or recipient) or an absence request with its dates, days and approval status',
   };
 
   return descriptions[componentName] || `Interactive ${componentName} widget for time tracking`;

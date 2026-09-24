@@ -13,6 +13,7 @@ import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@tim
 import dotenv from 'dotenv';
 import { pathToFileURL } from 'url';
 import { realpathSync } from 'fs';
+import { EXTENSION_ID } from '@modelcontextprotocol/ext-apps/server';
 import {
   formatTimerResponse,
   formatProjectListResponse,
@@ -21,13 +22,18 @@ import {
   formatTaskCardResponse,
   formatStatisticsResponse,
   formatExportTemplateListResponse,
-  getComponentMetadataForTool,
-  getStaticWidgetDescription,
-  getComponentResourceUri,
+  formatExportResultResponse,
+  exportFormat,
+  idList,
+  applyToolUiMeta,
+  listWidgetResources,
+  parseWidgetUri,
+  getWidgetResourceMeta,
   RESOURCE_MIME_TYPE,
   resolveTokenAuthOptions,
 } from './mcp-app-helpers.js';
 import { EXTENDED_TOOL_DEFINITIONS, dispatchExtendedTool } from './extended-tools.js';
+import { computeStatistics, fetchAllPages, STATISTICS_PAGE_SIZE } from './statistics.js';
 
 dotenv.config();
 
@@ -63,6 +69,10 @@ export class TimesheetMCPServer {
         capabilities: {
           tools: {},
           resources: {},
+          // MCP Apps: tool results can render as the ui:// widgets listed under resources
+          extensions: {
+            [EXTENSION_ID]: {},
+          },
         },
       }
     );
@@ -142,7 +152,8 @@ export class TimesheetMCPServer {
       try {
         console.error('[MCP] ListTools request received');
         const cursor = request?.params?.cursor;
-        const tools = [
+        // Descriptor _meta (widget links) is stamped from TOOL_WIDGET_LINKS in mcp-app-helpers
+        const tools = applyToolUiMeta([
           // Timer Management Tools
         {
           name: 'timer_start',
@@ -196,7 +207,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_stop',
@@ -240,7 +250,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_pause',
@@ -272,7 +281,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_resume',
@@ -304,7 +312,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_status',
@@ -354,7 +361,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
         {
           name: 'timer_update',
@@ -402,7 +408,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TimerWidget'),
         },
 
         // Task Item Management
@@ -710,7 +715,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('ProjectList'),
         },
         {
           name: 'project_create',
@@ -891,7 +895,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('ProjectCard'),
         },
 
         // Task Management
@@ -1043,7 +1046,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TaskList'),
         },
         {
           name: 'task_create',
@@ -1087,6 +1089,11 @@ export class TimesheetMCPServer {
               duration: {
                 type: 'number',
                 description: 'Duration of the task in seconds (if endDateTime was provided)',
+              },
+              action: {
+                type: 'string',
+                enum: ['created'],
+                description: 'What happened to the task (the rest of the object is the full task)',
               },
             },
             required: ['id'],
@@ -1147,6 +1154,11 @@ export class TimesheetMCPServer {
               id: {
                 type: 'string',
                 description: 'The updated task ID',
+              },
+              action: {
+                type: 'string',
+                enum: ['updated'],
+                description: 'What happened to the task (the rest of the object is the full task)',
               },
             },
             required: ['success'],
@@ -1245,7 +1257,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('TaskCard'),
         },
 
         // Authentication
@@ -1721,7 +1732,8 @@ export class TimesheetMCPServer {
             type: 'object',
             properties: {
               success: { type: 'boolean', description: 'Whether export was generated successfully' },
-              size: { type: 'number', description: 'File size in bytes' },
+              templateId: { type: 'string', description: 'The template the export was generated from' },
+              url: { type: 'string', description: 'Signed download URL for the export file' },
             },
           },
           annotations: {
@@ -1857,7 +1869,6 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('ExportWidget'),
         },
         {
           name: 'export_template_get',
@@ -2118,10 +2129,9 @@ export class TimesheetMCPServer {
             destructiveHint: false,
             openWorldHint: true,
           },
-          _meta: getComponentMetadataForTool('Statistics'),
         },
         ...EXTENDED_TOOL_DEFINITIONS,
-      ];
+      ] as Array<{ name: string; _meta?: Record<string, unknown> } & Record<string, unknown>>);
 
         // Cursor-based pagination per MCP 2025-11-25. The cursor is an opaque
         // offset string; we encode it as a base-10 integer.
@@ -2143,24 +2153,10 @@ export class TimesheetMCPServer {
       }
     });
 
-    // Register widget HTML resources with MCP Apps MIME type
+    // Widget HTML resources, served with the MCP Apps MIME type
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       console.error('[MCP] ListResources request received');
-
-      const components = ['TimerWidget', 'ProjectList', 'ProjectCard', 'TaskList', 'TaskCard', 'Statistics', 'ExportWidget'];
-      const resources = components.map(name => ({
-        uri: getComponentResourceUri(name),
-        mimeType: RESOURCE_MIME_TYPE,
-        name: `${name} Component`,
-        description: `Interactive ${name} widget`,
-        _meta: {
-          ui: {
-            csp: { connectDomains: [], resourceDomains: [] },
-            prefersBorder: false,
-          },
-        },
-      }));
-
+      const resources = listWidgetResources();
       console.error(`[MCP] Returning ${resources.length} resources`);
       return { resources };
     });
@@ -2169,17 +2165,10 @@ export class TimesheetMCPServer {
       const { uri } = request.params;
       console.error(`[MCP] ReadResource request for: ${uri}`);
 
-      // Extract component name from ui://timesheet/ComponentName.html
-      const match = uri.match(/^ui:\/\/timesheet\/(.+)\.html$/);
-      if (!match) {
-        throw new McpError(ErrorCode.InvalidRequest, `Invalid widget URI: ${uri}`);
-      }
-
-      const componentName = match[1];
-      const validComponents = ['TimerWidget', 'ProjectList', 'ProjectCard', 'TaskList', 'TaskCard', 'Statistics', 'ExportWidget'];
-
-      if (!validComponents.includes(componentName)) {
-        throw new McpError(ErrorCode.InvalidRequest, `Unknown component: ${componentName}`);
+      // ui://timesheet/ComponentName.html. An unknown resource is an invalid param (-32602).
+      const componentName = parseWidgetUri(uri);
+      if (!componentName) {
+        throw new McpError(ErrorCode.InvalidParams, `Resource not found: ${uri}`);
       }
 
       // Read the actual HTML file
@@ -2193,10 +2182,8 @@ export class TimesheetMCPServer {
 
       try {
         const htmlContent = await fs.readFile(htmlPath, 'utf-8');
-        const staticDescription = getStaticWidgetDescription(componentName);
 
         console.error(`[MCP] Serving ${componentName} (${htmlContent.length} bytes)`);
-        console.error(`[MCP] Static widget description: ${staticDescription}`);
 
         return {
           contents: [
@@ -2204,12 +2191,7 @@ export class TimesheetMCPServer {
               uri,
               mimeType: RESOURCE_MIME_TYPE,
               text: htmlContent,
-              _meta: {
-                ui: {
-                  csp: { connectDomains: [], resourceDomains: [] },
-                  prefersBorder: false,
-                },
-              },
+              _meta: getWidgetResourceMeta(componentName),
             },
           ],
         };
@@ -2368,7 +2350,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_start');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2384,7 +2366,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_stop');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2400,7 +2382,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_pause');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2416,7 +2398,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_resume');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2494,7 +2476,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_status');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2509,7 +2491,7 @@ export class TimesheetMCPServer {
         this.getProfileAndSettings(),
       ]);
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_update');
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -2905,13 +2887,12 @@ export class TimesheetMCPServer {
     const client = this.getClient();
 
     try {
-      const task = await client.tasks.create(args);
+      const task = await this.readTaskBack(await client.tasks.create(args));
+      const result = formatTaskCardResponse(task, 'created');
       return {
+        ...result,
         content: [
-          {
-            type: 'text',
-            text: `Task created (ID: ${task.id})`,
-          },
+          ...result.content,
           {
             type: 'resource',
             resource: {
@@ -2927,10 +2908,6 @@ export class TimesheetMCPServer {
             },
           },
         ],
-        structuredContent: {
-          id: task.id,
-          duration: task.duration || 0,
-        },
       };
     } catch (error) {
       return this.handleApiError(error);
@@ -2942,21 +2919,30 @@ export class TimesheetMCPServer {
     const { id, ...updateData } = args;
 
     try {
-      const task = await client.tasks.update(id, updateData);
+      const task = await this.readTaskBack(await client.tasks.update(id, updateData));
+      const result = formatTaskCardResponse(task, 'updated');
       return {
-        content: [
-          {
-            type: 'text',
-            text: `Task updated successfully`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          id: task.id,
-        },
+        ...result,
+        structuredContent: { ...result.structuredContent, success: true },
       };
     } catch (error) {
       return this.handleApiError(error);
+    }
+  }
+
+  /**
+   * The task card needs the project, times and billing status. When a write returns the task
+   * without its project, read it back; if that fails, the card shows what the write returned.
+   */
+  private async readTaskBack(task: any) {
+    if (!task?.id || (task.project && task.startDateTime)) {
+      return task;
+    }
+    try {
+      return await this.getClient().tasks.get(task.id);
+    } catch (error) {
+      console.error(`[MCP] Could not read task ${task.id} back after the write:`, error);
+      return task;
     }
   }
 
@@ -3264,33 +3250,38 @@ export class TimesheetMCPServer {
     const { report, startDate, endDate, format, teamIds, projectIds, userIds, tagIds, type, filter, splitTask, summarize, filename } = args;
 
     try {
-      const result = await client.reports.export.generate({
-        report,
-        startDate,
-        endDate,
-        format,
-        teamIds,
-        projectIds,
-        userIds,
-        tagIds,
-        type,
-        filter,
-        splitTask,
-        summarize,
-        filename,
-      });
+      const [result, reportName] = await Promise.all([
+        client.reports.export.generate({
+          report,
+          startDate,
+          endDate,
+          format,
+          teamIds,
+          projectIds,
+          userIds,
+          tagIds,
+          type,
+          filter,
+          splitTask,
+          summarize,
+          filename,
+        }),
+        this.getReportName(report),
+      ]);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Export generated successfully!\nDownload URL: ${result.url}`,
-          },
-        ],
-        structuredContent: {
-          url: result.url,
+      return formatExportResultResponse(
+        `Export generated successfully!\nDownload URL: ${result.url}`,
+        {
+          status: 'ready',
+          format: exportFormat(format, result.url),
+          startDate,
+          endDate,
+          downloadUrl: result.url,
+          filename,
+          reportName,
         },
-      };
+        { url: result.url }
+      );
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -3301,60 +3292,97 @@ export class TimesheetMCPServer {
     const { email, report, startDate, endDate, format, teamIds, projectIds, filename } = args;
 
     try {
-      await client.reports.export.send({
-        email,
-        report,
-        startDate,
-        endDate,
-        format,
-        teamIds,
-        projectIds,
-        filename,
-      });
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Export sent successfully to ${email}`,
-          },
-        ],
-        structuredContent: {
-          success: true,
+      const [, reportName] = await Promise.all([
+        client.reports.export.send({
           email,
+          report,
+          startDate,
+          endDate,
+          format,
+          teamIds,
+          projectIds,
+          filename,
+        }),
+        this.getReportName(report),
+      ]);
+
+      return formatExportResultResponse(
+        `Export sent successfully to ${email}`,
+        {
+          status: 'sent',
+          format: exportFormat(format),
+          startDate,
+          endDate,
+          email,
+          filename,
+          reportName,
         },
-      };
+        { success: true, email }
+      );
     } catch (error) {
       return this.handleApiError(error);
     }
   }
 
+  /**
+   * The from-template endpoint returns the file itself, which a tool result cannot hand to the
+   * user. The template's settings go through the regular export instead, which returns a
+   * download link.
+   */
   private async handleExportFromTemplate(args: any) {
     const client = this.getClient();
     const { templateId, startDate, endDate } = args;
 
     try {
-      const pdfData = await client.reports.export.generateFromTemplate({
-        templateId,
-        startDate,
-        endDate,
-      });
+      const template = await client.reports.export.getTemplate(templateId);
+      const [result, reportName] = await Promise.all([
+        client.reports.export.generate({
+          report: template.report,
+          startDate,
+          endDate,
+          format: template.format as any,
+          teamIds: idList(template.teamIds),
+          projectIds: idList(template.projectIds),
+          userIds: idList(template.userIds),
+          tagIds: idList(template.tagIds),
+          type: template.type,
+          filter: template.filter,
+          splitTask: template.splitTask,
+          summarize: template.summarize,
+          filename: template.filename,
+          exportedFields: idList(template.exportedFields as any) as any,
+        }),
+        this.getReportName(template.report),
+      ]);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Export generated from template ${templateId} (${pdfData.byteLength} bytes)`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          templateId,
-          size: pdfData.byteLength,
+      return formatExportResultResponse(
+        `Export generated from template "${template.name}"\nDownload URL: ${result.url}`,
+        {
+          status: 'ready',
+          format: exportFormat(template.format, result.url),
+          startDate,
+          endDate,
+          downloadUrl: result.url,
+          filename: template.filename,
+          reportName: reportName ?? template.name,
         },
-      };
+        { success: true, templateId, url: result.url }
+      );
     } catch (error) {
       return this.handleApiError(error);
+    }
+  }
+
+  /** Name of an export report type for the result card; undefined if it cannot be looked up. */
+  private async getReportName(report: number | undefined): Promise<string | undefined> {
+    if (report === undefined || report === null) {
+      return undefined;
+    }
+    try {
+      const types = await this.getClient().reports.export.getReportTypes();
+      return types.items?.find((t: any) => t.id === Number(report))?.name;
+    } catch {
+      return undefined;
     }
   }
 
@@ -3555,233 +3583,33 @@ export class TimesheetMCPServer {
     const { startDate, endDate, projectId, projectIds, teamId, teamIds, tagIds, userIds, filter } = args;
 
     try {
-      // Fetch tasks with pagination (up to 5 pages / 500 tasks)
-      const allTasks: any[] = [];
-      const limit = 100;
-      const maxPages = 5;
+      const searchParams: any = {
+        startDate,
+        endDate,
+        limit: STATISTICS_PAGE_SIZE,
+        populateTags: false,
+      };
+      if (projectId) searchParams.projectId = projectId;
+      if (projectIds) searchParams.projectIds = projectIds;
+      if (teamId) searchParams.teamId = teamId;
+      if (teamIds) searchParams.teamIds = teamIds;
+      if (tagIds) searchParams.tagIds = tagIds;
+      if (userIds) searchParams.userIds = userIds;
+      if (filter) searchParams.filter = filter;
 
-      for (let page = 1; page <= maxPages; page++) {
-        const searchParams: any = {
-          startDate,
-          endDate,
-          limit,
-          page,
-          populateTags: false,
-        };
-        if (projectId) searchParams.projectId = projectId;
-        if (projectIds) searchParams.projectIds = projectIds;
-        if (teamId) searchParams.teamId = teamId;
-        if (teamIds) searchParams.teamIds = teamIds;
-        if (tagIds) searchParams.tagIds = tagIds;
-        if (userIds) searchParams.userIds = userIds;
-        if (filter) searchParams.filter = filter;
-
-        const result = await client.tasks.search(searchParams);
-        const items = result.items;
-        allTasks.push(...items);
-
-        // Stop if we got fewer than limit (last page)
-        if (items.length < limit) break;
-      }
-
-      const [stats, userData] = await Promise.all([
-        Promise.resolve(this.computeStatistics(allTasks, startDate, endDate)),
+      const [{ items, complete }, userData] = await Promise.all([
+        fetchAllPages((page) => client.tasks.search({ ...searchParams, page })),
         this.getProfileAndSettings(),
       ]);
+      if (!complete) {
+        console.error(`[MCP] statistics_get: only the first ${items.length} tasks of the range were read`);
+      }
 
+      const stats = computeStatistics(items, startDate, endDate);
       return formatStatisticsResponse(stats, userData.profile, userData.settings);
     } catch (error) {
       return this.handleApiError(error);
     }
-  }
-
-  private computeStatistics(tasks: any[], startDate: string, endDate: string) {
-    let totalSeconds = 0;
-    let billableSeconds = 0;
-    let nonBillableSeconds = 0;
-    let breakSeconds = 0;
-
-    // Project aggregation map: projectId -> { title, color, totalSec, billableSec, nonBillableSec, count }
-    const projectMap = new Map<string, {
-      title: string;
-      color?: number;
-      totalSec: number;
-      billableSec: number;
-      nonBillableSec: number;
-      count: number;
-    }>();
-
-    // Daily aggregation map: YYYY-MM-DD -> { totalSec, billableSec, nonBillableSec, breakSec }
-    const dailyMap = new Map<string, {
-      totalSec: number;
-      billableSec: number;
-      nonBillableSec: number;
-      breakSec: number;
-    }>();
-
-    for (const task of tasks) {
-      const duration = task.duration || 0;
-      const durationBreak = task.durationBreak || 0;
-
-      totalSeconds += duration;
-      breakSeconds += durationBreak;
-
-      if (task.billable) {
-        billableSeconds += duration;
-      } else {
-        nonBillableSeconds += duration;
-      }
-
-      // Project aggregation
-      const projId = task.project?.id || 'unknown';
-      const projTitle = task.project?.title || 'Unknown Project';
-      const projColor = task.project?.color;
-      const existing = projectMap.get(projId);
-      if (existing) {
-        existing.totalSec += duration;
-        existing.count += 1;
-        if (task.billable) {
-          existing.billableSec += duration;
-        } else {
-          existing.nonBillableSec += duration;
-        }
-      } else {
-        projectMap.set(projId, {
-          title: projTitle,
-          color: projColor,
-          totalSec: duration,
-          billableSec: task.billable ? duration : 0,
-          nonBillableSec: task.billable ? 0 : duration,
-          count: 1,
-        });
-      }
-
-      // Daily aggregation - use task start date
-      if (task.startDateTime) {
-        const dateKey = task.startDateTime.substring(0, 10); // YYYY-MM-DD
-        const dayEntry = dailyMap.get(dateKey);
-        if (dayEntry) {
-          dayEntry.totalSec += duration;
-          dayEntry.breakSec += durationBreak;
-          if (task.billable) {
-            dayEntry.billableSec += duration;
-          } else {
-            dayEntry.nonBillableSec += duration;
-          }
-        } else {
-          dailyMap.set(dateKey, {
-            totalSec: duration,
-            billableSec: task.billable ? duration : 0,
-            nonBillableSec: task.billable ? 0 : duration,
-            breakSec: durationBreak,
-          });
-        }
-      }
-    }
-
-    // Fill zero-days within the range
-    const start = new Date(startDate + 'T00:00:00');
-    const end = new Date(endDate + 'T00:00:00');
-    const current = new Date(start);
-    while (current <= end) {
-      const key = current.toISOString().substring(0, 10);
-      if (!dailyMap.has(key)) {
-        dailyMap.set(key, { totalSec: 0, billableSec: 0, nonBillableSec: 0, breakSec: 0 });
-      }
-      current.setDate(current.getDate() + 1);
-    }
-
-    // Sort daily entries
-    const sortedDays = Array.from(dailyMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b));
-
-    const dailyHours = sortedDays.map(([date, d]) => ({
-      date,
-      hours: Number((d.totalSec / 3600).toFixed(2)),
-      billableHours: Number((d.billableSec / 3600).toFixed(2)),
-      nonBillableHours: Number((d.nonBillableSec / 3600).toFixed(2)),
-      breakHours: Number((d.breakSec / 3600).toFixed(2)),
-    }));
-
-    // Weekly aggregation (when range > 14 days)
-    const rangeDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
-    let weeklyHours: Array<{
-      weekStart: string;
-      hours: number;
-      billableHours: number;
-      nonBillableHours: number;
-      breakHours: number;
-    }> | undefined;
-
-    if (rangeDays > 14) {
-      const weekMap = new Map<string, {
-        totalSec: number;
-        billableSec: number;
-        nonBillableSec: number;
-        breakSec: number;
-      }>();
-
-      for (const [dateStr, d] of sortedDays) {
-        // Get ISO week Monday
-        const date = new Date(dateStr + 'T00:00:00');
-        const day = date.getDay();
-        const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
-        const monday = new Date(date);
-        monday.setDate(diff);
-        const weekKey = monday.toISOString().substring(0, 10);
-
-        const w = weekMap.get(weekKey);
-        if (w) {
-          w.totalSec += d.totalSec;
-          w.billableSec += d.billableSec;
-          w.nonBillableSec += d.nonBillableSec;
-          w.breakSec += d.breakSec;
-        } else {
-          weekMap.set(weekKey, { ...d });
-        }
-      }
-
-      weeklyHours = Array.from(weekMap.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([weekStart, w]) => ({
-          weekStart,
-          hours: Number((w.totalSec / 3600).toFixed(2)),
-          billableHours: Number((w.billableSec / 3600).toFixed(2)),
-          nonBillableHours: Number((w.nonBillableSec / 3600).toFixed(2)),
-          breakHours: Number((w.breakSec / 3600).toFixed(2)),
-        }));
-    }
-
-    // Project breakdown sorted by hours descending
-    const totalHours = Number((totalSeconds / 3600).toFixed(2));
-    const projectBreakdown = Array.from(projectMap.entries())
-      .sort(([, a], [, b]) => b.totalSec - a.totalSec)
-      .map(([projectId, p]) => {
-        const hours = Number((p.totalSec / 3600).toFixed(2));
-        return {
-          projectId,
-          projectTitle: p.title,
-          projectColor: p.color,
-          hours,
-          billableHours: Number((p.billableSec / 3600).toFixed(2)),
-          nonBillableHours: Number((p.nonBillableSec / 3600).toFixed(2)),
-          taskCount: p.count,
-          percentage: totalHours > 0 ? Math.round((hours / totalHours) * 100) : 0,
-        };
-      });
-
-    return {
-      totalHours,
-      billableHours: Number((billableSeconds / 3600).toFixed(2)),
-      nonBillableHours: Number((nonBillableSeconds / 3600).toFixed(2)),
-      totalTasks: tasks.length,
-      totalBreakHours: Number((breakSeconds / 3600).toFixed(2)),
-      startDate,
-      endDate,
-      projectBreakdown,
-      dailyHours,
-      weeklyHours,
-    };
   }
 
   private handleApiError(error: any) {

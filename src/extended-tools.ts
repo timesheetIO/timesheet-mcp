@@ -11,6 +11,7 @@
  */
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type { TimesheetClient } from '@timesheet/sdk';
+import { formatAbsenceResultResponse, toAbsenceCard, type AbsenceCardAction } from './mcp-app-helpers.js';
 
 type ToolHandler = (client: TimesheetClient, args: any) => Promise<unknown>;
 
@@ -49,6 +50,26 @@ function jsonOk(data: unknown, summary?: string) {
     ],
     structuredContent: data as Record<string, unknown>,
   };
+}
+
+/**
+ * Result for the absence tools, rendered by the ResultCard widget. The absence type is looked up
+ * when the absence carries only its id, so the card can name it ("Vacation"). `legacy` keeps the
+ * structured fields each tool returned before at the top level.
+ */
+async function absenceResult(
+  client: TimesheetClient,
+  organizationId: string,
+  absence: any,
+  action: AbsenceCardAction,
+  text: string,
+  legacy: Record<string, unknown>
+) {
+  let type = null;
+  if (!absence.absenceType && absence.absenceTypeId) {
+    type = await client.absenceTypes.get(organizationId, absence.absenceTypeId).catch(() => null);
+  }
+  return formatAbsenceResultResponse(text, action, toAbsenceCard(absence, type, organizationId), legacy);
 }
 
 const READ_ANNOT = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
@@ -228,7 +249,10 @@ add(
   { organizationId: STR, id: STR },
   ['organizationId', 'id'],
   READ_ANNOT,
-  async (client, args) => jsonOk(await client.absences.get(args.organizationId, args.id))
+  async (client, args) => {
+    const absence = await client.absences.get(args.organizationId, args.id);
+    return absenceResult(client, args.organizationId, absence, 'viewed', JSON.stringify(absence, null, 2), absence as any);
+  }
 );
 
 add(
@@ -251,7 +275,8 @@ add(
   async (client, args) => {
     const { organizationId, ...data } = args;
     const absence = await client.absences.create(organizationId, data);
-    return textOk(`Absence created (ID: ${absence.id}, status: ${absence.status ?? '-'})`, { id: absence.id, status: absence.status });
+    return absenceResult(client, organizationId, absence, 'requested',
+      `Absence created (ID: ${absence.id}, status: ${absence.status ?? '-'})`, { id: absence.id, status: absence.status });
   }
 );
 
@@ -274,7 +299,8 @@ add(
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const absence = await client.absences.update(organizationId, id, compact(data));
-    return textOk(`Absence ${absence.id} updated.`, { id: absence.id, status: absence.status });
+    return absenceResult(client, organizationId, absence, 'updated',
+      `Absence ${absence.id} updated.`, { id: absence.id, status: absence.status });
   }
 );
 
@@ -298,7 +324,8 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const a = await client.absences.approve(args.organizationId, args.id);
-    return textOk(`Absence ${a.id} approved (status: ${a.status ?? '-'}).`, { id: a.id, status: a.status });
+    return absenceResult(client, args.organizationId, a, 'approved',
+      `Absence ${a.id} approved (status: ${a.status ?? '-'}).`, { id: a.id, status: a.status });
   }
 );
 
@@ -310,7 +337,8 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const a = await client.absences.reject(args.organizationId, args.id, { reason: args.reason });
-    return textOk(`Absence ${a.id} rejected.`, { id: a.id, status: a.status });
+    return absenceResult(client, args.organizationId, a, 'rejected',
+      `Absence ${a.id} rejected.`, { id: a.id, status: a.status });
   }
 );
 
@@ -322,7 +350,8 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const a = await client.absences.cancel(args.organizationId, args.id, { reason: args.reason });
-    return textOk(`Absence ${a.id} cancelled.`, { id: a.id, status: a.status });
+    return absenceResult(client, args.organizationId, a, 'cancelled',
+      `Absence ${a.id} cancelled.`, { id: a.id, status: a.status });
   }
 );
 
