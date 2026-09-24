@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.0.0] - 2026-09-24
+
+### Breaking
+- Built on the v2 MCP SDK (`@modelcontextprotocol/server` and `@modelcontextprotocol/node`).
+  `TimesheetMCPServer.getServer()` now returns a v2 `Server`, and `runStdio()` returns its handle
+  synchronously. Running the server with `npx @timesheet/mcp` or the hosted endpoint is unaffected.
+- Requires Node.js 20 or higher.
+
+### Added
+- MCP 2026-07-28 support next to the earlier protocol versions, on the same endpoint and over
+  stdio. 2026 clients get `server/discover` and cache hints; current clients keep the same path.
+- Result cards (MCP Apps) for `task_create` and `task_update`, the export tools and the absence
+  tools. A pending absence can be cancelled from its card.
+- The hosted server answers requests without credentials with a 401 and a `WWW-Authenticate`
+  header pointing at the protected resource metadata, so OAuth clients can sign in. API keys
+  (`Bearer ts_...`) keep working.
+
+### Changed
+- The widgets are redesigned as cards that follow the host's light or dark theme and language,
+  and are about 590 KB each instead of 770 KB to 1.2 MB.
+- Widget actions update the model context instead of posting a chat message, and the timer no
+  longer polls.
+- Protocol errors follow the v2 SDK: an unknown tool returns -32602, and messages no longer start
+  with `MCP error N:`.
+- The authorization server metadata on the MCP origin is a live copy of the API's.
+
+### Fixed
+- `export_from_template` returns a download link instead of dropping the file.
+- Statistics are exact up to 5,000 entries (they stopped at 500), and daily bars no longer shift
+  by a day east of UTC.
+- The timer text for the model names the project and description.
+
 ## [1.2.1] - 2026-09-01
 
 ### Fixed
