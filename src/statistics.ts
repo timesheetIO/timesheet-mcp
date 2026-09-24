@@ -9,6 +9,39 @@ export const STATISTICS_PAGE_SIZE = 100;
 export const STATISTICS_MAX_PAGES = 50;
 const PAGE_CONCURRENCY = 5;
 
+/**
+ * The longest range statistics_get accepts. The daily series has an entry for every day of the
+ * range, so without a limit one call (1970 to 9999) builds millions of them and runs the instance
+ * out of memory.
+ */
+export const STATISTICS_MAX_DAYS = 366;
+
+/** Why a statistics range cannot be used, or null when it can. */
+export function validateStatisticsRange(startDate: unknown, endDate: unknown): string | null {
+  const start = parseCalendarDate(startDate);
+  const end = parseCalendarDate(endDate);
+  if (!start || !end) {
+    return 'startDate and endDate must be calendar dates in the form YYYY-MM-DD.';
+  }
+  if (end < start) {
+    return 'endDate must not be before startDate.';
+  }
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  if (days > STATISTICS_MAX_DAYS) {
+    return `The range covers ${days} days, and statistics_get accepts up to ${STATISTICS_MAX_DAYS}. Split longer periods into one call per year.`;
+  }
+  return null;
+}
+
+/** A YYYY-MM-DD string as UTC midnight, or null when it is not a real calendar date. */
+function parseCalendarDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value) ? date : null;
+}
+
 interface Page<T> {
   items: T[];
   params?: { count?: number };
@@ -112,7 +145,8 @@ export function computeStatistics(tasks: any[], startDate: string, endDate: stri
       }
     } else {
       projectMap.set(projId, {
-        title: task.project?.title || 'Unknown Project',
+        // Empty for an entry without a project: the widget shows its own localized label
+        title: task.project?.title || '',
         color: task.project?.color,
         totalSec: duration,
         billableSec: task.billable ? duration : 0,

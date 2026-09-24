@@ -4,6 +4,7 @@ import {
   calendarDate,
   exportFormat,
   formatExportResultResponse,
+  formatPdfReportResponse,
   formatProjectListResponse,
   formatStatisticsResponse,
   formatTaskCardResponse,
@@ -12,17 +13,20 @@ import {
   getToolUiMeta,
   getWidgetResourceMeta,
   idList,
+  intToHexColor,
+  MAX_ATTACHED_PDF_BYTES,
   listWidgetResources,
   parseWidgetUri,
   PROFILE_META_KEY,
   SETTINGS_META_KEY,
+  STOPPED_TASK_META_KEY,
   toAbsenceCard,
   TOOL_WIDGET_LINKS,
   WIDGET_NAMES,
 } from '../src/mcp-app-helpers.js';
 import { dispatchExtendedTool } from '../src/extended-tools.js';
 import { TOOL_DEFINITIONS } from '../src/tool-definitions.js';
-import { computeStatistics, fetchAllPages } from '../src/statistics.js';
+import { computeStatistics, fetchAllPages, validateStatisticsRange } from '../src/statistics.js';
 
 const PROFILE = { firstname: 'Ada' };
 const SETTINGS = { timeFormat: '24h' };
@@ -230,10 +234,18 @@ describe('ResultCard: absence', () => {
     expect(result.structuredContent).toMatchObject({ action: 'approved', absence: { status: 'APPROVED' } });
   });
 
-  test('an unknown type still yields a card', () => {
+  test('an unknown type still yields a card, and the widget names it', () => {
     expect(toAbsenceCard({ id: 'x', startDateTime: '2026-01-01T00:00:00+01:00', endDateTime: '2026-01-01T23:59:00+01:00' })).toEqual({
-      id: 'x', typeName: 'Absence', startDate: '2026-01-01', endDate: '2026-01-01', status: '',
+      id: 'x', startDate: '2026-01-01', endDate: '2026-01-01', status: '',
     });
+  });
+
+  test('part of a day carries its hours', () => {
+    const card = toAbsenceCard({
+      id: 'x', startDateTime: '2026-01-02T08:00:00+01:00', endDateTime: '2026-01-02T12:00:00+01:00',
+      fullDay: false, totalHours: '4', totalDays: '0.5',
+    });
+    expect(card).toMatchObject({ fullDay: false, totalHours: 4, totalDays: 0.5 });
   });
 });
 
@@ -269,6 +281,15 @@ describe('statistics in a timezone east of UTC (jest.config.js pins Asia/Tokyo)'
     expect(acme).toMatchObject({ projectTitle: 'Acme', hours: 3, billableHours: 2, nonBillableHours: 1, color: '#ff8800' });
     expect(internal.billableHours).toBe(0);
     expect(internal.color).toBeUndefined();
+  });
+
+  test('an entry without a project has no title and no colour for the widget to replace', () => {
+    const [entry] = computeStatistics(
+      [{ duration: 600, billable: false, startDateTime: '2026-09-21T09:00:00+09:00', project: { id: 'p3', color: 0 } }],
+      '2026-09-21', '2026-09-21'
+    ).projectBreakdown;
+    expect(entry.projectTitle).toBe('');
+    expect(entry.color).toBeUndefined();
   });
 
   test('a UTC timestamp lands on the local day', () => {
@@ -345,5 +366,75 @@ describe('absence card note follows the status', () => {
   });
   test('pending shows the request reason', () => {
     expect(toAbsenceCard({ ...base, status: 'PENDING' }).note).toBe('Family trip');
+  });
+});
+
+describe('colours', () => {
+  test('0 is no colour; signed Android values are colours', () => {
+    expect(intToHexColor(0)).toBeUndefined();
+    expect(intToHexColor(-8420)).toBe('#ffdf1c');
+    expect(intToHexColor(16746496)).toBe('#ff8800');
+  });
+});
+
+describe('statistics range', () => {
+  test('a year is fine, leap years included', () => {
+    expect(validateStatisticsRange('2026-01-01', '2026-12-31')).toBeNull();
+    expect(validateStatisticsRange('2024-01-01', '2024-12-31')).toBeNull();
+    expect(validateStatisticsRange('2026-09-24', '2026-09-24')).toBeNull();
+  });
+
+  test('longer ranges, reversed ranges and non-dates are refused', () => {
+    expect(validateStatisticsRange('1970-01-02', '9999-12-31')).toMatch(/up to 366/);
+    expect(validateStatisticsRange('2025-01-01', '2026-01-02')).toMatch(/up to 366/);
+    expect(validateStatisticsRange('2026-09-30', '2026-09-01')).toMatch(/before startDate/);
+    expect(validateStatisticsRange('2026-02-30', '2026-03-01')).toMatch(/YYYY-MM-DD/);
+    expect(validateStatisticsRange('24.09.2026', '2026-09-30')).toMatch(/YYYY-MM-DD/);
+    expect(validateStatisticsRange(undefined, '2026-09-30')).toMatch(/YYYY-MM-DD/);
+  });
+});
+
+describe('statistics text says when entries are missing', () => {
+  test('a truncated read is flagged for the model', () => {
+    const stats = { ...computeStatistics([], '2026-09-01', '2026-09-30'), truncated: true };
+    const result = formatStatisticsResponse(stats) as any;
+    expect(result.structuredContent.truncated).toBe(true);
+    expect(result.content[0].text).toContain('these totals are too low');
+  });
+});
+
+describe('timer_stop reports the entry it saved', () => {
+  test('the stopped task goes to the widget and its summary to the model', () => {
+    const saved = { id: 't1', duration: 3900, description: 'Header review', project: { title: 'Website redesign' } };
+    const result = formatTimerResponse({ status: 'stopped' }, PROFILE, SETTINGS, 'timer_stop', saved) as any;
+    expect(result._meta[STOPPED_TASK_META_KEY]).toEqual(saved);
+    expect(result._meta['timesheet/tool']).toBe('timer_stop');
+    expect(result.content[0].text).toContain('Saved 1h 5m on Website redesign (Header review)');
+    expect(result.structuredContent).toEqual({ status: 'stopped' });
+  });
+});
+
+describe('task_list reports the total across pages', () => {
+  test('total count for the widget, and the text says it shows a part', () => {
+    const result = formatTaskListResponse([{ id: 't1', hours: 1, minutes: 0 }], {}, PROFILE, SETTINGS, 42) as any;
+    expect(result.structuredContent.totalCount).toBe(42);
+    expect(result.content[0].text).toContain('Showing 1 of 42 time entries');
+  });
+});
+
+describe('PDF reports are attached', () => {
+  test('the PDF travels as an embedded resource', () => {
+    const pdf = new TextEncoder().encode('%PDF-1.7 sample').buffer;
+    const result = formatPdfReportResponse('task', 't1', pdf) as any;
+    const resource = result.content.find((item: any) => item.type === 'resource').resource;
+    expect(resource).toMatchObject({ uri: 'timesheet://reports/tasks/t1.pdf', mimeType: 'application/pdf' });
+    expect(Buffer.from(resource.blob, 'base64').toString()).toBe('%PDF-1.7 sample');
+    expect(result.structuredContent).toMatchObject({ success: true, taskId: 't1', fileName: 'timesheet-task-t1.pdf' });
+  });
+
+  test('a PDF over the limit is described, not attached', () => {
+    const result = formatPdfReportResponse('document', 'd1', new ArrayBuffer(MAX_ATTACHED_PDF_BYTES + 1)) as any;
+    expect(result.content.some((item: any) => item.type === 'resource')).toBe(false);
+    expect(result.structuredContent).toMatchObject({ success: false, documentId: 'd1' });
   });
 });

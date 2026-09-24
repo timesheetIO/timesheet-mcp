@@ -7,6 +7,10 @@
   `TimesheetMCPServer.getServer()` now returns a v2 `Server`, and `runStdio()` returns its handle
   synchronously. Running the server with `npx @timesheet/mcp` or the hosted endpoint is unaffected.
 - Requires Node.js 20 or higher.
+- The hosted endpoint no longer offers `auth_configure`. Each request brings its own credentials
+  there, so the tool changed nothing and still reported success. The local server keeps it.
+- The `/components` route and the separate component server are gone. They served the widget
+  files over plain HTTP before MCP Apps resources existed.
 
 ### Added
 - MCP 2026-07-28 support next to the earlier protocol versions, on the same endpoint and over
@@ -16,6 +20,16 @@
 - The hosted server answers requests without credentials with a 401 and a `WWW-Authenticate`
   header pointing at the protected resource metadata, so OAuth clients can sign in. API keys
   (`Bearer ts_...`) keep working.
+- `report_document_pdf`, `report_task_pdf`, `report_expense_pdf` and `report_note_pdf` attach the
+  PDF to the result (up to 5 MB). They used to generate it and drop it.
+- `timer_stop` reports the entry it saved, and the timer card shows it with a way to start again.
+- `task_list` reports how many entries match across all pages, and `statistics_get` says when it
+  could not read every entry (over 5,000).
+- `timer_update` accepts the start time, entry type, distance and phone number, so the timer
+  card's edit form saves every field.
+- `TIMESHEET_REPORTS_URL` points the reports API somewhere else, as `TIMESHEET_API_URL` does for
+  the API.
+- The MCP Registry entry lists the hosted server, and each release publishes it.
 
 ### Changed
 - The widgets are redesigned as cards that follow the host's light or dark theme and language,
@@ -25,11 +39,32 @@
 - Protocol errors follow the v2 SDK: an unknown tool returns -32602, and messages no longer start
   with `MCP error N:`.
 - The authorization server metadata on the MCP origin is a live copy of the API's.
+- `statistics_get` accepts ranges of up to a year (366 days).
+- The HTTP server listens on 127.0.0.1 unless `HOST` is set. The container image sets 0.0.0.0.
+
+### Security
+- A tool named after an object property such as `constructor` returned the server's API client,
+  credentials included. Tool names now resolve to tools only.
+- `statistics_get` with a range such as 1970 to 9999 built millions of daily rows and ran the
+  server out of memory. Such ranges are now refused before any API call.
+- An OAuth access token the API no longer accepts, for example after signing out, gets a 401 with
+  `invalid_token` instead of failing every tool call, so the client refreshes or signs in again.
+- When the HTTP server runs on `TIMESHEET_API_TOKEN`, a web page from another origin can no longer
+  use that key, and the CORS patterns are anchored. JSON-RPC batches are limited to 20 requests.
+- The widget libraries are build-time dependencies now, and four unused packages are gone, so an
+  install pulls in 128 fewer packages and the runtime dependencies have no known vulnerabilities.
+  axios is held at 1.20 or later until `@timesheet/sdk` 1.3.2 ships it.
 
 ### Fixed
+- `timer_update` declared an output schema its result did not match, so clients that check
+  results rejected every update. The timer tools now declare what they return, and a test checks
+  every tool's result against its schema.
+- A tool call without `arguments` failed with a protocol error for several tools.
 - `export_from_template` returns a download link instead of dropping the file.
-- Statistics are exact up to 5,000 entries (they stopped at 500), and daily bars no longer shift
-  by a day east of UTC.
+- Statistics are exact up to 5,000 entries (they stopped at 500), entries that two pages both
+  return are counted once, and daily bars no longer shift by a day east of UTC.
+- Project colours set in the Android app show in the cards, and a project without a colour no
+  longer turns black.
 - The timer text for the model names the project and description.
 
 ## [1.2.1] - 2026-09-01

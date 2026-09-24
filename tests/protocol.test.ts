@@ -107,6 +107,13 @@ describe('protocol errors', () => {
     expect(error.data).toEqual({ uri: 'ui://timesheet/Nope.html' });
   });
 
+  test('a tool named after an Object.prototype member is unknown, not the client', async () => {
+    const client = { authentication: { apiKey: 'ts_secret.key' } } as any;
+    for (const name of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) {
+      expect(await dispatchExtendedTool(client, name, {})).toBeNull();
+    }
+  });
+
   test('a missing argument is a tool error the model can fix, not a protocol error', async () => {
     const result = (await dispatchExtendedTool({} as any, 'project_member_add', { projectId: 'p1' })) as any;
     expect(result.isError).toBe(true);

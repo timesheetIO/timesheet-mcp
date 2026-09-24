@@ -1473,7 +1473,8 @@ add(
 
 export const EXTENDED_TOOL_DEFINITIONS = tools.map((t) => t.definition);
 
-const handlerMap: Record<string, ToolHandler> = Object.fromEntries(
+// A Map, not an object: a tool name such as "constructor" must not resolve to an Object.prototype member
+const handlerMap = new Map<string, ToolHandler>(
   tools.map((t) => [(t.definition as { name: string }).name, t.handler])
 );
 
@@ -1488,7 +1489,7 @@ export async function dispatchExtendedTool(
   name: string,
   args: unknown
 ): Promise<unknown | null> {
-  const handler = handlerMap[name];
+  const handler = handlerMap.get(name);
   if (!handler) return null;
   try {
     return await handler(client, (args ?? {}) as Record<string, unknown>);

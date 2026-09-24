@@ -1,6 +1,7 @@
 // End-to-end protocol tests against the BUILT server (run `npm run build` first):
 // stdio and HTTP, protocol 2025-era and 2026-07-28, the 401 gate, CORS and cache hints.
-// The Timesheet API is a local stub that answers 401, so no real API is ever called.
+// The Timesheet API is a local stub that answers 401 (except for one accepted OAuth token), so no
+// real API is ever called.
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -20,6 +21,8 @@ const MODERN_VERSION = '2026-07-28';
 
 let apiStub;
 let apiUrl;
+/** Requests the API stub received, as "METHOD /path". */
+const apiCalls = [];
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -50,9 +53,20 @@ function rpcMessages(contentType, body) {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
+/** OAuth access tokens that have not expired: the API accepts the first and has revoked the second. */
+const ACCEPTED_JWT = jwt({ sub: 'u1', exp: 4_000_000_000, jti: 'accepted' });
+const REVOKED_JWT = jwt({ sub: 'u1', exp: 4_000_000_000, jti: 'revoked' });
+
 before(async () => {
-  // The API: every call is unauthorized. Timer calls answer late, to test a client disconnecting.
+  // The API: every call is unauthorized, except the profile of the accepted OAuth token. Timer
+  // calls answer late, to test a client disconnecting.
   apiStub = http.createServer((req, res) => {
+    apiCalls.push(`${req.method} ${req.url.split('?')[0]}`);
+    if (req.url === '/v1/profiles/me' && req.headers.authorization === `Bearer ${ACCEPTED_JWT}`) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ id: 'u1' }));
+      return;
+    }
     const reply = () => {
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'unauthorized', message: 'Authentication failed' }));
@@ -67,7 +81,7 @@ before(async () => {
 after(() => apiStub.close());
 
 describe('stdio', () => {
-  const env = () => ({ ...process.env, TIMESHEET_API_TOKEN: API_KEY, TIMESHEET_API_URL: apiUrl });
+  const env = () => ({ ...process.env, TIMESHEET_API_TOKEN: API_KEY, TIMESHEET_API_URL: apiUrl, TIMESHEET_REPORTS_URL: apiUrl });
 
   test('2025-era client: initialize and three tools/list pages, JSON only on stdout', async () => {
     const child = spawn(process.execPath, [path.join(pkg, 'dist', 'index.js')], { env: env() });
@@ -136,7 +150,7 @@ describe('http', () => {
   before(async () => {
     const port = await freePort();
     baseUrl = `http://127.0.0.1:${port}`;
-    const env = { ...process.env, PORT: String(port), HOST: '127.0.0.1', MCP_SERVER_URL: MCP_URL, TIMESHEET_API_URL: apiUrl };
+    const env = { ...process.env, PORT: String(port), HOST: '127.0.0.1', MCP_SERVER_URL: MCP_URL, TIMESHEET_API_URL: apiUrl, TIMESHEET_REPORTS_URL: apiUrl };
     delete env.TIMESHEET_API_TOKEN; // no fallback identity: a request without a token must get the 401
     child = spawn(process.execPath, [path.join(pkg, 'dist', 'http-server.js')], { env, stdio: ['ignore', 'ignore', 'ignore'] });
     for (let i = 0; i < 50; i++) {
@@ -204,9 +218,11 @@ describe('http', () => {
       return rpcMessages(response.headers.get('content-type'), await response.text())[0];
     };
 
+    // 123 tools, less auth_configure, which the hosted endpoint does not offer
     const pages = [await call(2, 'tools/list', {}), await call(3, 'tools/list', { cursor: '50' }), await call(4, 'tools/list', { cursor: '100' })];
-    assert.deepEqual(pages.map((p) => p.result.tools.length), [50, 50, 23]);
-    assert.equal(pages.flatMap((p) => p.result.tools).length, 123);
+    assert.deepEqual(pages.map((p) => p.result.tools.length), [50, 50, 22]);
+    assert.equal(pages.flatMap((p) => p.result.tools).length, 122);
+    assert.ok(!pages.flatMap((p) => p.result.tools).some((tool) => tool.name === 'auth_configure'));
 
     const resources = await call(5, 'resources/list', {});
     assert.equal(resources.result.resources.length, 8);
@@ -244,7 +260,7 @@ describe('http', () => {
       try {
         assert.equal(client.getProtocolEra(), 'modern');
         const tools = await client.listTools();
-        assert.equal(tools.tools.length, 123);
+        assert.equal(tools.tools.length, 122);
         const widget = await client.readResource({ uri: 'ui://timesheet/Statistics.html' });
         assert.equal(widget.contents[0].mimeType, 'text/html;profile=mcp-app');
         const result = await client.callTool({ name: 'timer_status', arguments: {} });
@@ -286,6 +302,71 @@ describe('http', () => {
     }
   });
 
+  /** The first JSON-RPC message of a 2025-era request with the API key. */
+  const legacyCall = async (body, headers = withKey) => {
+    const response = await post(body, { ...headers, 'MCP-Protocol-Version': LEGACY_VERSION });
+    return { status: response.status, message: rpcMessages(response.headers.get('content-type'), await response.text())[0] };
+  };
+
+  test('the hosted endpoint does not offer auth_configure', async () => {
+    const { message } = await legacyCall({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'auth_configure', arguments: { apiKey: 'ts_other.key' } } });
+    assert.equal(message.error.code, -32602);
+  });
+
+  test('an OAuth token the API rejects is invalid_token; one it accepts gets through', async () => {
+    const revoked = await post({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { Authorization: `Bearer ${REVOKED_JWT}` });
+    assert.equal(revoked.status, 401);
+    assert.equal(revoked.headers.get('www-authenticate'), `${CHALLENGE}, error="invalid_token", error_description="The access token is no longer valid"`);
+
+    const accepted = await legacyCall({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, { Authorization: `Bearer ${ACCEPTED_JWT}` });
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.message.result.tools.length, 50);
+
+    // The verdict is kept: a second request does not ask the API again
+    const before = apiCalls.filter((call) => call === 'GET /v1/profiles/me').length;
+    await legacyCall({ jsonrpc: '2.0', id: 3, method: 'tools/list' }, { Authorization: `Bearer ${ACCEPTED_JWT}` });
+    assert.equal(apiCalls.filter((call) => call === 'GET /v1/profiles/me').length, before);
+  });
+
+  test('tool names that are Object.prototype members are unknown tools', async () => {
+    for (const name of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      const response = await post(
+        { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: {} } },
+        { ...withKey, 'MCP-Protocol-Version': LEGACY_VERSION }
+      );
+      const body = await response.text();
+      assert.ok(!body.includes(API_KEY), `${name} must not echo the credentials`);
+      assert.equal(rpcMessages(response.headers.get('content-type'), body)[0].error.code, -32602, name);
+    }
+  });
+
+  test('a tool call without arguments is a tool result, not a protocol error', async () => {
+    const { message } = await legacyCall({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'timer_stop' } });
+    assert.equal(message.error, undefined);
+    assert.equal(message.result.isError, true, 'the stub API refuses the key');
+  });
+
+  test('statistics_get refuses a range over a year before calling the API', async () => {
+    const searches = () => apiCalls.filter((call) => call === 'POST /v1/tasks/search').length;
+    const before = searches();
+    const { message } = await legacyCall({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'statistics_get', arguments: { startDate: '1970-01-02', endDate: '9999-12-31' } },
+    });
+    assert.equal(message.result.isError, true);
+    assert.match(message.result.content[0].text, /up to 366/);
+    assert.equal(searches(), before);
+  });
+
+  test('batches are limited to 20 requests', async () => {
+    const batch = (size) => Array.from({ length: size }, (_, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'tools/list' }));
+    const tooLarge = await post(batch(21), { ...withKey, 'MCP-Protocol-Version': '2025-03-26' });
+    assert.equal(tooLarge.status, 400);
+    assert.equal((await tooLarge.json()).error.code, -32600);
+  });
+
   test('a browser GET gets the landing page', async () => {
     const response = await fetch(baseUrl + '/', { headers: { Accept: 'text/html' } });
     assert.equal(response.status, 200);
@@ -306,5 +387,54 @@ describe('http', () => {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     assert.equal(child.exitCode, null, 'still running');
     assert.equal((await fetch(`${baseUrl}/health`)).status, 200);
+  });
+});
+
+describe('http with TIMESHEET_API_TOKEN (local use)', () => {
+  let child;
+  let baseUrl;
+
+  before(async () => {
+    const port = await freePort();
+    baseUrl = `http://127.0.0.1:${port}`;
+    const env = { ...process.env, PORT: String(port), HOST: '127.0.0.1', MCP_SERVER_URL: MCP_URL, TIMESHEET_API_URL: apiUrl, TIMESHEET_REPORTS_URL: apiUrl, TIMESHEET_API_TOKEN: API_KEY };
+    child = spawn(process.execPath, [path.join(pkg, 'dist', 'http-server.js')], { env, stdio: ['ignore', 'ignore', 'ignore'] });
+    for (let i = 0; i < 50; i++) {
+      try {
+        if ((await fetch(`${baseUrl}/health`)).ok) return;
+      } catch {
+        // not listening yet
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error('http server did not start');
+  });
+
+  after(() => child.kill());
+
+  const listTools = (headers = {}) =>
+    fetch(baseUrl + '/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': LEGACY_VERSION, ...headers },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    });
+
+  test('a client without credentials uses the key, from no origin or this machine', async () => {
+    assert.equal((await listTools()).status, 200);
+    assert.equal((await listTools({ Origin: 'http://localhost:5173' })).status, 200);
+  });
+
+  test('a web page from another origin does not get to use the key', async () => {
+    for (const origin of ['https://evil.example', 'https://x.run.app.evil.example']) {
+      const response = await listTools({ Origin: origin });
+      assert.equal(response.status, 403, origin);
+    }
+  });
+
+  test('CORS patterns are anchored', async () => {
+    const preflight = (origin) =>
+      fetch(baseUrl + '/', { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' } });
+    assert.equal((await preflight('https://my-service-abc123-ew.a.run.app')).headers.get('access-control-allow-origin'), 'https://my-service-abc123-ew.a.run.app');
+    assert.equal((await preflight('https://x.run.app.evil.example')).headers.get('access-control-allow-origin'), null);
   });
 });

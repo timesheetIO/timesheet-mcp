@@ -53,3 +53,36 @@ jobs:
       # provenance attestation automatically (no --provenance flag needed).
       - name: Publish to NPM
         run: npm publish --access public
+
+  # The MCP Registry entry (io.github.timesheetIO/timesheet-mcp) follows each release. The registry
+  # checks that the npm package with this mcpName exists at the version, so this runs after npm.
+  # Signing in with GitHub OIDC works because this runs in the timesheetIO organization.
+  publish-registry:
+    needs: publish-npm
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify server.json matches the tag
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          for VERSION in "$(jq -r .version server.json)" "$(jq -r '.packages[0].version' server.json)"; do
+            [ "$VERSION" = "$TAG_VERSION" ] || { echo "server.json says $VERSION, the tag is v$TAG_VERSION" >&2; exit 1; }
+          done
+      - name: Install mcp-publisher
+        working-directory: ${{ runner.temp }}
+        run: |
+          BASE="https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION"
+          curl -fsSLO "$BASE/mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSLO "$BASE/registry_${MCP_PUBLISHER_VERSION#v}_checksums.txt"
+          sha256sum -c --ignore-missing "registry_${MCP_PUBLISHER_VERSION#v}_checksums.txt"
+          tar xzf mcp-publisher_linux_amd64.tar.gz mcp-publisher
+      - name: Sign in to the MCP Registry
+        run: $RUNNER_TEMP/mcp-publisher login github-oidc
+      - name: Publish to the MCP Registry
+        run: $RUNNER_TEMP/mcp-publisher publish

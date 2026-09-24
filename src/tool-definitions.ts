@@ -6,6 +6,33 @@ import type { Tool } from '@modelcontextprotocol/server';
 import { applyToolUiMeta } from './mcp-app-helpers.js';
 import { EXTENDED_TOOL_DEFINITIONS } from './extended-tools.js';
 
+/**
+ * What every timer tool returns (formatCompleteTimerData in index.ts): the timer, its running task
+ * and its pause. Clients check structuredContent against this, so it describes the real shape.
+ */
+const TIMER_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    status: {
+      type: 'string',
+      enum: ['running', 'paused', 'stopped'],
+      description: 'Current timer status',
+    },
+    duration: { type: 'number', description: 'Duration of the running task in seconds' },
+    hours: { type: 'number', description: 'Hours component of duration' },
+    minutes: { type: 'number', description: 'Minutes component of duration' },
+    task: {
+      type: 'object',
+      description: 'The running task, with its project. Absent when no timer runs.',
+    },
+    pause: {
+      type: 'object',
+      description: 'The current break, while the timer is paused',
+    },
+  },
+  required: ['status'],
+} as const;
+
 export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   // Timer Management Tools
   {
@@ -27,34 +54,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       },
       required: ['projectId'],
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['running', 'paused', 'stopped'],
-          description: 'Current timer status',
-        },
-        projectTitle: {
-          type: 'string',
-          description: 'Name of the project being tracked',
-        },
-        projectId: {
-          type: 'string',
-          description: 'ID of the project',
-        },
-        duration: {
-          type: 'number',
-          description: 'Current duration in seconds',
-        },
-        startTime: {
-          type: 'string',
-          format: 'date-time',
-          description: 'When the timer was started',
-        },
-      },
-      required: ['status'],
-    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -75,29 +75,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         },
       },
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['stopped'],
-          description: 'Timer status after stopping',
-        },
-        duration: {
-          type: 'number',
-          description: 'Total duration tracked in seconds',
-        },
-        hours: {
-          type: 'number',
-          description: 'Hours component of duration',
-        },
-        minutes: {
-          type: 'number',
-          description: 'Minutes component of duration',
-        },
-      },
-      required: ['status', 'duration'],
-    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -118,17 +96,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         },
       },
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['paused'],
-          description: 'Timer status after pausing',
-        },
-      },
-      required: ['status'],
-    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -149,17 +117,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         },
       },
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['running'],
-          description: 'Timer status after resuming',
-        },
-      },
-      required: ['status'],
-    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -174,41 +132,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       type: 'object',
       properties: {},
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        status: {
-          type: 'string',
-          enum: ['running', 'paused', 'stopped'],
-          description: 'Current timer status',
-        },
-        projectTitle: {
-          type: 'string',
-          description: 'Name of the project being tracked (if active)',
-        },
-        projectId: {
-          type: 'string',
-          description: 'ID of the project (if active)',
-        },
-        description: {
-          type: 'string',
-          description: 'Task description (if provided)',
-        },
-        duration: {
-          type: 'number',
-          description: 'Current duration in seconds (if active)',
-        },
-        hours: {
-          type: 'number',
-          description: 'Hours component of duration',
-        },
-        minutes: {
-          type: 'number',
-          description: 'Minutes component of duration',
-        },
-      },
-      required: ['status'],
-    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -244,18 +168,26 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
           type: 'boolean',
           description: 'Whether this time should be billed to the client',
         },
-      },
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        success: {
-          type: 'boolean',
-          description: 'Whether the update was successful',
+        startDateTime: {
+          type: 'string',
+          format: 'date-time',
+          description: 'New start time of the running task in ISO 8601 with offset (e.g., "2026-09-24T09:15:00+02:00")',
+        },
+        typeId: {
+          type: 'number',
+          description: 'Entry type: 0 for work time, 1 for a trip (mileage), 2 for a call',
+        },
+        distance: {
+          type: 'number',
+          description: 'Distance travelled, for a trip entry',
+        },
+        phoneNumber: {
+          type: 'string',
+          description: 'Phone number, for a call entry',
         },
       },
-      required: ['success'],
     },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -324,6 +256,10 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
           type: 'string',
           format: 'date-time',
           description: 'Optional timestamp for when the expense occurred in ISO 8601 format. If not provided, uses current time.',
+        },
+        refunded: {
+          type: 'boolean',
+          description: 'Whether the expense has already been refunded (paid back to the user)',
         },
       },
       required: ['description', 'amount'],
@@ -891,6 +827,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
           },
           description: 'List of tasks matching the criteria',
         },
+        totalCount: { type: 'number', description: 'Entries matching the criteria across all pages' },
       },
       required: ['tasks'],
     },
@@ -1185,7 +1122,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'report_document_pdf',
     title: 'Generate Document PDF',
-    description: 'Use this when the user wants to generate and download a PDF version of a document/invoice. Returns a download URL for the PDF file.',
+    description: 'Use this when the user wants to generate and download a PDF version of a document/invoice. The PDF is attached to the result as a file (up to 5 MB).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1201,6 +1138,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       properties: {
         success: { type: 'boolean', description: 'Whether PDF was generated successfully' },
         size: { type: 'number', description: 'PDF file size in bytes' },
+        fileName: { type: 'string', description: 'File name of the attached PDF' },
         message: { type: 'string', description: 'Status message' },
       },
     },
@@ -1273,7 +1211,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'report_task_pdf',
     title: 'Generate Task PDF',
-    description: 'Use this when the user wants to generate and download a PDF report for a specific task.',
+    description: 'Use this when the user wants to generate and download a PDF report for a specific task. The PDF is attached to the result as a file (up to 5 MB).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1289,6 +1227,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       properties: {
         success: { type: 'boolean', description: 'Whether PDF was generated successfully' },
         size: { type: 'number', description: 'PDF file size in bytes' },
+        fileName: { type: 'string', description: 'File name of the attached PDF' },
       },
     },
     annotations: {
@@ -1332,7 +1271,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'report_expense_pdf',
     title: 'Generate Expense PDF',
-    description: 'Use this when the user wants to generate and download a PDF report for a specific expense including receipt images.',
+    description: 'Use this when the user wants to generate and download a PDF report for a specific expense including receipt images. The PDF is attached to the result as a file (up to 5 MB).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1348,6 +1287,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       properties: {
         success: { type: 'boolean', description: 'Whether PDF was generated successfully' },
         size: { type: 'number', description: 'PDF file size in bytes' },
+        fileName: { type: 'string', description: 'File name of the attached PDF' },
       },
     },
     annotations: {
@@ -1391,7 +1331,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'report_note_pdf',
     title: 'Generate Note PDF',
-    description: 'Use this when the user wants to generate and download a PDF report for a specific note including images.',
+    description: 'Use this when the user wants to generate and download a PDF report for a specific note including images. The PDF is attached to the result as a file (up to 5 MB).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1407,6 +1347,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
       properties: {
         success: { type: 'boolean', description: 'Whether PDF was generated successfully' },
         size: { type: 'number', description: 'PDF file size in bytes' },
+        fileName: { type: 'string', description: 'File name of the attached PDF' },
       },
     },
     annotations: {
@@ -1504,7 +1445,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'export_send',
     title: 'Send Export via Email',
-    description: 'Use this when the user wants to generate and send a timesheet export directly to an email address.',
+    description: 'Use this when the user wants to generate and send a timesheet export directly to an email address, as an Excel, CSV, or PDF file.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1527,7 +1468,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         format: {
           type: 'string',
           enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
-          description: 'Export file format',
+          description: 'Export file format. xlsx=Excel, xlsx1904=Excel 1904 date system, csv=comma-separated, pdf=PDF document',
         },
         teamIds: {
           type: 'array',
@@ -1914,7 +1855,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
   {
     name: 'statistics_get',
     title: 'Get Statistics',
-    description: 'Use this when the user wants to see time tracking statistics, summaries, or reports for a date range. Returns aggregated totals, project breakdowns, and daily/weekly hour charts.',
+    description: 'Use this when the user wants to see time tracking statistics, summaries, or reports for a date range of up to one year (366 days). For a longer period, call it once per year. Returns aggregated totals, project breakdowns, and daily/weekly hour charts.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1974,6 +1915,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         totalBreakHours: { type: 'number', description: 'Total break hours' },
         startDate: { type: 'string', description: 'Period start date' },
         endDate: { type: 'string', description: 'Period end date' },
+        truncated: { type: 'boolean', description: 'True when not every entry of the range could be read (over 5,000), so the totals are too low' },
       },
       required: ['totalHours', 'billableHours', 'startDate', 'endDate'],
     },

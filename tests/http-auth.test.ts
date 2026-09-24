@@ -1,11 +1,14 @@
 import { describe, expect, jest, test } from '@jest/globals';
 import {
   createDocumentProxy,
+  createTokenValidator,
   getAuthChallenge,
   getJsonRpcRequestId,
   getProtectedResourceMetadata,
   getWWWAuthenticateHeader,
   getMcpServerUrl,
+  isLocalOrigin,
+  type TokenVerdict,
 } from '../src/mcp-app-helpers.js';
 
 const NOW = Date.UTC(2026, 8, 24, 12, 0, 0);
@@ -167,5 +170,65 @@ describe('authorization server metadata proxy', () => {
     expect(result.status).toBe(502);
     expect(result.body).toEqual(expect.objectContaining({ error: 'temporarily_unavailable' }));
     errorLog.mockRestore();
+  });
+});
+
+describe('origin of a request without credentials', () => {
+  test('no Origin (not a browser) and this machine are local', () => {
+    expect(isLocalOrigin(undefined)).toBe(true);
+    expect(isLocalOrigin('http://localhost:5173')).toBe(true);
+    expect(isLocalOrigin('http://127.0.0.1:3000')).toBe(true);
+    expect(isLocalOrigin('http://[::1]:3000')).toBe(true);
+  });
+
+  test('any other site is not, including look-alikes', () => {
+    expect(isLocalOrigin('https://evil.example')).toBe(false);
+    expect(isLocalOrigin('http://localhost.evil.example')).toBe(false);
+    expect(isLocalOrigin('null')).toBe(false);
+  });
+});
+
+describe('token validator', () => {
+  const verdicts = (...answers: TokenVerdict[]) => {
+    const check = jest.fn<(token: string) => Promise<TokenVerdict>>();
+    for (const answer of answers) {
+      check.mockResolvedValueOnce(answer);
+    }
+    return check;
+  };
+
+  test('asks the API once and keeps the verdict for a while', async () => {
+    const check = verdicts('accepted');
+    const isAccepted = createTokenValidator(check, { ttlMs: 60_000 });
+    expect(await isAccepted('a', NOW)).toBe(true);
+    expect(await isAccepted('a', NOW + 59_000)).toBe(true);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  test('a rejected token stays rejected, and is asked about again after the ttl', async () => {
+    const check = verdicts('rejected', 'rejected');
+    const isAccepted = createTokenValidator(check, { ttlMs: 60_000 });
+    expect(await isAccepted('r', NOW)).toBe(false);
+    expect(await isAccepted('r', NOW + 1_000)).toBe(false);
+    expect(await isAccepted('r', NOW + 61_000)).toBe(false);
+    expect(check).toHaveBeenCalledTimes(2);
+  });
+
+  test('when the API cannot be asked, the request goes through and nothing is kept', async () => {
+    const check = verdicts('unknown', 'rejected');
+    const isAccepted = createTokenValidator(check);
+    expect(await isAccepted('u', NOW)).toBe(true);
+    expect(await isAccepted('u', NOW)).toBe(false);
+  });
+
+  test('the oldest verdict makes room when the cache is full', async () => {
+    const check = verdicts('accepted', 'accepted', 'accepted', 'accepted');
+    const isAccepted = createTokenValidator(check, { maxEntries: 2 });
+    await isAccepted('one', NOW);
+    await isAccepted('two', NOW);
+    await isAccepted('three', NOW);
+    expect(check).toHaveBeenCalledTimes(3);
+    await isAccepted('one', NOW);
+    expect(check).toHaveBeenCalledTimes(4);
   });
 });

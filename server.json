@@ -1,11 +1,13 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.timesheetIO/timesheet-mcp",
+  "title": "Timesheet",
   "description": "timesheet.io MCP server - manage timers, projects, tasks and reports",
   "repository": {
     "url": "https://github.com/timesheetIO/timesheet-mcp",
     "source": "github"
   },
+  "websiteUrl": "https://mcp.timesheet.io",
   "version": "2.0.0",
   "packages": [
     {
@@ -23,6 +25,12 @@
           "isSecret": true
         }
       ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.timesheet.io"
     }
   ]
 }

@@ -8,6 +8,7 @@
  * - Tool results: only data the widget needs and the model does not, under `_meta["timesheet/..."]`
  */
 
+import { createHash } from 'crypto';
 import type { AuthInfo, CacheHint } from '@modelcontextprotocol/server';
 
 /**
@@ -109,11 +110,6 @@ export function listWidgetResources() {
   }));
 }
 
-// Get the component server base URL from environment or use ngrok URL
-export function getComponentBaseUrl(): string {
-  return process.env.COMPONENT_BASE_URL || process.env.NGROK_URL || 'http://localhost:3000';
-}
-
 interface ToolWidgetLink {
   widget: WidgetName;
   /** Status line while the tool runs (ChatGPT), at most 64 characters. */
@@ -154,7 +150,7 @@ export const TOOL_WIDGET_LINKS: Record<string, ToolWidgetLink> = {
 
 /** Descriptor `_meta` for a tool that renders a widget, or undefined for a plain tool. */
 export function getToolUiMeta(toolName: string) {
-  const link = TOOL_WIDGET_LINKS[toolName];
+  const link = Object.hasOwn(TOOL_WIDGET_LINKS, toolName) ? TOOL_WIDGET_LINKS[toolName] : undefined;
   if (!link) {
     return undefined;
   }
@@ -193,7 +189,9 @@ export function withUiData<T extends Record<string, any>>(result: T, profile?: u
 
 /** A color stored as a decimal RGB integer, as a "#rrggbb" string. */
 export function intToHexColor(colorInt?: number | null): string | undefined {
-  if (colorInt === undefined || colorInt === null || !Number.isFinite(colorInt)) {
+  // 0 is "no colour": Project.color is a Java int, so a project nobody coloured has 0, not null.
+  // Anything else is an ARGB value, signed when it comes from Android (e.g. -8420).
+  if (colorInt === undefined || colorInt === null || !Number.isFinite(colorInt) || colorInt === 0) {
     return undefined;
   }
   return `#${('000000' + (colorInt & 0xffffff).toString(16)).slice(-6)}`;
@@ -228,7 +226,10 @@ export function calendarDate(dateTime?: string | null): string | undefined {
 /** UI-only: which timer tool produced the result, for hosts that do not tell the widget. */
 export const TOOL_META_KEY = 'timesheet/tool';
 
-export function formatTimerResponse(timerData: any, profile?: any, settings?: any, toolName?: string) {
+/** UI-only: the entry timer_stop just saved. The API clears the timer's task when it stops. */
+export const STOPPED_TASK_META_KEY = 'timesheet/stoppedTask';
+
+export function formatTimerResponse(timerData: any, profile?: any, settings?: any, toolName?: string, stoppedTask?: any) {
   // Build text content for non-widget MCP clients
   let textContent = `Timer status: ${timerData.status}`;
 
@@ -246,6 +247,12 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
     const minutes = timerData.minutes || 0;
     textContent += `\nDuration: ${hours}h ${minutes}m`;
   }
+  if (stoppedTask) {
+    const duration = stoppedTask.duration || 0;
+    const title = stoppedTask.project?.title;
+    textContent += `\nSaved ${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`
+      + `${title ? ` on ${title}` : ''}${stoppedTask.description ? ` (${stoppedTask.description})` : ''}`;
+  }
 
   const result = withUiData(
     {
@@ -260,7 +267,14 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
     profile,
     settings
   );
-  return toolName ? { ...result, _meta: { ...(result as any)._meta, [TOOL_META_KEY]: toolName } } : result;
+  const meta: Record<string, unknown> = { ...(result as any)._meta };
+  if (toolName) {
+    meta[TOOL_META_KEY] = toolName;
+  }
+  if (stoppedTask) {
+    meta[STOPPED_TASK_META_KEY] = stoppedTask;
+  }
+  return Object.keys(meta).length > 0 ? { ...result, _meta: meta } : result;
 }
 
 /**
@@ -330,7 +344,7 @@ export function formatProjectCardResponse(project: any) {
 /**
  * Format task list response with component
  */
-export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?: any, settings?: any) {
+export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?: any, settings?: any, totalCount?: number) {
   // Build text content for non-widget MCP clients
   const taskList = tasks
     .map((t: any) => {
@@ -347,7 +361,10 @@ export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?
     })
     .join('\n');
 
-  const textContent = `Found ${tasks.length} time entr${tasks.length !== 1 ? 'ies' : 'y'}:\n\n${taskList}`;
+  const heading = totalCount !== undefined && totalCount > tasks.length
+    ? `Showing ${tasks.length} of ${totalCount} time entries:`
+    : `Found ${tasks.length} time entr${tasks.length !== 1 ? 'ies' : 'y'}:`;
+  const textContent = `${heading}\n\n${taskList}`;
 
   return withUiData(
     {
@@ -360,6 +377,8 @@ export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?
       structuredContent: {
         tasks,
         queryParams,
+        // Entries matching the query across all pages, not just this one
+        ...(totalCount !== undefined ? { totalCount } : {}),
       },
     },
     profile,
@@ -407,6 +426,9 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
   if (stats.startDate && stats.endDate) {
     lines.push(`Period: ${stats.startDate} to ${stats.endDate}`);
   }
+  if (stats.truncated) {
+    lines.push('Not every time entry of this range could be read, so these totals are too low. Narrow the range or filter by project, team or user.');
+  }
 
   const billablePct = stats.totalHours > 0
     ? Math.round((stats.billableHours / stats.totalHours) * 100)
@@ -422,7 +444,7 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
     lines.push('');
     lines.push('Project Breakdown:');
     for (const p of stats.projectBreakdown) {
-      lines.push(`  - ${p.projectTitle}: ${p.hours.toFixed(1)}h (${p.percentage}%, ${p.taskCount} tasks)`);
+      lines.push(`  - ${p.projectTitle || 'No project'}: ${p.hours.toFixed(1)}h (${p.percentage}%, ${p.taskCount} tasks)`);
     }
   }
 
@@ -452,6 +474,49 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
     profile,
     settings
   );
+}
+
+/** The largest PDF a report tool attaches to its result; a bigger one would swamp the conversation. */
+export const MAX_ATTACHED_PDF_BYTES = 5 * 1024 * 1024;
+
+export type PdfReportKind = 'document' | 'task' | 'expense' | 'note';
+
+/**
+ * Result of a report_*_pdf tool: the PDF itself as an embedded resource, which hosts offer as a
+ * file (and Claude can read), next to a line of text. A PDF over the limit is described instead.
+ */
+export function formatPdfReportResponse(kind: PdfReportKind, id: string, pdf: ArrayBuffer) {
+  const size = pdf.byteLength;
+  const idKey = `${kind}Id`;
+  const fileName = `timesheet-${kind}-${id}.pdf`;
+  const megabytes = (size / (1024 * 1024)).toFixed(1);
+
+  if (size > MAX_ATTACHED_PDF_BYTES) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `The PDF for ${kind} ${id} is ${megabytes} MB, too large to attach. The user can download it from the ${kind} in the Timesheet app.`,
+        },
+      ],
+      structuredContent: { success: false, [idKey]: id, size, message: 'The PDF is too large to attach.' },
+    };
+  }
+
+  return {
+    content: [
+      { type: 'text', text: `The PDF for ${kind} ${id} is attached as ${fileName} (${megabytes} MB).` },
+      {
+        type: 'resource',
+        resource: {
+          uri: `timesheet://reports/${kind}s/${encodeURIComponent(id)}.pdf`,
+          mimeType: 'application/pdf',
+          blob: Buffer.from(pdf).toString('base64'),
+        },
+      },
+    ],
+    structuredContent: { success: true, [idKey]: id, size, fileName, message: 'The PDF is attached.' },
+  };
 }
 
 /**
@@ -549,11 +614,15 @@ export type AbsenceCardAction = 'requested' | 'updated' | 'approved' | 'rejected
 /** What the ResultCard shows for an absence (contract: kind "absence"). */
 export interface AbsenceCard {
   id: string;
-  typeName: string;
+  /** Absent when the type is unknown; the card shows its own localized label then. */
+  typeName?: string;
   typeColor?: string;
   startDate: string;
   endDate: string;
   totalDays?: number;
+  /** False for an absence of part of a day, which the card shows in hours. */
+  fullDay?: boolean;
+  totalHours?: number;
   status: string;
   note?: string;
   userName?: string;
@@ -591,14 +660,19 @@ export function toAbsenceCard(
   const totalDays = absence.totalDays !== undefined && absence.totalDays !== null
     ? Number(absence.totalDays)
     : undefined;
+  const totalHours = absence.totalHours !== undefined && absence.totalHours !== null
+    ? Number(absence.totalHours)
+    : undefined;
 
   const card: AbsenceCard = {
     id: absence.id,
-    typeName: absenceType?.name || 'Absence',
+    typeName: absenceType?.name || undefined,
     typeColor: intToHexColor(absenceType?.color),
     startDate: calendarDate(absence.startDateTime) ?? '',
     endDate: calendarDate(absence.endDateTime) ?? '',
     totalDays: totalDays !== undefined && Number.isFinite(totalDays) ? totalDays : undefined,
+    fullDay: typeof absence.fullDay === 'boolean' ? absence.fullDay : undefined,
+    totalHours: totalHours !== undefined && Number.isFinite(totalHours) ? totalHours : undefined,
     status: absence.status ?? '',
     // The reason that explains the current status: why it was cancelled or rejected, else the request's own
     note: absenceNote(absence) || undefined,
@@ -661,31 +735,6 @@ export function getMcpServerUrl(): string {
  */
 export function getApiBaseUrl(): string {
   return process.env.TIMESHEET_API_URL || 'https://api.timesheet.io';
-}
-
-/**
- * OAuth 2.1 authorization metadata for MCP Initialize response
- * This tells ChatGPT how to authenticate with this MCP server
- */
-export function getOAuthMetadata() {
-  const apiBaseUrl = getApiBaseUrl();
-  const mcpServerUrl = getMcpServerUrl();
-
-  return {
-    // OAuth 2.1 method identifier
-    method: 'oauth2',
-    // Protected resource metadata for this MCP server
-    resource: mcpServerUrl,
-    // Authorization server metadata location
-    authorization_servers: [apiBaseUrl],
-    // Direct endpoints for convenience
-    authorization_endpoint: `${apiBaseUrl}/oauth2/auth`,
-    token_endpoint: `${apiBaseUrl}/oauth2/token`,
-    registration_endpoint: `${apiBaseUrl}/oauth2/register`,
-    // Well-known discovery endpoints
-    metadata_uri: `${apiBaseUrl}/.well-known/oauth-authorization-server`,
-    protected_resource_metadata_uri: `${mcpServerUrl}/.well-known/oauth-protected-resource`,
-  };
 }
 
 /**
@@ -794,6 +843,80 @@ export function getJsonRpcRequestId(body: unknown): string | number | null {
     }
   }
   return null;
+}
+
+/**
+ * Whether an Origin header comes from this machine. A request without one (anything but a browser)
+ * counts as local too: the check is about web pages, including DNS rebinding.
+ */
+export function isLocalOrigin(origin: string | undefined): boolean {
+  if (!origin) {
+    return true;
+  }
+  try {
+    const { hostname } = new URL(origin);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+  } catch {
+    return false;
+  }
+}
+
+/** The API's answer about a token: it accepts it, it rejects it, or it could not be asked. */
+export type TokenVerdict = 'accepted' | 'rejected' | 'unknown';
+
+/**
+ * Asks the API whether it accepts a bearer token. A 401 is the only no: any other answer, 402 or
+ * 403 included, means the token itself is fine. Unreachable or failing means unknown.
+ */
+export function checkTokenWithApi(apiBaseUrl: string, timeoutMs = 3000) {
+  return async (token: string): Promise<TokenVerdict> => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/v1/profiles/me`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      await response.body?.cancel();
+      if (response.status === 401) {
+        return 'rejected';
+      }
+      return response.status >= 500 ? 'unknown' : 'accepted';
+    } catch {
+      return 'unknown';
+    }
+  };
+}
+
+/**
+ * Whether the API still accepts an OAuth access token. The 401 gate sees only an expired JWT; a
+ * revoked one (a signed-out session, a disconnected app) looks valid until it expires, and its
+ * tool calls fail while the client never learns that it has to refresh. So each JWT is checked
+ * with the API, and the verdict is kept for a few minutes. When the API cannot be asked, the
+ * request goes through: its tool calls fail on their own.
+ */
+export function createTokenValidator(
+  check: (token: string) => Promise<TokenVerdict>,
+  { ttlMs = 5 * 60_000, maxEntries = 10_000 }: { ttlMs?: number; maxEntries?: number } = {}
+) {
+  // Keyed by a hash, so the cache never holds a usable token
+  const verdicts = new Map<string, { accepted: boolean; until: number }>();
+  return async function isTokenAccepted(token: string, nowMs: number = Date.now()): Promise<boolean> {
+    const key = createHash('sha256').update(token).digest('hex');
+    const cached = verdicts.get(key);
+    if (cached && cached.until > nowMs) {
+      return cached.accepted;
+    }
+    const verdict = await check(token);
+    if (verdict === 'unknown') {
+      return true;
+    }
+    verdicts.delete(key);
+    if (verdicts.size >= maxEntries) {
+      // A Map iterates in insertion order, so the first key is the oldest verdict
+      verdicts.delete(verdicts.keys().next().value as string);
+    }
+    verdicts.set(key, { accepted: verdict === 'accepted', until: nowMs + ttlMs });
+    return verdict === 'accepted';
+  };
 }
 
 /** What a proxied authorization server document resolves to. */

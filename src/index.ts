@@ -21,6 +21,7 @@ import {
   formatStatisticsResponse,
   formatExportTemplateListResponse,
   formatExportResultResponse,
+  formatPdfReportResponse,
   exportFormat,
   idList,
   listWidgetResources,
@@ -35,7 +36,7 @@ import {
 } from './mcp-app-helpers.js';
 import { dispatchExtendedTool } from './extended-tools.js';
 import { TOOL_DEFINITIONS, TOOL_OUTPUT_SCHEMAS } from './tool-definitions.js';
-import { computeStatistics, fetchAllPages, STATISTICS_PAGE_SIZE } from './statistics.js';
+import { computeStatistics, fetchAllPages, STATISTICS_PAGE_SIZE, validateStatisticsRange } from './statistics.js';
 
 dotenv.config();
 
@@ -48,12 +49,21 @@ export interface TimesheetMCPServerOptions {
    * Takes precedence over environment API key when provided
    */
   oauthToken?: string;
+  /**
+   * Serving the HTTP endpoint, where every request brings its own credentials. auth_configure is
+   * not offered there: it would only swap the client of that one request and still report success.
+   */
+  hosted?: boolean;
 }
+
+/** The tools of the HTTP endpoint: everything except auth_configure, see TimesheetMCPServerOptions. */
+const HOSTED_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'auth_configure');
 
 export class TimesheetMCPServer {
   private server: Server;
   private client: TimesheetClient | null = null;
   private oauthToken?: string;
+  private hosted: boolean;
 
   /**
    * Create a new TimesheetMCPServer instance
@@ -61,6 +71,7 @@ export class TimesheetMCPServer {
    */
   constructor(options?: TimesheetMCPServerOptions) {
     this.oauthToken = options?.oauthToken;
+    this.hosted = options?.hosted ?? false;
 
     this.server = new Server(
       {
@@ -102,9 +113,12 @@ export class TimesheetMCPServer {
     if (!this.client) {
       const options: TimesheetClientOptions = {};
 
-      // Set base URL from environment
+      // Set base URLs from environment
       if (process.env.TIMESHEET_API_URL) {
         options.baseUrl = process.env.TIMESHEET_API_URL;
+      }
+      if (process.env.TIMESHEET_REPORTS_URL) {
+        options.reportsBaseUrl = process.env.TIMESHEET_REPORTS_URL;
       }
 
       // Priority 1: Token from constructor (HTTP Authorization header).
@@ -147,8 +161,9 @@ export class TimesheetMCPServer {
   private setupHandlers() {
     this.server.setRequestHandler('tools/list', async (request): Promise<ListToolsResult> => {
       // Cursor-based pagination: the cursor is the offset of the next page (see paginate)
-      const { page, nextCursor } = paginate(TOOL_DEFINITIONS, request.params?.cursor, TOOLS_LIST_PAGE_SIZE);
-      console.error(`[MCP] Returning ${page.length}/${TOOL_DEFINITIONS.length} tools${nextCursor ? ` (nextCursor=${nextCursor})` : ''}`);
+      const tools = this.hosted ? HOSTED_TOOL_DEFINITIONS : TOOL_DEFINITIONS;
+      const { page, nextCursor } = paginate(tools, request.params?.cursor, TOOLS_LIST_PAGE_SIZE);
+      console.error(`[MCP] Returning ${page.length}/${tools.length} tools${nextCursor ? ` (nextCursor=${nextCursor})` : ''}`);
       return { tools: page, ...(nextCursor ? { nextCursor } : {}) };
     });
 
@@ -201,7 +216,9 @@ export class TimesheetMCPServer {
     });
 
     this.server.setRequestHandler('tools/call', async (request): Promise<CallToolResult> => {
-      const { name, arguments: args } = request.params;
+      const { name } = request.params;
+      // arguments is optional in tools/call, and the handlers destructure it
+      const args = request.params.arguments ?? {};
 
       let result: unknown;
       try {
@@ -282,7 +299,7 @@ export class TimesheetMCPServer {
 
       // Authentication
       case 'auth_configure':
-        return this.handleAuthConfigure(args);
+        return this.hosted ? null : this.handleAuthConfigure(args);
 
       // Reports API - Document Reports
       case 'report_document_get':
@@ -363,12 +380,19 @@ export class TimesheetMCPServer {
     const { endDateTime } = args;
 
     try {
+      // The API clears the task when the timer stops, so note which one was running: the result
+      // reports it as the entry that was just saved. Either lookup failing only drops that report.
+      const running = await client.timer.get().catch(() => undefined);
       const [timer, userData] = await Promise.all([
         client.timer.stop(endDateTime ? { endDateTime } : undefined),
         this.getProfileAndSettings(),
       ]);
+      const saved = running?.task?.id
+        ? await client.tasks.get(running.task.id).catch(() => undefined)
+        : undefined;
       const timerData = this.formatCompleteTimerData(timer);
-      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_stop');
+      return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_stop',
+        saved ? this.formatTimerTask(saved) : undefined);
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -435,6 +459,25 @@ export class TimesheetMCPServer {
    * Helper to format timer data consistently for all timer operations
    * Uses nested structure (timer.task.project) only
    */
+  /** The task of the timer as the widget reads it, also used for the entry timer_stop saved. */
+  private formatTimerTask(task: any) {
+    return {
+      id: task.id,
+      startDateTime: task.startDateTime,
+      endDateTime: task.endDateTime,
+      description: task.description,
+      duration: task.duration,
+      durationBreak: task.durationBreak,
+      typeId: task.typeId,
+      location: task.location,
+      locationEnd: task.locationEnd,
+      distance: task.distance,
+      phoneNumber: task.phoneNumber,
+      billable: task.billable,
+      project: task.project,
+    };
+  }
+
   private formatCompleteTimerData(timer: any) {
     const duration = timer.task?.duration || 0;
     const hours = Math.floor(duration / 3600);
@@ -445,21 +488,7 @@ export class TimesheetMCPServer {
       duration: duration,
       hours: hours,
       minutes: minutes,
-      task: timer.task ? {
-        id: timer.task.id,
-        startDateTime: timer.task.startDateTime,
-        endDateTime: timer.task.endDateTime,
-        description: timer.task.description,
-        duration: timer.task.duration,
-        durationBreak: timer.task.durationBreak,
-        typeId: timer.task.typeId,
-        location: timer.task.location,
-        locationEnd: timer.task.locationEnd,
-        distance: timer.task.distance,
-        phoneNumber: timer.task.phoneNumber,
-        billable: timer.task.billable,
-        project: timer.task.project,
-      } : undefined,
+      task: timer.task ? this.formatTimerTask(timer.task) : undefined,
       pause: timer.pause ? {
         id: timer.pause.id,
         startDateTime: timer.pause.startDateTime,
@@ -545,7 +574,7 @@ export class TimesheetMCPServer {
 
   private async handleAddExpense(args: any) {
     const client = this.getClient();
-    const { description, amount, dateTime } = args;
+    const { description, amount, dateTime, refunded } = args;
 
     try {
       // Get current timer to find the task ID
@@ -570,6 +599,7 @@ export class TimesheetMCPServer {
         amount: amount === undefined || amount === null ? undefined : String(amount),
         // ExpenseCreateRequest.dateTime is required; default to now.
         dateTime: dateTime ?? new Date().toISOString(),
+        ...(typeof refunded === 'boolean' ? { refunded } : {}),
       });
 
       return {
@@ -879,7 +909,7 @@ export class TimesheetMCPServer {
       });
 
       // Pass query params to widget for building web app link
-      return formatTaskListResponse(taskData, args, userData.profile, userData.settings);
+      return formatTaskListResponse(taskData, args, userData.profile, userData.settings, page.params?.count);
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -1044,26 +1074,12 @@ export class TimesheetMCPServer {
 
     try {
       const pdfData = await client.reports.documents.getPdf(documentId);
-      const size = pdfData.byteLength;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `PDF generated successfully for document ${documentId} (${size} bytes). Use the Timesheet app or API to download.`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          documentId,
-          size,
-          message: 'PDF generated. Download available via Timesheet app.',
-        },
-      };
+      return formatPdfReportResponse('document', documentId, pdfData);
     } catch (error) {
       return this.handleApiError(error);
     }
   }
+
 
   private async handleReportDocumentXml(args: any) {
     const client = this.getClient();
@@ -1121,25 +1137,12 @@ export class TimesheetMCPServer {
 
     try {
       const pdfData = await client.reports.tasks.getPdf(taskId);
-      const size = pdfData.byteLength;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `PDF generated successfully for task ${taskId} (${size} bytes)`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          taskId,
-          size,
-        },
-      };
+      return formatPdfReportResponse('task', taskId, pdfData);
     } catch (error) {
       return this.handleApiError(error);
     }
   }
+
 
   // ============================================================================
   // Reports API - Expense Reports
@@ -1172,25 +1175,12 @@ export class TimesheetMCPServer {
 
     try {
       const pdfData = await client.reports.expenses.getPdf(expenseId);
-      const size = pdfData.byteLength;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `PDF generated successfully for expense ${expenseId} (${size} bytes)`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          expenseId,
-          size,
-        },
-      };
+      return formatPdfReportResponse('expense', expenseId, pdfData);
     } catch (error) {
       return this.handleApiError(error);
     }
   }
+
 
   // ============================================================================
   // Reports API - Note Reports
@@ -1223,25 +1213,12 @@ export class TimesheetMCPServer {
 
     try {
       const pdfData = await client.reports.notes.getPdf(noteId);
-      const size = pdfData.byteLength;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `PDF generated successfully for note ${noteId} (${size} bytes)`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          noteId,
-          size,
-        },
-      };
+      return formatPdfReportResponse('note', noteId, pdfData);
     } catch (error) {
       return this.handleApiError(error);
     }
   }
+
 
   // ============================================================================
   // Reports API - Export Generation
@@ -1581,8 +1558,12 @@ export class TimesheetMCPServer {
   }
 
   private async handleStatisticsGet(args: any) {
-    const client = this.getClient();
     const { startDate, endDate, projectId, projectIds, teamId, teamIds, tagIds, userIds, filter } = args;
+    const rangeError = validateStatisticsRange(startDate, endDate);
+    if (rangeError) {
+      return { content: [{ type: 'text', text: rangeError }], isError: true };
+    }
+    const client = this.getClient();
 
     try {
       const searchParams: any = {
@@ -1606,8 +1587,10 @@ export class TimesheetMCPServer {
       if (!complete) {
         console.error(`[MCP] statistics_get: only the first ${items.length} tasks of the range were read`);
       }
+      // Pages are separate queries sorted by time, so entries that share a time can land on two of them
+      const tasks = [...new Map(items.map((task: any) => [task.id, task])).values()];
 
-      const stats = computeStatistics(items, startDate, endDate);
+      const stats = { ...computeStatistics(tasks, startDate, endDate), truncated: !complete };
       return formatStatisticsResponse(stats, userData.profile, userData.settings);
     } catch (error) {
       return this.handleApiError(error);

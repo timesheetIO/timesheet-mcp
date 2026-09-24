@@ -29,6 +29,10 @@ import {
   toAuthInfo,
   getApiBaseUrl,
   getMcpServerUrl,
+  isJwtToken,
+  isLocalOrigin,
+  checkTokenWithApi,
+  createTokenValidator,
   type ProxiedDocument,
 } from './mcp-app-helpers.js';
 
@@ -36,7 +40,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '3000');
-const HOST = process.env.HOST || '0.0.0.0';
+// Loopback unless told otherwise: a request without credentials runs on TIMESHEET_API_TOKEN, so
+// listening on every interface would share that key with the network. The image sets 0.0.0.0.
+const HOST = process.env.HOST || '127.0.0.1';
 
 const app = express();
 
@@ -47,12 +53,12 @@ app.use(cors({
     'https://chat.openai.com',
     'https://chatgpt.com',
     'https://web-sandbox.oaiusercontent.com',
-    // Cloud Run domains
-    /https:\/\/.*\.run\.app/,
+    // Cloud Run domains. Anchored: unanchored, https://x.run.app.example.com matched as well.
+    /^https:\/\/[a-z0-9.-]+\.run\.app$/,
     'https://mcp.timesheet.io',
     // Development domains
-    /https:\/\/.*\.ngrok-free\.dev/,
-    /https:\/\/.*\.ngrok\.io/,
+    /^https:\/\/[a-z0-9-]+\.ngrok-free\.dev$/,
+    /^https:\/\/[a-z0-9-]+\.ngrok\.io$/,
     'http://localhost:3000',
     'http://localhost:5173',
   ],
@@ -67,15 +73,6 @@ app.use(cors({
 
 // Parse JSON for all requests
 app.use(express.json());
-
-// Serve static component files
-const distPath = path.join(__dirname, '..', 'web', 'dist');
-app.use('/components', express.static(distPath, {
-  setHeaders: (res) => {
-    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://chat.openai.com');
-    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://chat.openai.com https://chatgpt.com https://web-sandbox.oaiusercontent.com;");
-  },
-}));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -144,34 +141,6 @@ app.get('/.well-known/openid-configuration', async (req, res) => {
   await sendProxiedDocument(res, openIdConfiguration);
 });
 
-// List available components
-app.get('/components', (req, res) => {
-  res.json({
-    components: [
-      {
-        name: 'TimerWidget',
-        url: `/components/TimerWidget.html`,
-        description: 'Display timer status and controls',
-      },
-      {
-        name: 'ProjectList',
-        url: `/components/ProjectList.html`,
-        description: 'List projects with timer controls',
-      },
-      {
-        name: 'TaskList',
-        url: `/components/TaskList.html`,
-        description: 'Display time entries',
-      },
-      {
-        name: 'Statistics',
-        url: `/components/Statistics.html`,
-        description: 'Show time tracking statistics',
-      },
-    ],
-  });
-});
-
 // ============================================================================
 // MCP Endpoint with OAuth 2.1 Token Support
 // ============================================================================
@@ -188,7 +157,7 @@ const MCP_ENDPOINT_PATH = process.env.MCP_ENDPOINT_PATH || '/';
  * The factory receives the bearer token that passed the 401 gate as authInfo.
  */
 const mcpHandler = createMcpHandler(
-  ({ authInfo }) => new TimesheetMCPServer({ oauthToken: authInfo?.token }).getServer(),
+  ({ authInfo }) => new TimesheetMCPServer({ oauthToken: authInfo?.token, hosted: true }).getServer(),
   {
     legacy: 'stateless',
     // A subscriptions/listen stream holds a Cloud Run request slot for its lifetime, and this server
@@ -200,6 +169,15 @@ const mcpHandler = createMcpHandler(
 const handleMcp = toNodeHandler(mcpHandler, {
   onerror: (error) => console.error('[MCP] adapter:', error),
 });
+
+/** Whether the API still accepts an OAuth token; see createTokenValidator. */
+const isTokenAccepted = createTokenValidator(checkTokenWithApi(getApiBaseUrl()));
+
+/**
+ * The largest JSON-RPC batch accepted. Batches exist only in protocol 2025-03-26, and each entry
+ * can fan out into many API calls.
+ */
+const MAX_BATCH_SIZE = 20;
 
 app.post(MCP_ENDPOINT_PATH, async (req, res) => {
   console.error(`[MCP] POST request from: ${req.headers.origin || 'unknown'}`);
@@ -230,6 +208,43 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
         message: 'Authentication required',
       },
       id: getJsonRpcRequestId(req.body),
+    });
+    return;
+  }
+
+  // Without credentials the request runs on TIMESHEET_API_TOKEN (local use). A web page from another
+  // origin, or one that reached this port through DNS rebinding, must not get to use that key.
+  if (!bearerToken && !isLocalOrigin(req.headers.origin)) {
+    console.error(`[MCP] 403 origin ${req.headers.origin} without credentials`);
+    res.status(403).json({
+      jsonrpc: '2.0',
+      error: { code: -32001, message: 'Forbidden: requests from this origin need credentials' },
+      id: getJsonRpcRequestId(req.body),
+    });
+    return;
+  }
+
+  // An OAuth token the API no longer accepts (revoked, signed out) gets the same 401 as an expired
+  // one, so the client refreshes or signs in again instead of failing every tool call
+  if (bearerToken && isJwtToken(bearerToken) && !(await isTokenAccepted(bearerToken))) {
+    console.error('[MCP] 401 invalid_token (rejected by the API)');
+    res.setHeader('WWW-Authenticate', getWWWAuthenticateHeader('invalid_token', 'The access token is no longer valid'));
+    res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Authentication required',
+      },
+      id: getJsonRpcRequestId(req.body),
+    });
+    return;
+  }
+
+  if (Array.isArray(req.body) && req.body.length > MAX_BATCH_SIZE) {
+    res.status(400).json({
+      jsonrpc: '2.0',
+      error: { code: -32600, message: `Batches are limited to ${MAX_BATCH_SIZE} requests` },
+      id: null,
     });
     return;
   }
@@ -301,7 +316,6 @@ app.use((req, res) => {
     availableEndpoints: [
       '/ (GET: landing page, POST: MCP protocol)',
       '/health',
-      '/components',
       '/.well-known/oauth-protected-resource',
       '/.well-known/oauth-authorization-server',
       '/.well-known/openid-configuration',
@@ -318,14 +332,12 @@ const server = app.listen(PORT, HOST, () => {
   console.error(`   Local:       http://${HOST}:${PORT}`);
   console.error(`   Landing:     http://${HOST}:${PORT}/ (GET)`);
   console.error(`   MCP:         http://${HOST}:${PORT}/ (POST)`);
-  console.error(`   Components:  http://${HOST}:${PORT}/components/`);
   console.error(`\n🔐 OAuth 2.1 Endpoints:`);
   console.error(`   Protected Resource: http://${HOST}:${PORT}/.well-known/oauth-protected-resource`);
   console.error(`   Authorization Server: ${apiUrl}`);
   console.error(`   Dynamic Registration: ${apiUrl}/oauth2/register`);
   console.error(`\n📝 Environment:`);
   console.error(`   MCP_SERVER_URL: ${process.env.MCP_SERVER_URL || '(not set)'}`);
-  console.error(`   COMPONENT_BASE_URL: ${process.env.COMPONENT_BASE_URL || '(not set)'}`);
   console.error(`   Resolved MCP URL: ${mcpUrl}`);
   console.error(`\n✅ Features:`);
   console.error(`   - Landing page at root for browsers`);

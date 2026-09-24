@@ -5,233 +5,127 @@
 [![Node.js Version](https://img.shields.io/node/v/@timesheet/mcp.svg)](https://nodejs.org)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-blue)](https://modelcontextprotocol.io)
 
-A Model Context Protocol (MCP) server that provides natural language access to the Timesheet API through standardized tools.
+Control [Timesheet](https://timesheet.io) with natural language from AI assistants such as ChatGPT, Claude, Claude Code, Cursor, and VS Code. Start and stop timers, log past work, pull statistics and exports, request time off, and manage projects and teams by chatting.
 
-## Features
+The server supports the current version of the Model Context Protocol (2026-07-28) and the earlier ones, so it works with new and older clients alike. The full guide is at [docs.timesheet.io](https://docs.timesheet.io/integrations/mcp-server).
 
-- **Timer Management**: Start, stop, pause, and resume timers with natural language
-- **Task Enhancement**: Add notes, expenses, and pauses to running tasks
-- **Project Management**: Create, update, list, and delete projects
-- **Task Management**: Full CRUD operations for tasks
-- **Natural Language Support**: Use simple phrases to control your timer
+## Two ways to connect
 
-## Installation
+| | Hosted server | Local server |
+|---|---|---|
+| **Address** | `https://mcp.timesheet.io` | Runs on your computer with `npx -y @timesheet/mcp` |
+| **Sign-in** | Your Timesheet account (OAuth 2.1), or an API key | An API key |
+| **Requirements** | None | Node.js 20 or higher |
 
-### Quick Start with npx
+Both offer the same tools. You need a Timesheet Pro plan or above, which includes API access.
 
-The easiest way to use the Timesheet MCP server is with npx (no installation required):
+## Get an API key
 
-```bash
-npx @timesheet/mcp
-```
+In the Timesheet web app, go to **Integrations** > **API Keys**, select **New API Key**, and copy the key. The same key works for the hosted server, the local server, and the [Timesheet API](https://api.timesheet.io).
 
-### Global Installation
+## Use the hosted server
 
-For frequent use, you can install globally:
+**ChatGPT:** turn on developer mode, add a connection with the URL `https://mcp.timesheet.io`, and sign in with your Timesheet account when asked.
 
-```bash
-npm install -g @timesheet/mcp
-timesheet-mcp
-```
-
-### Local Installation
-
-For project-specific installation:
+**Claude Code** with an API key:
 
 ```bash
-npm install @timesheet/mcp
+claude mcp add --transport http --scope user timesheet https://mcp.timesheet.io --header "Authorization: Bearer your-api-token-here"
 ```
 
-## Configuration
+**Cursor** (`~/.cursor/mcp.json`):
 
-### Using Environment Variables
-
-Create a `.env` file with your API token:
-
-```env
-TIMESHEET_API_TOKEN=your-api-token-here
+```json
+{
+  "mcpServers": {
+    "timesheet": {
+      "url": "https://mcp.timesheet.io",
+      "headers": { "Authorization": "Bearer your-api-token-here" }
+    }
+  }
+}
 ```
 
-### Using Claude Desktop
+## Use the local server
 
-Add to your Claude Desktop configuration file:
+**Claude Code:**
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+```bash
+claude mcp add timesheet --scope user -e TIMESHEET_API_TOKEN=your-api-token-here -- npx -y @timesheet/mcp
+```
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows), and other clients with the same format:
 
 ```json
 {
   "mcpServers": {
     "timesheet": {
       "command": "npx",
-      "args": ["@timesheet/mcp"],
+      "args": ["-y", "@timesheet/mcp"],
       "env": {
-        "TIMESHEET_API_TOKEN": "your-api-token"
+        "TIMESHEET_API_TOKEN": "your-api-token-here"
       }
     }
   }
 }
 ```
 
-For a globally installed version:
+Restart the client after you change its configuration. The [guide](https://docs.timesheet.io/integrations/mcp-server) has the setup for VS Code and other clients.
 
-```json
-{
-  "mcpServers": {
-    "timesheet": {
-      "command": "timesheet-mcp",
-      "env": {
-        "TIMESHEET_API_TOKEN": "your-api-token"
-      }
-    }
-  }
-}
-```
+## Example prompts
 
-## Sample Prompts
+- "Start the timer for the website project"
+- "Pause my timer, I'm taking lunch", then "Stop the timer"
+- "Log 2 hours on the API project for Monday"
+- "What did I work on yesterday?"
+- "How many billable hours did I track in September?"
+- "Email the September timesheet for Acme as a PDF to billing@acme.com"
+- "Book me off next Friday"
+- "Who on my team is tracking right now?"
 
-### Timer Control
-- **Start timer**: 
-  - "Start the timer for ProjectX"
-  - "Start timer for ProjectX 10 minutes ago"
-  - "Begin tracking time on the mobile app project"
-  
-- **Stop timer**:
-  - "Stop the timer"
-  - "Stop working"
-  - "I'm done for the day"
-  
-- **Pause timer**:
-  - "I have a break"
-  - "Pause the timer"
-  - "Taking lunch"
-  
-- **Resume timer**:
-  - "Resume work"
-  - "Back from break"
-  - "Continue timer"
-  
-- **Check status**:
-  - "What's my timer status?"
-  - "Am I tracking time?"
-  - "Show current timer"
+## Tools
 
-### Task Enhancements
-- **Add notes**:
-  - "Add a note: Fixed the login bug"
-  - "Note that I spoke with the client about requirements"
-  
-- **Add expenses**:
-  - "Add expense: $45 for lunch with client"
-  - "Record taxi expense of $25"
-  
-- **Update task**:
-  - "Update the description to 'Working on API integration'"
-  - "Mark current task as billable"
-  - "Add feeling rating of 4"
+The server offers more than 100 tools. The assistant picks the right ones, so you do not need to name them.
 
-### Project Management
-- **List projects**:
-  - "Show me all my projects"
-  - "List active projects"
-  - "What projects do I have?"
-  
-- **Create project**:
-  - "Create a new project called 'Website Redesign'"
-  - "Add project 'Mobile App v2' with default billable tasks"
-  
-- **Update project**:
-  - "Archive the old website project"
-  - "Rename project X to 'Client Portal'"
+| Area | What the tools do |
+|------|-------------------|
+| Timer | Start, pause, resume, stop, and edit the running timer |
+| Time entries | List, create, update, and delete entries, and add notes, expenses, and breaks |
+| Statistics | Totals, billable hours, and per-project and daily breakdowns for up to a year |
+| Reports and exports | Excel, CSV, and PDF exports, export templates, and PDFs of documents, tasks, expenses, and notes |
+| Projects, todos, and tags | Manage projects and their members, todos, tags, and rates |
+| Time off and contracts | Request, approve, and cancel absences, and manage absence types and contracts |
+| Teams and organizations | Manage members and invitations, and see who is tracking time right now |
+| Account | View and update your profile and settings |
 
-### Task Management
-- **List tasks**:
-  - "Show today's tasks"
-  - "List all running tasks"
-  - "What did I work on yesterday?"
-  
-- **Create task**:
-  - "Create a 2-hour task for ProjectX from 9am to 11am"
-  - "Log 4 hours on the API project for yesterday"
-  
-- **Update task**:
-  - "Mark task X as paid"
-  - "Update task description"
-  - "Change task to non-billable"
+The [guide](https://docs.timesheet.io/integrations/mcp-server#available-tools) lists every tool.
 
-## Available Tools
+## Interactive cards
 
-### Timer Operations
-- `timer_start` - Start timer for a project
-- `timer_stop` - Stop the running timer
-- `timer_pause` - Pause the timer (start break)
-- `timer_resume` - Resume timer after break
-- `timer_status` - Check current timer status
-- `timer_update` - Update running timer details
-
-### Task Enhancements
-- `task_add_note` - Add note to current task
-- `task_add_expense` - Add expense to current task
-- `task_add_pause` - Add manual pause to current task
-
-### Project Management
-- `project_list` - List all projects
-- `project_create` - Create new project
-- `project_update` - Update existing project
-- `project_delete` - Delete project
-
-### Task Management
-- `task_list` - List tasks with filters
-- `task_create` - Create new task
-- `task_update` - Update existing task
-- `task_delete` - Delete task
-
-### Authentication
-- `auth_configure` - Set API authentication
-
-## Getting Your API Token
-
-1. Log in to your Timesheet account
-2. Go to Settings → API Access
-3. Generate a new API token
-4. Copy the token and add it to your configuration
+In clients that support MCP Apps, such as ChatGPT and Claude, the timer, new and changed time entries, statistics, exports, and absence requests appear as interactive cards. They follow the client's light or dark theme and language. Other clients show the same information as text.
 
 ## Development
 
 ```bash
-# Clone the repository
-git clone https://github.com/timesheet/timesheet-mcp.git
-cd timesheet-mcp
-
-# Install dependencies
 npm install
-
-# Run in development mode
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm test
+npm run build       # server and widgets
+npm test            # unit tests
+npm run test:e2e    # both protocol versions over stdio and HTTP, against the build
+npm run dev         # HTTP server on http://127.0.0.1:3000
 ```
+
+The HTTP server uses `TIMESHEET_API_TOKEN` for requests that bring no credentials, so leave it unset whenever the server can be reached from outside your computer. See `.env.example` for the other settings.
 
 ## Troubleshooting
 
-### Timer not starting?
-- Ensure you have a valid API token configured
-- Check that the project ID exists in your account
-- Verify you have permission to create tasks for the project
-
-### Authentication errors?
-- Double-check your API token is correct
-- Ensure the token hasn't expired
-- Try generating a new token from your Timesheet settings
+- **Nothing responds, or you get an authentication error:** check that `TIMESHEET_API_TOKEN` is set without extra spaces or quotes, and that the key still exists in **Integrations** > **API Keys**.
+- **The command is not found:** check that Node.js 20 or higher is installed with `node --version`.
+- **A tool reports that it needs a higher plan:** the MCP server works with a Pro plan or above.
 
 ## License
 
-MIT
+MIT, see [LICENSE.md](LICENSE.md).
 
 ## Support
 
-For issues and feature requests, visit: https://github.com/timesheet/timesheet-mcp/issues
+Report problems and ideas at [github.com/timesheetIO/timesheet-mcp/issues](https://github.com/timesheetIO/timesheet-mcp/issues).
