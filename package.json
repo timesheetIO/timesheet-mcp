@@ -12,6 +12,7 @@
     "dist",
     "web/dist",
     "web/landing.html",
+    "web/og.jpg",
     "README.md",
     "LICENSE.md",
     "CHANGELOG.md"

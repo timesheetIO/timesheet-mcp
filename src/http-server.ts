@@ -272,6 +272,12 @@ app.post(MCP_ENDPOINT_PATH, async (req, res) => {
 // Landing page path
 const landingPagePath = path.join(__dirname, '..', 'web', 'landing.html');
 
+// Social preview image referenced by the landing page's og:image tag
+const ogImagePath = path.join(__dirname, '..', 'web', 'og.jpg');
+app.get('/og.jpg', (req, res) => {
+  res.sendFile(ogImagePath, { maxAge: '1d' });
+});
+
 // Handle GET requests - serve landing page for browsers, error for MCP clients
 app.get(MCP_ENDPOINT_PATH, async (req, res) => {
   const acceptHeader = req.headers.accept || '';

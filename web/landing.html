@@ -5,10 +5,22 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Timesheet MCP - AI-Powered Time Tracking</title>
   <meta name="description" content="Connect timesheet.io to AI assistants like ChatGPT and Claude for natural language time tracking.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mcp.timesheet.io/">
+  <meta property="og:site_name" content="Timesheet">
+  <meta property="og:title" content="Timesheet MCP - AI-Powered Time Tracking">
+  <meta property="og:description" content="Connect timesheet.io to AI assistants like ChatGPT and Claude for natural language time tracking.">
+  <meta property="og:image" content="https://mcp.timesheet.io/og.jpg">
+  <meta property="og:image:width" content="2400">
+  <meta property="og:image:height" content="1260">
+  <meta property="og:image:alt" content="Timesheet MCP Server: an AI assistant totals this week's hours per client">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://mcp.timesheet.io/og.jpg">
   <link rel="icon" href="https://timesheet.io/favicon.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>document.documentElement.classList.add('js');</script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -92,6 +104,7 @@
       font-weight: 600;
       font-size: 15px;
       letter-spacing: -0.02em;
+      white-space: nowrap;
     }
 
     .header-link {
@@ -203,149 +216,914 @@
       background: var(--bg-secondary);
     }
 
-    /* Cards Grid */
-    .section-title {
-      font-size: 13px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-muted);
-      text-align: center;
-      margin-bottom: 32px;
+    /* Demo */
+    .demo {
+      max-width: 820px;
+      margin: 64px auto 0;
+      text-align: left;
+      container-type: inline-size;
     }
 
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-      margin-bottom: 80px;
-    }
-
-    .card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px;
-      transition: all 0.3s ease;
-      position: relative;
+    .demo-window {
+      --s: 1px;
+      background: #131315;
+      border: 1px solid var(--border-hover);
+      border-radius: calc(16 * var(--s));
       overflow: hidden;
+      box-shadow: 0 40px 100px -40px rgba(230, 119, 0, 0.35), 0 20px 40px -20px rgba(0, 0, 0, 0.6);
     }
 
-    .card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .card:hover {
-      border-color: var(--border-hover);
-      transform: translateY(-2px);
-    }
-
-    .card:hover::before {
-      opacity: 1;
-    }
-
-    .card-icon {
-      width: 40px;
-      height: 40px;
-      background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
-      border-radius: 10px;
+    .demo-titlebar {
       display: flex;
       align-items: center;
-      justify-content: center;
-      margin-bottom: 20px;
+      gap: calc(14 * var(--s));
+      padding: calc(14 * var(--s)) calc(18 * var(--s));
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: calc(13 * var(--s));
+      color: var(--text-secondary);
     }
 
-    .card-icon svg {
-      width: 20px;
-      height: 20px;
-      color: white;
+    .demo-lights {
+      display: flex;
+      gap: calc(7 * var(--s));
     }
 
-    .card h3 {
-      font-size: 17px;
+    .demo-lights i {
+      width: calc(11 * var(--s));
+      height: calc(11 * var(--s));
+      border-radius: 50%;
+      background: #ff5f57;
+    }
+
+    .demo-lights i:nth-child(2) { background: #febc2e; }
+    .demo-lights i:nth-child(3) { background: #28c840; }
+
+    .demo-title {
+      flex: 1;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .demo-connected {
+      display: inline-flex;
+      align-items: center;
+      gap: calc(6 * var(--s));
+      font-size: calc(12 * var(--s));
+      color: #4ade80;
+    }
+
+    .demo-connected::before {
+      content: '';
+      width: calc(6 * var(--s));
+      height: calc(6 * var(--s));
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    .demo-tabs {
+      display: flex;
+      gap: calc(4 * var(--s));
+      padding: calc(10 * var(--s)) calc(12 * var(--s));
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .demo-tabs::-webkit-scrollbar { display: none; }
+
+    .demo-tab {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: calc(8 * var(--s));
+      padding: calc(8 * var(--s)) calc(12 * var(--s));
+      border: 0;
+      border-radius: calc(8 * var(--s));
+      background: transparent;
+      color: var(--text-muted);
+      font: 500 calc(14 * var(--s))/1.2 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .demo-tab svg {
+      width: calc(16 * var(--s));
+      height: calc(16 * var(--s));
+      flex: none;
+    }
+
+    .demo-tab:hover { color: var(--text-primary); }
+
+    .demo-tab:focus-visible {
+      outline: 2px solid var(--accent-light);
+      outline-offset: -2px;
+    }
+
+    .demo-tab[aria-selected="true"] {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-primary);
+    }
+
+    .demo-tab[aria-selected="true"] svg { color: var(--accent-light); }
+
+    .demo-progress {
+      height: calc(2 * var(--s));
+      background: var(--border);
+    }
+
+    .demo-progress span {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+
+    .demo.is-manual .demo-progress span { opacity: 0; }
+
+    .demo-stage {
+      display: grid;
+      padding: calc(24 * var(--s)) calc(28 * var(--s)) calc(28 * var(--s));
+    }
+
+    .demo-panel {
+      grid-area: 1 / 1;
+      visibility: hidden;
+    }
+
+    .demo-panel.is-active { visibility: visible; }
+
+    .demo-prompt {
+      display: flex;
+      gap: calc(10 * var(--s));
+      padding-bottom: calc(20 * var(--s));
+      margin-bottom: calc(20 * var(--s));
+      border-bottom: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: calc(14.5 * var(--s));
+      color: var(--text-primary);
+    }
+
+    .demo-caret { color: var(--accent-light); }
+
+    .demo-rest { color: transparent; }
+
+    .demo-cursor {
+      display: inline-block;
+      width: calc(8 * var(--s));
+      height: 1.1em;
+      margin: 0 calc(1 * var(--s)) -0.2em;
+      background: var(--accent-light);
+      animation: demo-blink 1s steps(1) infinite;
+    }
+
+    .demo-panel.is-sent .demo-cursor { visibility: hidden; }
+
+    @keyframes demo-blink {
+      50% { opacity: 0; }
+    }
+
+    .demo-steps {
+      list-style: none;
+      display: grid;
+      gap: calc(14 * var(--s));
+    }
+
+    .demo-step {
+      display: flex;
+      gap: calc(14 * var(--s));
+      opacity: 0;
+      transform: translateY(calc(6 * var(--s)));
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+
+    .demo-step.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    .demo-status {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: calc(20 * var(--s));
+      height: calc(20 * var(--s));
+      margin-top: calc(2 * var(--s));
+      border-radius: 50%;
+      border: 2px solid rgba(255, 136, 0, 0.25);
+      border-top-color: var(--accent-light);
+      animation: demo-spin 0.8s linear infinite;
+    }
+
+    .demo-status svg {
+      width: calc(12 * var(--s));
+      height: calc(12 * var(--s));
+      color: #fff;
+      opacity: 0;
+    }
+
+    .demo-step.is-done .demo-status {
+      border: 0;
+      background: #22c55e;
+      animation: none;
+    }
+
+    .demo-step.is-done .demo-status svg { opacity: 1; }
+
+    @keyframes demo-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .demo-step-label {
+      font-size: calc(15 * var(--s));
+      line-height: 1.5;
+    }
+
+    .demo-step-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: calc(12.5 * var(--s));
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .demo-step.is-done .demo-step-meta { opacity: 1; }
+
+    .demo-step-meta code {
+      font-family: inherit;
+      color: var(--accent-light);
+    }
+
+    .demo-result {
+      display: flex;
+      align-items: center;
+      gap: calc(16 * var(--s));
+      margin-top: calc(24 * var(--s));
+      padding: calc(18 * var(--s)) calc(20 * var(--s));
+      border: 1px solid rgba(230, 119, 0, 0.35);
+      border-radius: calc(14 * var(--s));
+      background: rgba(230, 119, 0, 0.08);
+      opacity: 0;
+      transform: translateY(calc(10 * var(--s)));
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+
+    .demo-result.is-shown {
+      opacity: 1;
+      transform: none;
+    }
+
+    .demo-result-icon {
+      flex: none;
+      display: grid;
+      place-items: center;
+      width: calc(44 * var(--s));
+      height: calc(44 * var(--s));
+      border: 1px solid var(--border);
+      border-radius: calc(11 * var(--s));
+      background: var(--bg-primary);
+      color: var(--accent-light);
+    }
+
+    .demo-result-icon svg {
+      width: calc(20 * var(--s));
+      height: calc(20 * var(--s));
+    }
+
+    .demo-result-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .demo-result h3 {
+      font-size: calc(15.5 * var(--s));
       font-weight: 600;
-      margin-bottom: 8px;
       letter-spacing: -0.01em;
     }
 
-    .card p {
+    .demo-result p {
+      font-size: calc(14 * var(--s));
       color: var(--text-secondary);
-      font-size: 14px;
-      line-height: 1.6;
     }
 
-    /* Installation Section */
-    .install-section {
-      margin-bottom: 80px;
+    .demo-clock {
+      flex: none;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: calc(22 * var(--s));
+      font-variant-numeric: tabular-nums;
+      color: var(--accent-light);
     }
 
-    .install-card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 16px;
+    .demo-badge {
+      flex: none;
+      padding: calc(4 * var(--s)) calc(10 * var(--s));
+      border: 1px solid rgba(251, 191, 36, 0.25);
+      border-radius: 100px;
+      background: rgba(251, 191, 36, 0.1);
+      font-size: calc(12 * var(--s));
+      font-weight: 500;
+      color: #fbbf24;
+    }
+
+    .demo-result.is-stats { display: block; }
+
+    .demo-total {
+      display: flex;
+      align-items: baseline;
+      gap: calc(10 * var(--s));
+      margin-bottom: calc(14 * var(--s));
+    }
+
+    .demo-total strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: calc(26 * var(--s));
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .demo-total span {
+      font-size: calc(14 * var(--s));
+      color: var(--text-secondary);
+    }
+
+    .demo-bars {
+      list-style: none;
+      display: grid;
+      gap: calc(8 * var(--s));
+    }
+
+    .demo-bar {
+      display: grid;
+      grid-template-columns: calc(88 * var(--s)) 1fr calc(64 * var(--s));
+      align-items: center;
+      gap: calc(12 * var(--s));
+      font-size: calc(13 * var(--s));
+      color: var(--text-secondary);
+    }
+
+    .demo-bar-track {
+      height: calc(8 * var(--s));
+      border-radius: calc(4 * var(--s));
+      background: rgba(255, 255, 255, 0.06);
       overflow: hidden;
+    }
+
+    .demo-bar-track i {
+      display: block;
+      width: var(--w);
+      height: 100%;
+      border-radius: calc(4 * var(--s));
+      background: var(--accent);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .demo-bar:nth-child(2) i { transition-delay: 0.08s; }
+    .demo-bar:nth-child(3) i { transition-delay: 0.16s; }
+    .demo-bar:nth-child(4) i { transition-delay: 0.24s; }
+
+    .demo-bar.is-muted i { background: var(--text-muted); }
+
+    .demo-result.is-shown .demo-bar-track i { transform: scaleX(1); }
+
+    .demo-bar-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      color: var(--text-primary);
+    }
+
+    .demo-foot {
+      margin-top: calc(12 * var(--s));
+      font-size: calc(13 * var(--s));
+      color: var(--text-muted);
+    }
+
+    .demo-caption {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .demo-step, .demo-step-meta, .demo-result, .demo-bar-track i { transition: none; }
+      .demo-status, .demo-cursor { animation: none; }
+    }
+
+    @media (max-width: 640px) {
+      .demo { margin-top: 48px; }
+      .demo-titlebar { padding: 12px 14px; font-size: 12px; }
+      .demo-stage { padding: 20px 18px 22px; }
+      .demo-prompt { font-size: 13px; }
+      .demo-step-label { font-size: 14px; }
+      .demo-result { padding: 16px; }
+      .demo-result-icon { display: none; }
+      .demo-clock { font-size: 18px; }
+      .demo-bar { grid-template-columns: 72px 1fr 58px; gap: 10px; }
+    }
+
+    /* Desktop: copy on the left, demo on the right, both above the fold.
+       The hero widens with the screen and the demo scales with its column
+       (--s), capped by the viewport height so it never runs below the fold. */
+    @media (min-width: 1101px) {
+      .hero { padding: 56px 0 96px; }
+
+      header .container,
+      .hero-grid { max-width: min(1600px, 100vw - clamp(48px, 11vw, 160px)); }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr);
+        gap: clamp(48px, 4vw, 80px);
+        align-items: center;
+        text-align: left;
+      }
+
+      .hero-grid h1 { font-size: clamp(48px, 4.4vw, 76px); }
+
+      .hero-grid .hero-description {
+        max-width: 34em;
+        margin: 0 0 40px;
+        font-size: clamp(17px, 1.25vw, 20px);
+      }
+
+      .hero-grid .hero-buttons { justify-content: flex-start; }
+      .hero-grid .demo { max-width: none; margin: 0; }
+      .hero-grid .demo-window { --s: clamp(0.9px, min(0.15cqi, 0.172vh - 0.3px), 1.25px); }
+      .hero-grid .demo-tabs { gap: calc(2 * var(--s)); }
+      .hero-grid .demo-tab { padding: calc(8 * var(--s)) calc(9 * var(--s)); font-size: calc(13.5 * var(--s)); }
+    }
+
+    /* Page texture: a faint dot grid that fades out below the hero */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+      background-size: 22px 22px;
+      -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 25%, transparent 80%);
+      mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 25%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container.wide { max-width: 1160px; }
+
+    /* Hero: supported clients */
+    .clients { margin-top: 36px; }
+
+    .clients-label {
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .client-list {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .client-list li {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border: 1px solid var(--border-hover);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .client-list svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+
+    .brand-claude { color: #d97757; }
+    .brand-vscode { color: #23a9f2; }
+
+    /* Sections */
+    .section { padding-top: 120px; }
+
+    .section-head {
+      max-width: 680px;
+      margin: 0 auto 48px;
+      text-align: center;
+    }
+
+    .eyebrow {
+      margin-bottom: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+    }
+
+    .section-head h2,
+    .cta h2 {
+      font-size: clamp(30px, 4vw, 44px);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      text-wrap: balance;
+    }
+
+    .accent { color: var(--accent-light); }
+
+    .section-sub {
+      margin-top: 16px;
+      font-size: 17px;
+      color: var(--text-secondary);
+    }
+
+    /* Capabilities bento */
+    .bento {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .tile {
+      position: relative;
+      overflow: hidden;
+      padding: 28px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--bg-secondary);
+      transition: border-color 0.3s;
+    }
+
+    .tile::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 136, 0, 0.12), transparent 45%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .tile:hover { border-color: var(--border-hover); }
+    .tile:hover::before { opacity: 1; }
+
+    .tile-wide {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 32px;
+      align-items: center;
+    }
+
+    .tile-icon {
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255, 136, 0, 0.25);
+      border-radius: 11px;
+      background: rgba(255, 136, 0, 0.1);
+      color: var(--accent-light);
+    }
+
+    .tile-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .tile h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .tile p {
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+
+    .tools {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 20px;
+    }
+
+    .tools li {
+      padding: 3px 8px;
+      border: 1px solid rgba(255, 136, 0, 0.18);
+      border-radius: 6px;
+      background: rgba(255, 136, 0, 0.08);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent-light);
+    }
+
+    /* Tile visuals */
+    .tile-visual {
+      padding: 20px;
+      border: 1px solid var(--border-hover);
+      border-radius: 16px;
+      background: #131315;
+      box-shadow: 0 24px 60px -30px rgba(230, 119, 0, 0.35);
+    }
+
+    .tv-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .tv-status::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+    }
+
+    .tv-clock {
+      margin: 10px 0 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 40px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      color: var(--accent-light);
+    }
+
+    .tv-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .tv-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .tv-actions span {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid var(--border-hover);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .tv-actions span:last-child {
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+
+    .cv-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
       margin-bottom: 16px;
     }
 
-    .install-header {
+    .cv-head strong {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 500;
+    }
+
+    .cv-head span {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .cv-bars {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      height: 120px;
+    }
+
+    .cv-bars div {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .cv-bars i {
+      height: var(--h);
+      border-radius: 6px 6px 3px 3px;
+      background: linear-gradient(180deg, var(--accent-light), var(--accent));
+      transform-origin: bottom;
+      transition: transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .cv-bars div:nth-child(2) i { transition-delay: 0.08s; }
+    .cv-bars div:nth-child(3) i { transition-delay: 0.16s; }
+    .cv-bars div:nth-child(4) i { transition-delay: 0.24s; }
+    .cv-bars div:nth-child(5) i { transition-delay: 0.32s; }
+
+    .js .cv-bars i { transform: scaleY(0.08); }
+    .js .is-in .cv-bars i { transform: none; }
+
+    .cv-bars span {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Example prompts marquee */
+    .marquee {
+      overflow: hidden;
+      padding: 6px 0;
+      -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+      mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    }
+
+    .marquee + .marquee { margin-top: 12px; }
+
+    .marquee-track {
+      list-style: none;
+      display: flex;
       gap: 12px;
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border);
+      width: max-content;
     }
 
-    .install-header img {
-      width: 24px;
-      height: 24px;
+    .js .marquee-track { animation: marquee 70s linear infinite; }
+
+    .marquee.is-reverse .marquee-track { animation-direction: reverse; }
+    .marquee:hover .marquee-track { animation-play-state: paused; }
+
+    @keyframes marquee {
+      to { transform: translateX(calc(-50% - 6px)); }
     }
 
-    .install-header svg {
-      width: 24px;
-      height: 24px;
-    }
-
-    .install-header h3 {
+    .marquee-track li {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-secondary);
       font-size: 15px;
+      color: var(--text-primary);
+    }
+
+    .marquee-track li::before {
+      content: '\276F';
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent-light);
+    }
+
+    /* Setup */
+    .steps {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .step {
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--bg-secondary);
+    }
+
+    .step-num {
+      display: inline-block;
+      margin-bottom: 14px;
+      padding: 3px 10px;
+      border: 1px solid rgba(255, 136, 0, 0.25);
+      border-radius: 100px;
+      background: rgba(255, 136, 0, 0.08);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--accent-light);
+    }
+
+    .step h3 {
+      margin-bottom: 6px;
+      font-size: 17px;
       font-weight: 600;
     }
 
-    .install-header .tag {
-      margin-left: auto;
-      padding: 4px 10px;
-      background: rgba(230, 119, 0, 0.1);
-      border: 1px solid rgba(230, 119, 0, 0.2);
-      border-radius: 100px;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--accent-light);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .install-body {
-      padding: 24px;
-    }
-
-    .install-body p {
+    .step p {
+      font-size: 14.5px;
       color: var(--text-secondary);
-      font-size: 14px;
-      margin-bottom: 16px;
     }
+
+    .setup {
+      border: 1px solid var(--border-hover);
+      border-radius: 16px;
+      background: #131315;
+      overflow: hidden;
+      box-shadow: 0 40px 100px -50px rgba(230, 119, 0, 0.3);
+    }
+
+    .setup-tabs {
+      display: flex;
+      gap: 4px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .setup-tabs::-webkit-scrollbar { display: none; }
+
+    .setup-tab {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text-muted);
+      font: 500 14px/1.2 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .setup-tab svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+
+    .setup-tab:hover { color: var(--text-primary); }
+
+    .setup-tab:focus-visible {
+      outline: 2px solid var(--accent-light);
+      outline-offset: -2px;
+    }
+
+    .setup-tab[aria-selected="true"] {
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-primary);
+    }
+
+    .setup-panel { padding: 24px 28px 28px; }
+
+    .setup-panel > p {
+      margin-bottom: 16px;
+      font-size: 14.5px;
+      color: var(--text-secondary);
+    }
+
+    .setup-panel > p code {
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .setup-more {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .setup-more a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .setup-more a:hover { color: var(--accent-light); }
 
     .code-block {
       background: var(--bg-primary);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 16px 20px;
+      padding: 16px 84px 16px 20px;
       overflow-x: auto;
       font-family: 'JetBrains Mono', monospace;
       font-size: 13px;
@@ -383,41 +1161,81 @@
       border-color: var(--border-hover);
     }
 
-    /* CTA Section */
-    .cta-section {
+    /* CTA */
+    .cta {
+      position: relative;
+      overflow: hidden;
+      padding: 80px 32px;
+      border: 1px solid var(--border-hover);
+      border-radius: 28px;
+      background: radial-gradient(ellipse 70% 100% at 50% 0%, rgba(255, 136, 0, 0.2), transparent 70%), var(--bg-secondary);
       text-align: center;
-      padding: 60px 0;
-      margin-bottom: 40px;
-      background: linear-gradient(180deg, transparent, rgba(230, 119, 0, 0.08));
-      border-radius: 24px;
-      border: 1px solid var(--border);
     }
 
-    .cta-section h2 {
-      font-size: 28px;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-bottom: 12px;
+    .cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 22px 22px;
+      -webkit-mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, #000, transparent 75%);
+      mask-image: radial-gradient(ellipse 60% 80% at 50% 0%, #000, transparent 75%);
+      pointer-events: none;
     }
 
-    .cta-section p {
+    .cta > * { position: relative; }
+
+    .cta-text {
+      max-width: 520px;
+      margin: 16px auto 32px;
+      font-size: 17px;
       color: var(--text-secondary);
-      margin-bottom: 24px;
     }
+
+    .cta .cta-note {
+      margin: 24px auto 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .cta-note a {
+      color: var(--text-secondary);
+      transition: color 0.2s;
+    }
+
+    .cta-note a:hover { color: var(--accent-light); }
 
     /* Footer */
     footer {
+      margin-top: 120px;
+      padding: 40px 0;
       border-top: 1px solid var(--border);
-      padding: 32px 0;
-      text-align: center;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .footer-brand img {
+      width: auto;
+      height: 22px;
     }
 
     .footer-links {
       display: flex;
-      justify-content: center;
-      gap: 24px;
-      margin-bottom: 20px;
       flex-wrap: wrap;
+      gap: 24px;
     }
 
     .footer-links a {
@@ -436,16 +1254,66 @@
       font-size: 13px;
     }
 
+    .footer-copy a { color: var(--accent-light); }
+
+    /* Scroll reveal (only when JS runs, so content never stays hidden) */
+    .js .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease var(--d, 0ms), transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0ms), border-color 0.3s;
+    }
+
+    .js .reveal.is-in {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .js .reveal, .js .cv-bars i { transform: none; transition: none; }
+      .js .reveal { opacity: 1; }
+      .js .marquee-track { flex-wrap: wrap; justify-content: center; width: auto; animation: none; }
+      .marquee-track [aria-hidden="true"] { display: none; }
+    }
+
+    /* Desktop hero: clients line up with the left-aligned copy */
+    @media (min-width: 1101px) {
+      .hero-grid .client-list { justify-content: flex-start; }
+    }
+
     /* Responsive */
+    @media (max-width: 900px) {
+      .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .steps { grid-template-columns: minmax(0, 1fr); }
+    }
+
     @media (max-width: 640px) {
+      .header-content { gap: 12px; }
+      .logo { gap: 8px; }
+      .logo img { height: 20px; }
+      .logo-text { font-size: 14px; }
       .hero { padding: 60px 0 40px; }
       .hero-buttons { flex-direction: column; align-items: center; }
       .btn { width: 100%; max-width: 280px; justify-content: center; }
-      .cards { grid-template-columns: 1fr; }
+      .section { padding-top: 88px; }
+      .bento { grid-template-columns: minmax(0, 1fr); }
+      .tile-wide { grid-column: auto; grid-template-columns: minmax(0, 1fr); }
+      .tile { padding: 22px; }
+      .setup-panel { padding: 20px 18px 22px; }
+      .cta { padding: 56px 20px; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-brand { align-items: center; }
+      .footer-links { justify-content: center; }
     }
   </style>
 </head>
 <body>
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    <symbol id="logo-claude" viewBox="0 0 24 24"><path fill="currentColor" d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/></symbol>
+    <symbol id="logo-openai" viewBox="0 0 24 24"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></symbol>
+    <symbol id="logo-cursor" viewBox="0 0 24 24"><path fill="currentColor" d="M11.503.131 1.891 5.678a.84.84 0 0 0-.42.726v11.188c0 .3.162.575.42.724l9.609 5.55a1 1 0 0 0 .998 0l9.61-5.55a.84.84 0 0 0 .42-.724V6.404a.84.84 0 0 0-.42-.726L12.497.131a1.01 1.01 0 0 0-.996 0M2.657 6.338h18.55c.263 0 .43.287.297.515L12.23 22.918c-.062.107-.229.064-.229-.06V12.335a.59.59 0 0 0-.295-.51l-9.11-5.257c-.109-.063-.064-.23.061-.23"/></symbol>
+    <symbol id="logo-vscode" viewBox="0 0 24 24"><path fill="currentColor" d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/></symbol>
+    <symbol id="logo-mcp" viewBox="0 0 24 24"><path fill="currentColor" d="M13.85 0a4.16 4.16 0 0 0-2.95 1.217L1.456 10.66a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l9.442-9.442a2.49 2.49 0 0 1 3.541 0 2.49 2.49 0 0 1 0 3.541L8.59 12.97l-.1.1a.835.835 0 0 0 0 1.18.835.835 0 0 0 1.18 0l.1-.098 7.03-7.034a2.49 2.49 0 0 1 3.542 0l.049.05a2.49 2.49 0 0 1 0 3.54l-8.54 8.54a1.96 1.96 0 0 0 0 2.755l1.753 1.753a.835.835 0 0 0 1.18 0 .835.835 0 0 0 0-1.18l-1.753-1.753a.266.266 0 0 1 0-.394l8.54-8.54a4.185 4.185 0 0 0 0-5.9l-.05-.05a4.16 4.16 0 0 0-2.95-1.218c-.2 0-.401.02-.6.048a4.17 4.17 0 0 0-1.17-3.552A4.16 4.16 0 0 0 13.85 0m0 3.333a.84.84 0 0 0-.59.245L6.275 10.56a4.186 4.186 0 0 0 0 5.902 4.186 4.186 0 0 0 5.902 0L19.16 9.48a.835.835 0 0 0 0-1.18.835.835 0 0 0-1.18 0l-6.985 6.984a2.49 2.49 0 0 1-3.54 0 2.49 2.49 0 0 1 0-3.54l6.983-6.985a.835.835 0 0 0 0-1.18.84.84 0 0 0-.59-.245"/></symbol>
+  </svg>
   <div class="bg-glow"></div>
 
   <header>
@@ -456,155 +1324,290 @@
           <div class="logo-divider"></div>
           <span class="logo-text">MCP Server</span>
         </a>
-        <a href="https://docs.timesheet.io/integrations/mcp" class="header-link">Documentation</a>
+        <a href="https://docs.timesheet.io/integrations/mcp-server" class="header-link">Documentation</a>
       </div>
     </div>
   </header>
 
   <main>
     <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="badge">
+            <span class="badge-dot"></span>
+            Model Context Protocol
+          </div>
+          <h1>
+            <span class="gradient-text">AI-Powered</span><br>
+            Time Tracking
+          </h1>
+          <p class="hero-description">
+            Connect your timesheet.io account to ChatGPT, Claude, and other AI assistants.
+            Track time, manage projects, and generate reports with natural language.
+          </p>
+          <div class="hero-buttons">
+            <a href="https://my.timesheet.io/development/apikeys" class="btn btn-primary">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+              </svg>
+              Get API Token
+            </a>
+            <a href="https://docs.timesheet.io/integrations/mcp-server" class="btn btn-secondary">
+              View Documentation
+            </a>
+          </div>
+
+          <div class="clients">
+            <p class="clients-label">Works with any MCP client</p>
+            <ul class="client-list">
+              <li><svg class="brand-claude" aria-hidden="true"><use href="#logo-claude"/></svg>Claude</li>
+              <li><svg aria-hidden="true"><use href="#logo-openai"/></svg>ChatGPT</li>
+              <li><svg class="brand-claude" aria-hidden="true"><use href="#logo-claude"/></svg>Claude Code</li>
+              <li><svg aria-hidden="true"><use href="#logo-cursor"/></svg>Cursor</li>
+              <li><svg class="brand-vscode" aria-hidden="true"><use href="#logo-vscode"/></svg>VS Code</li>
+              <li><svg aria-hidden="true"><use href="#logo-mcp"/></svg>Any MCP client</li>
+            </ul>
+          </div>
+        </div>
+
+        <figure class="demo" id="demo">
+          <div class="demo-window">
+            <div class="demo-titlebar">
+              <span class="demo-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="demo-title"><span id="demo-client">claude</span> · timesheet mcp</span>
+              <span class="demo-connected">connected</span>
+            </div>
+            <div class="demo-tabs" role="tablist" aria-label="Example prompts"></div>
+            <div class="demo-progress" aria-hidden="true"><span></span></div>
+            <div class="demo-stage"></div>
+          </div>
+          <figcaption class="demo-caption">Illustrative session. It runs on your own projects and hours.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" id="capabilities">
+      <div class="container wide">
+        <div class="section-head reveal">
+          <p class="eyebrow">Capabilities</p>
+          <h2>Your whole timesheet, <span class="accent">in plain language.</span></h2>
+          <p class="section-sub">More than 100 tools cover your account, from the running timer to reports, time off and your team.</p>
+        </div>
+
+        <div class="bento">
+          <article class="tile tile-wide reveal">
+            <div>
+              <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></span>
+              <h3>Run the timer from the chat</h3>
+              <p>Start, pause, resume and stop. Add a note, a break or an expense to the running task as you go.</p>
+              <ul class="tools"><li>timer_start</li><li>timer_pause</li><li>timer_resume</li><li>timer_stop</li><li>task_add_note</li><li>task_add_pause</li></ul>
+            </div>
+            <div class="tile-visual" aria-hidden="true">
+              <div class="tv-status">Running on Website redesign</div>
+              <div class="tv-clock" id="tile-clock">01:24:15</div>
+              <div class="tv-meta">Acme · Header review</div>
+              <div class="tv-actions"><span>Pause</span><span>Stop</span></div>
+            </div>
+          </article>
+          <article class="tile reveal" style="--d: 80ms">
+            <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></span>
+            <h3>Fill in the gaps</h3>
+            <p>Log past work, fix start and end times, and list what you did on any day.</p>
+            <ul class="tools"><li>task_create</li><li>task_update</li><li>task_list</li></ul>
+          </article>
+          <article class="tile reveal">
+            <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg></span>
+            <h3>Projects and teams</h3>
+            <p>Create and archive projects, manage members, and see who is tracking right now.</p>
+            <ul class="tools"><li>project_create</li><li>project_member_add</li><li>team_member_status</li></ul>
+          </article>
+          <article class="tile reveal" style="--d: 80ms">
+            <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></span>
+            <h3>Time off and contracts</h3>
+            <p>Request, approve and cancel absences, and keep employment contracts up to date.</p>
+            <ul class="tools"><li>absence_create</li><li>absence_approve</li><li>contract_list</li></ul>
+          </article>
+          <article class="tile reveal" style="--d: 160ms">
+            <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg></span>
+            <h3>Todos, notes and expenses</h3>
+            <p>Keep todos per project, attach notes to your work, and log expenses.</p>
+            <ul class="tools"><li>todo_create</li><li>note_create</li><li>expense_create</li></ul>
+          </article>
+          <article class="tile tile-wide reveal">
+            <div>
+              <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></span>
+              <h3>Reports without the export dialog</h3>
+              <p>Totals per project and billable hours in seconds. Exports as Excel, CSV or PDF, sent straight to a client's inbox.</p>
+              <ul class="tools"><li>statistics_get</li><li>export_generate</li><li>export_send</li><li>report_task_pdf</li></ul>
+            </div>
+            <div class="tile-visual" aria-hidden="true">
+              <div class="cv-head"><strong>38h 30m</strong><span>this week</span></div>
+              <div class="cv-bars">
+                <div><i style="--h: 92%"></i><span>Mon</span></div>
+                <div><i style="--h: 72%"></i><span>Tue</span></div>
+                <div><i style="--h: 100%"></i><span>Wed</span></div>
+                <div><i style="--h: 86%"></i><span>Thu</span></div>
+                <div><i style="--h: 78%"></i><span>Fri</span></div>
+              </div>
+            </div>
+          </article>
+          <article class="tile reveal" style="--d: 80ms">
+            <span class="tile-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg></span>
+            <h3>Hosted or local</h3>
+            <p>Connect to mcp.timesheet.io with your Timesheet sign-in or an API key, or run the server yourself with npx.</p>
+            <ul class="tools"><li>mcp.timesheet.io</li><li>npx @timesheet/mcp</li></ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="prompts">
+      <div class="container wide">
+        <div class="section-head reveal">
+          <p class="eyebrow">Just ask</p>
+          <h2>No commands to learn.</h2>
+          <p class="section-sub">Say it the way you would tell a colleague. The assistant picks the right tools.</p>
+        </div>
+      </div>
+      <div class="marquee reveal">
+        <ul class="marquee-track">
+          <li>Start the timer for the website project</li>
+          <li>What did I work on yesterday?</li>
+          <li>Pause my timer, I'm taking lunch</li>
+          <li>Log 2 hours on the API project for Monday</li>
+          <li>How many billable hours did I track in September?</li>
+          <li>Add a $45 expense for lunch with the client</li>
+        </ul>
+      </div>
+      <div class="marquee is-reverse reveal">
+        <ul class="marquee-track">
+          <li>Show this week's time entries</li>
+          <li>Who on my team is tracking right now?</li>
+          <li>Email Acme their September timesheet as a PDF</li>
+          <li>Add a note: fixed the login bug</li>
+          <li>Book me off next Friday</li>
+          <li>Archive the old website project</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="setup">
       <div class="container">
-        <div class="badge">
-          <span class="badge-dot"></span>
-          Model Context Protocol
+        <div class="section-head reveal">
+          <p class="eyebrow">Setup</p>
+          <h2>Up and running in <span class="accent">three steps.</span></h2>
         </div>
-        <h1>
-          <span class="gradient-text">AI-Powered</span><br>
-          Time Tracking
-        </h1>
-        <p class="hero-description">
-          Connect your timesheet.io account to ChatGPT, Claude, and other AI assistants.
-          Track time, manage projects, and generate reports with natural language.
-        </p>
-        <div class="hero-buttons">
-          <a href="https://my.timesheet.io/development/apikeys" class="btn btn-primary">
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-            </svg>
-            Get API Token
-          </a>
-          <a href="https://docs.timesheet.io/integrations/mcp" class="btn btn-secondary">
-            View Documentation
-          </a>
-        </div>
-      </div>
-    </section>
 
-    <section class="container">
-      <p class="section-title">Capabilities</p>
-      <div class="cards">
-        <div class="card">
-          <div class="card-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-            </svg>
-          </div>
-          <h3>Timer Control</h3>
-          <p>Start, pause, resume, and stop timers using natural language commands. Add notes and track breaks.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
-            </svg>
-          </div>
-          <h3>Project Management</h3>
-          <p>Browse projects, view time entries, and manage your workspace. Filter by team, tags, or date ranges.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-          </div>
-          <h3>Reports & Exports</h3>
-          <p>Generate timesheets, invoices, and exports in Excel, CSV, or PDF formats on demand.</p>
-        </div>
-      </div>
-    </section>
+        <ol class="steps" role="list">
+          <li class="step reveal">
+            <span class="step-num">01</span>
+            <h3>Create an API key</h3>
+            <p>In the web app under Integrations, API Keys. The same key works for the Timesheet API. API access comes with the Pro plan.</p>
+          </li>
+          <li class="step reveal" style="--d: 80ms">
+            <span class="step-num">02</span>
+            <h3>Add Timesheet to your assistant</h3>
+            <p>One command in Claude Code, a short config in Claude Desktop or Cursor, or the server URL in ChatGPT.</p>
+          </li>
+          <li class="step reveal" style="--d: 160ms">
+            <span class="step-num">03</span>
+            <h3>Ask in plain language</h3>
+            <p>Start a timer, log yesterday or pull a report. Every change shows up in the app and on the web.</p>
+          </li>
+        </ol>
 
-    <section class="container install-section">
-      <p class="section-title">Quick Setup</p>
-
-      <div class="install-card">
-        <div class="install-header">
-          <svg viewBox="0 0 24 24" fill="currentColor" style="color: #f97316;">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-          </svg>
-          <h3>Claude Code</h3>
-          <span class="tag">Recommended</span>
-        </div>
-        <div class="install-body">
-          <p>Run this command in your terminal:</p>
-          <div class="code-block">
-            <code>claude mcp add timesheet -- npx -y @timesheet/mcp</code>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        <div class="setup reveal">
+          <div class="setup-tabs" role="tablist" aria-label="Choose your client">
+            <button type="button" class="setup-tab" role="tab" id="setup-tab-code" aria-controls="setup-code" aria-selected="true"><svg class="brand-claude" aria-hidden="true"><use href="#logo-claude"/></svg>Claude Code</button>
+            <button type="button" class="setup-tab" role="tab" id="setup-tab-desktop" aria-controls="setup-desktop" aria-selected="false" tabindex="-1"><svg class="brand-claude" aria-hidden="true"><use href="#logo-claude"/></svg>Claude Desktop</button>
+            <button type="button" class="setup-tab" role="tab" id="setup-tab-cursor" aria-controls="setup-cursor" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#logo-cursor"/></svg>Cursor</button>
+            <button type="button" class="setup-tab" role="tab" id="setup-tab-chatgpt" aria-controls="setup-chatgpt" aria-selected="false" tabindex="-1"><svg aria-hidden="true"><use href="#logo-openai"/></svg>ChatGPT</button>
           </div>
-        </div>
-      </div>
-
-      <div class="install-card">
-        <div class="install-header">
-          <img src="https://claude.ai/favicon.ico" alt="Claude">
-          <h3>Claude Desktop</h3>
-        </div>
-        <div class="install-body">
-          <p>Add to your <code style="background: var(--bg-tertiary); padding: 2px 6px; border-radius: 4px; font-size: 13px;">claude_desktop_config.json</code>:</p>
-          <div class="code-block">
-<code><span class="key">"timesheet"</span>: {
-  <span class="key">"command"</span>: <span class="string">"npx"</span>,
-  <span class="key">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"@timesheet/mcp"</span>],
-  <span class="key">"env"</span>: {
-    <span class="key">"TIMESHEET_API_TOKEN"</span>: <span class="string">"your_api_token"</span>
+          <div class="setup-panel" role="tabpanel" id="setup-code" aria-labelledby="setup-tab-code">
+            <p>Run this in your terminal with your API key:</p>
+            <div class="code-block">
+              <code>claude mcp add timesheet -e TIMESHEET_API_TOKEN=your_api_token -- npx -y @timesheet/mcp</code>
+              <button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+          </div>
+          <div class="setup-panel" role="tabpanel" id="setup-desktop" aria-labelledby="setup-tab-desktop" hidden>
+            <p>Add this to <code>claude_desktop_config.json</code>, then restart Claude:</p>
+            <div class="code-block">
+<code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"timesheet"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"@timesheet/mcp"</span>],
+      <span class="key">"env"</span>: {
+        <span class="key">"TIMESHEET_API_TOKEN"</span>: <span class="string">"your_api_token"</span>
+      }
+    }
   }
 }</code>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+          </div>
+          <div class="setup-panel" role="tabpanel" id="setup-cursor" aria-labelledby="setup-tab-cursor" hidden>
+            <p>Add this to <code>~/.cursor/mcp.json</code>:</p>
+            <div class="code-block">
+<code>{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"timesheet"</span>: {
+      <span class="key">"command"</span>: <span class="string">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="string">"-y"</span>, <span class="string">"@timesheet/mcp"</span>],
+      <span class="key">"env"</span>: {
+        <span class="key">"TIMESHEET_API_TOKEN"</span>: <span class="string">"your_api_token"</span>
+      }
+    }
+  }
+}</code>
+              <button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+          </div>
+          <div class="setup-panel" role="tabpanel" id="setup-chatgpt" aria-labelledby="setup-tab-chatgpt" hidden>
+            <p>Add a connector in ChatGPT settings with this URL, then sign in with your Timesheet account:</p>
+            <div class="code-block">
+              <code><span class="url">https://mcp.timesheet.io</span></code>
+              <button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="install-card">
-        <div class="install-header">
-          <img src="https://chat.openai.com/favicon.ico" alt="ChatGPT">
-          <h3>ChatGPT</h3>
-          <span class="tag">OAuth</span>
-        </div>
-        <div class="install-body">
-          <p>Add as an MCP connector in ChatGPT settings:</p>
-          <div class="code-block">
-            <code><span class="url">https://mcp.timesheet.io</span></code>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          </div>
-        </div>
+        <p class="setup-more"><a href="https://docs.timesheet.io/integrations/mcp-server">Setup for other clients in the documentation &rarr;</a></p>
       </div>
     </section>
 
-    <section class="container">
-      <div class="cta-section">
-        <h2>Ready to get started?</h2>
-        <p>Take control of your time and boost your productivity.</p>
-        <a href="https://my.timesheet.io/signup" class="btn btn-primary">
-          Start Tracking Time
-          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-          </svg>
-        </a>
+    <section class="section">
+      <div class="container">
+        <div class="cta reveal">
+          <p class="eyebrow">Get started</p>
+          <h2>Track time from the chat <span class="accent">you already use.</span></h2>
+          <p class="cta-text">Create an API key, add the server to your assistant, and ask your first question.</p>
+          <div class="hero-buttons">
+            <a href="https://my.timesheet.io/development/apikeys" class="btn btn-primary">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+              Get API Token
+            </a>
+            <a href="https://docs.timesheet.io/integrations/mcp-server" class="btn btn-secondary">Read the setup guide</a>
+          </div>
+          <p class="cta-note">API access is part of the Pro plan. New to Timesheet? <a href="https://my.timesheet.io/signup">Create an account</a>.</p>
+        </div>
       </div>
     </section>
   </main>
 
   <footer>
-    <div class="container">
-      <div class="footer-links">
-        <a href="https://docs.timesheet.io/integrations/mcp">Documentation</a>
+    <div class="container wide footer-inner">
+      <div class="footer-brand">
+        <img src="https://timesheet.io/img/logo_white.png" alt="Timesheet">
+        <p class="footer-copy">&copy; 2026 timesheet.io &middot; Powered by <a href="https://modelcontextprotocol.io">MCP</a></p>
+      </div>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="https://docs.timesheet.io/integrations/mcp-server">Documentation</a>
         <a href="https://github.com/timesheetIO/timesheet-mcp">GitHub</a>
         <a href="https://www.npmjs.com/package/@timesheet/mcp">npm</a>
         <a href="/health">Status</a>
         <a href="https://timesheet.io">timesheet.io</a>
-      </div>
-      <p class="footer-copy">
-        &copy; 2026 timesheet.io &middot; Powered by <a href="https://modelcontextprotocol.io" style="color: var(--accent-light);">MCP</a>
-      </p>
+      </nav>
     </div>
   </footer>
 
@@ -617,6 +1620,361 @@
         setTimeout(() => btn.textContent = original, 2000);
       });
     }
+
+    // Interactive demo: each scenario types a prompt, ticks off the MCP tool
+    // calls one by one, then shows the result. Every element is laid out from
+    // the start and only revealed, so the window never changes height.
+    (function () {
+      const ICONS = {
+        clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+        pencil: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+        chart: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+        mail: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+        document: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+        calendar: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+        check: 'M5 13l4 4L19 7',
+      };
+
+      const SCENARIOS = [
+        {
+          label: 'Start a timer', icon: 'clock', client: 'claude',
+          prompt: "start a timer on the Acme redesign, I'm reviewing the header",
+          steps: [
+            ['Finding the project you mean', 'project_list', 'Website redesign · Acme'],
+            ['Starting the clock', 'timer_start', 'running since 09:02'],
+            ["Adding what you're working on", 'timer_update', '"Header review"'],
+          ],
+          result: {
+            icon: 'clock', aside: '<span class="demo-clock">00:00:00</span>',
+            title: 'Timer running on Website redesign',
+            text: 'Say "stop" when you\'re done. It lands in your timesheet like any other entry.',
+          },
+        },
+        {
+          label: 'Log yesterday', icon: 'pencil', client: 'chatgpt',
+          prompt: 'I forgot to track yesterday. 9 to 12:30 on Acme, then 2h of client calls for Northwind',
+          steps: [
+            ['Matching both projects', 'project_list', '2 matches'],
+            ['Adding the morning block', 'task_create', '3h 30m'],
+            ['Adding the afternoon calls', 'task_create', '2h 00m'],
+          ],
+          result: {
+            icon: 'check',
+            title: 'Yesterday is filled in: 5h 30m',
+            text: 'Two entries added. Edit them in the app or on the web.',
+          },
+        },
+        {
+          label: 'Weekly hours', icon: 'chart', client: 'claude code',
+          prompt: 'how many hours did I put in this week, per client?',
+          steps: [
+            ['Totalling Monday to today', 'statistics_get', '38h 30m'],
+            ["Checking what's billable", 'task_list', '41 entries'],
+          ],
+          result: {
+            stats: {
+              total: '38h 30m', caption: 'this week',
+              bars: [['Acme', '16h 45m', 100], ['Northwind', '11h 15m', 67], ['Globex', '6h 30m', 39], ['Internal', '4h 00m', 24, true]],
+              foot: '34h 30m billable',
+            },
+          },
+        },
+        {
+          label: 'Send a report', icon: 'mail', client: 'cursor',
+          prompt: "email Acme's September hours as a PDF to billing@acme.com",
+          steps: [
+            ['Finding every Acme project', 'project_list', '2 projects'],
+            ['Choosing the timesheet layout', 'export_report_types', 'Timesheet'],
+            ['Sending September to billing@acme.com', 'export_send', 'sent'],
+          ],
+          result: {
+            icon: 'document',
+            title: 'acme-september-2026.pdf is on its way',
+            text: '42 entries, 64h 15m. The same PDF you get from the web app.',
+          },
+        },
+        {
+          label: 'Time off', icon: 'calendar', client: 'claude',
+          prompt: 'book me off Oct 12 to 16, vacation',
+          steps: [
+            ['Looking up your absence types', 'absence_type_list', 'Vacation'],
+            ['Requesting five working days', 'absence_create', 'pending approval'],
+          ],
+          result: {
+            icon: 'calendar', aside: '<span class="demo-badge">Pending</span>',
+            title: 'Vacation requested for Oct 12 to 16',
+            text: '5 days. It stays pending until your manager approves it.',
+          },
+        },
+      ];
+
+      const TYPE_MS = 26, STEP_MS = 950, HOLD_MS = 4200;
+
+      const root = document.getElementById('demo');
+      const tablist = root.querySelector('.demo-tabs');
+      const stage = root.querySelector('.demo-stage');
+      const clientEl = document.getElementById('demo-client');
+      const progress = root.querySelector('.demo-progress span');
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const svg = (name, width = 2) =>
+        `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="${width}" d="${ICONS[name]}"/></svg>`;
+
+      function renderResult(r) {
+        if (r.stats) {
+          const bars = r.stats.bars.map(([name, value, pct, muted]) =>
+            `<li class="demo-bar${muted ? ' is-muted' : ''}"><span>${name}</span><span class="demo-bar-track"><i style="--w: ${pct}%"></i></span><span class="demo-bar-value">${value}</span></li>`).join('');
+          return `<div class="demo-result is-stats">
+            <p class="demo-total"><strong>${r.stats.total}</strong><span>${r.stats.caption}</span></p>
+            <ul class="demo-bars">${bars}</ul>
+            <p class="demo-foot">${r.stats.foot}</p>
+          </div>`;
+        }
+        return `<div class="demo-result">
+          <span class="demo-result-icon">${svg(r.icon)}</span>
+          <div class="demo-result-body"><h3>${r.title}</h3><p>${r.text}</p></div>
+          ${r.aside || ''}
+        </div>`;
+      }
+
+      const tabs = [], panels = [];
+      SCENARIOS.forEach((s, i) => {
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'demo-tab';
+        tab.id = `demo-tab-${i}`;
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-controls', `demo-panel-${i}`);
+        tab.innerHTML = `${svg(s.icon)}<span>${s.label}</span>`;
+        tablist.append(tab);
+        tabs.push(tab);
+
+        const panel = document.createElement('div');
+        panel.className = 'demo-panel';
+        panel.id = `demo-panel-${i}`;
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', tab.id);
+        panel.innerHTML = `
+          <p class="demo-prompt"><span class="demo-caret" aria-hidden="true">&#x276F;</span><span><span class="demo-typed"></span><span class="demo-cursor" aria-hidden="true"></span><span class="demo-rest">${s.prompt}</span></span></p>
+          <ol class="demo-steps">${s.steps.map(([label, tool, out]) => `
+            <li class="demo-step">
+              <span class="demo-status">${svg('check', 3.5)}</span>
+              <div><p class="demo-step-label">${label}</p><p class="demo-step-meta"><code>${tool}</code> &rarr; ${out}</p></div>
+            </li>`).join('')}
+          </ol>
+          ${renderResult(s.result)}`;
+        stage.append(panel);
+        panels.push(panel);
+      });
+
+      let current = 0, timers = [], ticker = null;
+      let autoplay = !reduceMotion, started = false, visible = false, waiting = false;
+
+      const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+      const isHeld = () => root.matches(':hover') || root.contains(document.activeElement);
+
+      function setProgress(ms) {
+        progress.style.transition = 'none';
+        progress.style.transform = 'scaleX(0)';
+        if (!ms) return;
+        progress.getBoundingClientRect();
+        progress.style.transition = `transform ${ms}ms linear`;
+        progress.style.transform = 'scaleX(1)';
+      }
+
+      function startClock(panel) {
+        const clock = panel.querySelector('.demo-clock');
+        if (!clock) return;
+        let seconds = 0;
+        const pad = (n) => String(n).padStart(2, '0');
+        clock.textContent = '00:00:00';
+        ticker = setInterval(() => {
+          seconds += 1;
+          clock.textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
+        }, 1000);
+      }
+
+      function play(i) {
+        const s = SCENARIOS[i], panel = panels[i];
+        const typed = panel.querySelector('.demo-typed');
+        const rest = panel.querySelector('.demo-rest');
+        const steps = [...panel.querySelectorAll('.demo-step')];
+        const result = panel.querySelector('.demo-result');
+
+        steps.forEach((step) => step.classList.remove('is-visible', 'is-done'));
+        result.classList.remove('is-shown');
+
+        if (reduceMotion) {
+          typed.textContent = s.prompt;
+          rest.textContent = '';
+          panel.classList.add('is-sent');
+          steps.forEach((step) => step.classList.add('is-visible', 'is-done'));
+          result.classList.add('is-shown');
+          return;
+        }
+
+        typed.textContent = '';
+        rest.textContent = s.prompt;
+        panel.classList.remove('is-sent');
+
+        let t = 400;
+        for (let c = 1; c <= s.prompt.length; c++) {
+          later(() => {
+            typed.textContent = s.prompt.slice(0, c);
+            rest.textContent = s.prompt.slice(c);
+          }, t + c * TYPE_MS);
+        }
+        t += s.prompt.length * TYPE_MS + 350;
+        later(() => panel.classList.add('is-sent'), t);
+        steps.forEach((step, k) => {
+          later(() => step.classList.add('is-visible'), t + k * STEP_MS);
+          later(() => step.classList.add('is-done'), t + k * STEP_MS + STEP_MS * 0.7);
+        });
+        t += steps.length * STEP_MS + 300;
+        later(() => {
+          result.classList.add('is-shown');
+          startClock(panel);
+        }, t);
+        later(advance, t + HOLD_MS);
+        setProgress(autoplay ? t + HOLD_MS : 0);
+      }
+
+      function select(i) {
+        timers.forEach(clearTimeout);
+        timers = [];
+        clearInterval(ticker);
+        waiting = false;
+        current = i;
+        tabs.forEach((tab, j) => {
+          tab.setAttribute('aria-selected', String(j === i));
+          tab.tabIndex = j === i ? 0 : -1;
+        });
+        panels.forEach((panel, j) => panel.classList.toggle('is-active', j === i));
+        clientEl.textContent = SCENARIOS[i].client;
+        const tab = tabs[i];
+        if (tab.offsetLeft < tablist.scrollLeft || tab.offsetLeft + tab.offsetWidth > tablist.scrollLeft + tablist.clientWidth) {
+          tablist.scrollTo({ left: tab.offsetLeft - 12, behavior: reduceMotion ? 'auto' : 'smooth' });
+        }
+        play(i);
+      }
+
+      // Hold the finished scenario while the reader hovers or focuses the demo,
+      // or while it is scrolled out of view.
+      function advance() {
+        if (!autoplay) return;
+        if (!visible || isHeld()) {
+          waiting = true;
+          return;
+        }
+        select((current + 1) % SCENARIOS.length);
+      }
+
+      function resume() {
+        if (waiting) later(advance, 600);
+      }
+
+      function takeOver(i) {
+        autoplay = false;
+        root.classList.add('is-manual');
+        select(i);
+      }
+
+      tabs.forEach((tab, i) => tab.addEventListener('click', () => takeOver(i)));
+      tablist.addEventListener('keydown', (e) => {
+        const keys = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 0, End: tabs.length - 1 };
+        if (!(e.key in keys)) return;
+        e.preventDefault();
+        const i = (keys[e.key] + tabs.length) % tabs.length;
+        takeOver(i);
+        tabs[i].focus();
+      });
+      root.addEventListener('mouseleave', resume);
+      root.addEventListener('focusout', resume);
+
+      // Start in the idle state (empty prompt, blinking cursor) and play once visible.
+      tabs[0].setAttribute('aria-selected', 'true');
+      tabs[0].tabIndex = 0;
+      tabs.slice(1).forEach((tab) => tab.tabIndex = -1);
+      panels[0].classList.add('is-active');
+      if (reduceMotion) {
+        root.classList.add('is-manual');
+        play(0);
+      }
+
+      new IntersectionObserver(([entry]) => {
+        visible = entry.isIntersecting;
+        if (!visible) return;
+        if (!started) {
+          started = true;
+          if (!reduceMotion) select(0);
+        } else {
+          resume();
+        }
+      }, { threshold: 0.35 }).observe(root);
+    })();
+
+    // Setup tabs: one panel per client, arrow keys move between tabs.
+    (function () {
+      const tabs = [...document.querySelectorAll('.setup-tab')];
+      const select = (i, focus) => {
+        tabs.forEach((tab, j) => {
+          const on = i === j;
+          tab.setAttribute('aria-selected', String(on));
+          tab.tabIndex = on ? 0 : -1;
+          document.getElementById(tab.getAttribute('aria-controls')).hidden = !on;
+        });
+        if (focus) tabs[i].focus();
+      };
+      tabs.forEach((tab, i) => tab.addEventListener('click', () => select(i)));
+      tabs[0].parentElement.addEventListener('keydown', (e) => {
+        const i = tabs.indexOf(document.activeElement);
+        const keys = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 };
+        if (i < 0 || !(e.key in keys)) return;
+        e.preventDefault();
+        select((keys[e.key] + tabs.length) % tabs.length, true);
+      });
+    })();
+
+    // Page effects: scroll reveal, tile spotlight, seamless marquee, ticking tile clock.
+    (function () {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const reveal = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-in');
+          reveal.unobserve(entry.target);
+        });
+      }, { threshold: 0.15 });
+      document.querySelectorAll('.reveal').forEach((el) => reveal.observe(el));
+
+      document.querySelectorAll('.tile').forEach((tile) => {
+        tile.addEventListener('pointermove', (e) => {
+          const box = tile.getBoundingClientRect();
+          tile.style.setProperty('--mx', `${e.clientX - box.left}px`);
+          tile.style.setProperty('--my', `${e.clientY - box.top}px`);
+        });
+      });
+
+      // Each row scrolls by half its width, so it needs a second, hidden copy of its prompts.
+      document.querySelectorAll('.marquee-track').forEach((track) => {
+        [...track.children].forEach((item) => {
+          const copy = item.cloneNode(true);
+          copy.setAttribute('aria-hidden', 'true');
+          track.append(copy);
+        });
+      });
+
+      const clock = document.getElementById('tile-clock');
+      if (clock && !reduceMotion) {
+        let seconds = 1 * 3600 + 24 * 60 + 15;
+        const pad = (n) => String(n).padStart(2, '0');
+        setInterval(() => {
+          seconds += 1;
+          clock.textContent = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds / 60) % 60)}:${pad(seconds % 60)}`;
+        }, 1000);
+      }
+    })();
   </script>
 </body>
 </html>
