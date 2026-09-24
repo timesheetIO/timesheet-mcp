@@ -40,9 +40,36 @@
     "controls": {
       "pause": "Pausieren",
       "resume": "Fortsetzen",
-      "stop": "Stoppen"
+      "stop": "Stoppen",
+      "start": "Timer starten"
     },
-    "noDescription": "Keine Beschreibung"
+    "noDescription": "Keine Beschreibung",
+    "title": {
+      "running": "Timer läuft für {{project}}",
+      "paused": "Timer pausiert für {{project}}",
+      "stopped": "Timer gestoppt für {{project}}"
+    },
+    "runningSince": "seit {{time}}",
+    "pausedSince": "pausiert seit {{time}}",
+    "more": "Mehr",
+    "startAgain": "Erneut starten",
+    "noProject": "Kein Projekt",
+    "project": "Projekt",
+    "pickProject": "Projekt auswählen",
+    "noProjectsYet": "Sie haben noch keine Projekte. Erstellen Sie Ihr erstes auf timesheet.io.",
+    "actionFailed": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
+    "loadFailed": "Der Timer konnte nicht geladen werden.",
+    "idle": {
+      "title": "Kein Timer aktiv",
+      "subtitle": "Wählen Sie ein Projekt, um die Zeiterfassung zu starten."
+    },
+    "actions": {
+      "editTask": "Eintrag bearbeiten",
+      "addBreak": "Pause hinzufügen",
+      "addExpense": "Auslage hinzufügen",
+      "addNote": "Notiz hinzufügen"
+    },
+    "projectsLoadFailed": "Die Projekte konnten nicht geladen werden."
   },
   "taskList": {
     "title": "Zeiteinträge",
@@ -52,8 +79,8 @@
       "title": "Keine Zeiteinträge gefunden",
       "description": "Starten Sie einen Timer, um Ihre Zeit zu erfassen"
     },
-    "billable": "Abrechenbar",
-    "nonBillable": "Nicht abrechenbar",
+    "billable": "Verrechenbar",
+    "nonBillable": "Nicht verrechenbar",
     "noProject": "Kein Projekt",
     "dateRange": {
       "from": "Ab {{date}}",
@@ -65,21 +92,131 @@
   "taskCard": {
     "loading": "Aufgabendetails werden geladen...",
     "error": "Fehler: Aufgabe nicht gefunden",
-    "noDescription": "Keine Beschreibung"
+    "noDescription": "Keine Beschreibung",
+    "added": "Eintrag hinzugefügt",
+    "updated": "Eintrag aktualisiert",
+    "entry": "Zeiteintrag",
+    "breaks": "{{duration}} Pause"
   },
   "statistics": {
     "title": "Statistiken",
     "totalHours": "Gesamtstunden",
-    "billableHours": "Abrechenbare Stunden",
-    "billablePercentage": "Abrechenbar %",
+    "billableHours": "Verrechenbare Stunden",
+    "billablePercentage": "Verrechenbar %",
     "projectBreakdown": "Projektaufschlüsselung",
-    "dailyHours": "Tägliche Stunden",
-    "expand": "Erweitern"
+    "dailyHours": "Stunden pro Tag",
+    "expand": "Erweitern",
+    "collapse": "Schließen",
+    "entriesLabel": "Einträge",
+    "entries": "{{count}} Eintrag",
+    "entries_other": "{{count}} Einträge",
+    "billable": "Verrechenbar",
+    "nonBillable": "Nicht verrechenbar",
+    "billableFootnote": "{{duration}} verrechenbar",
+    "weeklyHours": "Stunden pro Woche",
+    "moreProjects": "und {{count}} weiteres Projekt",
+    "moreProjects_other": "und {{count}} weitere Projekte",
+    "empty": "In diesem Zeitraum wurde keine Zeit erfasst."
   },
   "common": {
     "hours": "{{count}} Std",
     "minutes": "{{count}} Min",
     "loading": "Lädt...",
-    "error": "Fehler"
+    "error": "Fehler",
+    "working": "Einen Moment...",
+    "back": "Zurück",
+    "cancelled": "Abgebrochen",
+    "durationHours": "{{hours}} Std {{minutes}} Min",
+    "durationMinutes": "{{minutes}} Min"
+  },
+  "resultCard": {
+    "export": {
+      "sent": "Stundenzettel gesendet",
+      "sentTo": "Stundenzettel an {{email}} gesendet",
+      "ready": "Export bereit",
+      "download": "Herunterladen"
+    },
+    "absence": {
+      "title": {
+        "requested": "{{type}} beantragt",
+        "updated": "{{type}} aktualisiert",
+        "approved": "{{type}} genehmigt",
+        "rejected": "{{type}} abgelehnt",
+        "cancelled": "{{type}} storniert",
+        "viewed": "{{type}}"
+      },
+      "status": {
+        "pending": "Ausstehend",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt",
+        "cancelled": "Storniert"
+      },
+      "days": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
+      "halfDay": "halber Tag",
+      "cancel": {
+        "action": "Antrag stornieren",
+        "reasonLabel": "Warum stornieren Sie den Antrag?",
+        "confirm": "Antrag stornieren",
+        "reasonRequired": "Bitte geben Sie einen Grund an.",
+        "failed": "Der Antrag konnte nicht storniert werden. Bitte versuchen Sie es erneut."
+      }
+    }
+  },
+  "exportWidget": {
+    "title": "Export aus Vorlage",
+    "template": "Vorlage",
+    "chooseTemplate": "Vorlage auswählen",
+    "summarized": "Zusammengefasst",
+    "splitTasks": "Aufgaben aufteilen",
+    "startDate": "Startdatum",
+    "endDate": "Enddatum",
+    "presets": {
+      "thisMonth": "Dieser Monat",
+      "lastMonth": "Letzter Monat",
+      "thisWeek": "Diese Woche",
+      "lastWeek": "Letzte Woche"
+    },
+    "generate": "Export erstellen",
+    "generating": "Wird erstellt...",
+    "download": "Herunterladen",
+    "ready": "Export bereit",
+    "readyFile": "Export bereit: {{filename}}",
+    "generated": "Export erstellt ({{size}})",
+    "failed": "Der Export konnte nicht erstellt werden.",
+    "missingInput": "Wählen Sie eine Vorlage und einen Zeitraum.",
+    "loading": "Vorlagen werden geladen...",
+    "loadFailed": "Die Vorlagen konnten nicht geladen werden.",
+    "empty": "Noch keine Exportvorlagen",
+    "emptyHint": "Bitten Sie den Assistenten, einen Export zuerst als Vorlage zu speichern."
+  },
+  "forms": {
+    "date": "Datum",
+    "time": "Uhrzeit",
+    "description": "Beschreibung",
+    "descriptionRequired": "Bitte geben Sie eine Beschreibung ein.",
+    "amount": "Betrag",
+    "paid": "Bezahlt",
+    "startDate": "Startdatum",
+    "startTime": "Startzeit",
+    "type": "Typ",
+    "phoneNumber": "Telefonnummer",
+    "locationEnd": "Standort am Ende",
+    "distance": "Distanz",
+    "pauseStartDate": "Pausenbeginn (Datum)",
+    "pauseStartTime": "Pausenbeginn (Uhrzeit)",
+    "pauseEndDate": "Pausenende (Datum)",
+    "pauseEndTime": "Pausenende (Uhrzeit)",
+    "pauseStartBeforeTask": "Die Pause kann nicht vor dem Beginn des Eintrags beginnen.",
+    "pauseEndAfterTask": "Die Pause kann nicht nach dem Ende des Eintrags enden.",
+    "pauseStartAfterEnd": "Die Pause muss beginnen, bevor sie endet.",
+    "noActiveTask": "Kein laufender Eintrag gefunden.",
+    "invalidInput": "Ungültige Eingabe",
+    "saveFailed": {
+      "note": "Die Notiz konnte nicht gespeichert werden.",
+      "expense": "Die Auslage konnte nicht gespeichert werden.",
+      "pause": "Die Pause konnte nicht gespeichert werden.",
+      "task": "Der Eintrag konnte nicht gespeichert werden."
+    }
   }
 }

@@ -1,69 +1,73 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * A Tailwind color backed by one of our --ts-* tokens (web/src/index.css). color-mix keeps
+ * opacity modifiers such as bg-accent-success/10 working, since the tokens are full colors
+ * that follow the host theme rather than RGB triplets.
+ */
+const token = (name: string) =>
+  `color-mix(in srgb, var(--ts-${name}) calc(<alpha-value> * 100%), transparent)`;
+
 export default {
   content: [
     "./web/src/**/*.{html,js,ts,jsx,tsx}",
   ],
-  darkMode: 'class',
+  // The host sets data-theme on <html> (applyDocumentTheme in ext-apps)
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
-      // OpenAI Apps SDK Design Guidelines: Use system-native fonts
+      // Host fonts first, system fonts as fallback
       fontFamily: {
-        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+        sans: ['var(--ts-font-sans)'],
+        mono: ['var(--ts-font-mono)'],
       },
-      // OpenAI Apps SDK Design Guidelines: Use system-defined color palettes
-      // Using CSS variables for theme-aware colors (defined in index.css)
       colors: {
-        // Text colors (automatically theme-aware via CSS variables)
         text: {
-          primary: 'rgb(var(--color-text-primary) / <alpha-value>)',
-          secondary: 'rgb(var(--color-text-secondary) / <alpha-value>)',
+          primary: token('fg'),
+          secondary: token('fg-muted'),
+          tertiary: token('fg-subtle'),
         },
-        // Background colors (automatically theme-aware via CSS variables)
+        // `text-secondary` is used for muted copy throughout the widgets
+        secondary: token('fg-muted'),
         background: {
-          primary: 'rgb(var(--color-bg-primary) / <alpha-value>)',
-          secondary: 'rgb(var(--color-bg-secondary) / <alpha-value>)',
-          tertiary: 'rgb(var(--color-bg-tertiary) / <alpha-value>)',
+          primary: token('bg'),
+          secondary: token('bg-muted'),
+          tertiary: token('bg-subtle'),
         },
-        // Border colors (automatically theme-aware via CSS variables)
+        surface: token('bg-muted'),
         border: {
-          DEFAULT: 'rgb(var(--color-border) / <alpha-value>)',
+          DEFAULT: token('border'),
         },
-        // Status/accent colors - used sparingly per guidelines
         accent: {
-          success: '#10b981',
-          warning: '#f59e0b',
-          danger: '#ef4444',
+          DEFAULT: token('accent'),
+          text: token('accent-text'),
+          success: token('success'),
+          warning: token('warning'),
+          danger: token('danger'),
         },
-        // Button colors (automatically theme-aware via CSS variables)
         button: {
-          bg: 'rgb(var(--color-button-bg) / <alpha-value>)',
-          text: 'rgb(var(--color-button-text) / <alpha-value>)',
+          bg: token('bg-muted'),
+          text: token('fg'),
         },
-        // Card colors (automatically theme-aware via CSS variables)
         card: {
-          bg: 'rgb(var(--color-card-bg) / <alpha-value>)',
-          border: 'rgb(var(--color-card-border) / <alpha-value>)',
+          bg: token('bg'),
+          border: token('border'),
         },
       },
-      // OpenAI Apps SDK Design Guidelines: Limit font size variation
       fontSize: {
-        // Standard sizes for body content
         'display': ['56px', { lineHeight: '1', fontWeight: '600', letterSpacing: '-0.02em' }],
         'heading': ['17px', { lineHeight: '1.4', fontWeight: '600' }],
         'body': ['15px', { lineHeight: '1.4', fontWeight: '500' }],
         'body-small': ['13px', { lineHeight: '1.4', fontWeight: '400' }],
         'caption': ['12px', { lineHeight: '1.3', fontWeight: '400' }],
       },
-      // OpenAI Apps SDK Design Guidelines: Respect system corner radius
       borderRadius: {
-        DEFAULT: '8px',
-        sm: '6px',
-        md: '8px',
-        lg: '12px',
+        DEFAULT: 'var(--ts-radius-control)',
+        sm: 'var(--ts-radius-sm)',
+        md: 'var(--ts-radius-control)',
+        lg: 'var(--ts-radius-lg)',
+        card: 'var(--ts-radius-card)',
       },
-      // OpenAI Apps SDK Design Guidelines: System grid spacing
       spacing: {
         '1': '4px',
         '2': '8px',

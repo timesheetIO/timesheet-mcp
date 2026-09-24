@@ -2,260 +2,238 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens.
+ *
+ * Every --ts-* token resolves to the host's own variable when the host provides one (MCP Apps
+ * host styles, applied to <html> by useHostStyles) and falls back to a light-dark() pair
+ * otherwise. light-dark() follows the color-scheme the host theme sets. Never define a host
+ * variable name (--color-*, --font-*, --border-radius-*, --shadow-*) here: the host owns them.
+ *
+ * Dark fallbacks follow the interactive demo on mcp.timesheet.io. The brand orange fills icons,
+ * the clock and bars; text in orange uses a darker shade in light mode for contrast.
+ */
 @layer base {
-  /* Light theme (default) */
   :root {
-    /* Text colors */
-    --color-text-primary: 0 0 0;           /* #000000 */
-    --color-text-secondary: 110 110 128;   /* #6e6e80 */
+    color-scheme: light dark;
 
-    /* Background colors */
-    --color-bg-primary: 255 255 255;       /* #ffffff */
-    --color-bg-secondary: 232 232 232;     /* #e8e8e8 */
-    --color-bg-tertiary: 243 243 243;      /* #f3f3f3 */
+    --ts-font-sans: var(--font-sans, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
+    --ts-font-mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace);
 
-    /* Border colors */
-    --color-border: 243 243 243;           /* #f3f3f3 */
+    --ts-fg: var(--color-text-primary, light-dark(#18181b, #fafafa));
+    --ts-fg-muted: var(--color-text-secondary, light-dark(#52525b, #a1a1aa));
+    --ts-fg-subtle: var(--color-text-tertiary, light-dark(#71717a, #71717a));
 
-    /* Button colors */
-    --color-button-bg: 243 243 243;        /* #f3f3f3 */
-    --color-button-text: 0 0 0;            /* #000000 */
+    --ts-bg: var(--color-background-primary, light-dark(#ffffff, #131315));
+    --ts-bg-muted: var(--color-background-secondary, light-dark(#f4f4f5, #1c1c1f));
+    --ts-bg-subtle: var(--color-background-tertiary, light-dark(#fafafa, #18181b));
 
-    /* Card colors */
-    --color-card-bg: 255 255 255;          /* #ffffff */
-    --color-card-border: 243 243 243;      /* #f3f3f3 */
-  }
+    --ts-border: var(--color-border-primary, light-dark(rgb(0 0 0 / 0.1), rgb(255 255 255 / 0.1)));
+    --ts-border-muted: var(--color-border-secondary, light-dark(rgb(0 0 0 / 0.06), rgb(255 255 255 / 0.06)));
 
-  /* Dark theme */
-  .dark {
-    /* Text colors */
-    --color-text-primary: 255 255 255;     /* #ffffff */
-    --color-text-secondary: 142 142 160;   /* #8e8ea0 */
+    --ts-success: var(--color-text-success, light-dark(#15803d, #4ade80));
+    --ts-success-bg: var(--color-background-success, light-dark(#dcfce7, rgb(34 197 94 / 0.15)));
+    --ts-warning: var(--color-text-warning, light-dark(#a16207, #fbbf24));
+    --ts-warning-bg: var(--color-background-warning, light-dark(#fef3c7, rgb(251 191 36 / 0.12)));
+    --ts-danger: var(--color-text-danger, light-dark(#b91c1c, #f87171));
+    --ts-danger-bg: var(--color-background-danger, light-dark(#fee2e2, rgb(239 68 68 / 0.12)));
 
-    /* Background colors */
-    --color-bg-primary: 33 33 33;          /* #212121 */
-    --color-bg-secondary: 48 48 48;        /* #303030 */
-    --color-bg-tertiary: 65 65 65;         /* #414141 */
+    --ts-accent: #ff8800;
+    --ts-accent-text: light-dark(#b35400, #ff8800);
+    --ts-accent-soft: light-dark(rgb(230 119 0 / 0.07), rgb(230 119 0 / 0.08));
+    --ts-accent-border: light-dark(rgb(230 119 0 / 0.3), rgb(230 119 0 / 0.35));
 
-    /* Border colors */
-    --color-border: 65 65 65;              /* #414141 */
+    --ts-inverse-bg: var(--color-background-inverse, light-dark(#18181b, #fafafa));
+    --ts-inverse-fg: var(--color-text-inverse, light-dark(#fafafa, #18181b));
+    --ts-ring: var(--color-ring-primary, #ff8800);
 
-    /* Button colors */
-    --color-button-bg: 65 65 65;           /* #414141 */
-    --color-button-text: 255 255 255;      /* #ffffff */
-
-    /* Card colors */
-    --color-card-bg: 33 33 33;             /* #212121 */
-    --color-card-border: 65 65 65;         /* #414141 */
+    --ts-radius-sm: var(--border-radius-sm, 6px);
+    --ts-radius-control: var(--border-radius-md, 8px);
+    --ts-radius-lg: var(--border-radius-lg, 12px);
+    --ts-radius-card: var(--border-radius-xl, 14px);
+    --ts-shadow: var(--shadow-sm, none);
   }
 
   html {
     @apply scroll-smooth;
   }
 
-  /* Native form element accent colors (date/time pickers, checkboxes, etc.) */
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--ts-font-sans);
+    color: var(--ts-fg);
+    /* The host draws the surface around the widget */
+    background: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply break-words;
+  }
+
+  /* Native form controls follow the brand accent */
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"],
   input[type="checkbox"],
   input[type="radio"],
   input[type="range"] {
-    accent-color: rgb(26, 27, 65); /* complementary dark blue in light mode */
+    accent-color: var(--ts-accent);
   }
 
-  .dark input[type="date"],
-  .dark input[type="time"],
-  .dark input[type="datetime-local"],
-  .dark input[type="checkbox"],
-  .dark input[type="radio"],
-  .dark input[type="range"] {
-    accent-color: rgb(255, 136, 0); /* primary orange in dark mode */
-  }
-
-  /* Webkit date/time picker styling */
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="time"]::-webkit-calendar-picker-indicator,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    cursor: pointer;
-    filter: invert(10%) sepia(50%) saturate(2000%) hue-rotate(220deg); /* dark blue tint */
-  }
-
-  .dark input[type="date"]::-webkit-calendar-picker-indicator,
-  .dark input[type="time"]::-webkit-calendar-picker-indicator,
-  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(100%); /* make visible on dark background */
-  }
-
-  /* Date/time picker text selection highlight */
   input[type="date"]::selection,
   input[type="time"]::selection,
   input[type="datetime-local"]::selection {
-    background-color: rgb(26, 27, 65);
-    color: white;
+    background-color: var(--ts-accent);
+    color: #fff;
   }
 
-  .dark input[type="date"]::selection,
-  .dark input[type="time"]::selection,
-  .dark input[type="datetime-local"]::selection {
-    background-color: rgb(255, 136, 0);
-    color: white;
-  }
-
-  /* Focus highlight for date/time inner elements */
-  input[type="date"]:focus::-webkit-datetime-edit-day-field,
-  input[type="date"]:focus::-webkit-datetime-edit-month-field,
-  input[type="date"]:focus::-webkit-datetime-edit-year-field,
-  input[type="time"]:focus::-webkit-datetime-edit-hour-field,
-  input[type="time"]:focus::-webkit-datetime-edit-minute-field,
-  input[type="time"]:focus::-webkit-datetime-edit-ampm-field {
-    background-color: rgb(26, 27, 65);
-    color: white;
-  }
-
-  .dark input[type="date"]:focus::-webkit-datetime-edit-day-field,
-  .dark input[type="date"]:focus::-webkit-datetime-edit-month-field,
-  .dark input[type="date"]:focus::-webkit-datetime-edit-year-field,
-  .dark input[type="time"]:focus::-webkit-datetime-edit-hour-field,
-  .dark input[type="time"]:focus::-webkit-datetime-edit-minute-field,
-  .dark input[type="time"]:focus::-webkit-datetime-edit-ampm-field {
-    background-color: rgb(255, 136, 0);
-    color: white;
-  }
-
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: 'Poppins', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    color: rgb(var(--color-text-primary));
-    background-color: rgb(var(--color-bg-primary));
-  }
-
-  h1, h2, h3 {
-    @apply break-words;
+  :focus-visible {
+    outline: 2px solid var(--ts-ring);
+    outline-offset: 2px;
   }
 }
 
+/* Cards in the look of the demo's result cards (mcp.timesheet.io) */
+@layer components {
+  .ts-card {
+    border: 1px solid var(--ts-border);
+    border-radius: var(--ts-radius-card);
+    background: var(--ts-bg);
+    box-shadow: var(--ts-shadow);
+    color: var(--ts-fg);
+  }
+
+  .ts-card-accent {
+    border-color: var(--ts-accent-border);
+    background: linear-gradient(var(--ts-accent-soft), var(--ts-accent-soft)), var(--ts-bg);
+  }
+
+  .ts-icon-tile {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--ts-border);
+    border-radius: 11px;
+    background: var(--ts-bg);
+    color: var(--ts-accent);
+  }
+
+  .ts-bar-track {
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--ts-fg) 8%, transparent);
+    overflow: hidden;
+  }
+
+  .ts-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    transform-origin: left;
+    transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  .ts-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--ts-border);
+    border-radius: var(--ts-radius-control);
+    background: transparent;
+    color: var(--ts-fg);
+    font: 500 14px/1.2 var(--ts-font-sans);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .ts-button:hover:not(:disabled) { background: color-mix(in srgb, var(--ts-fg) 6%, transparent); }
+  .ts-button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .ts-button-primary {
+    border-color: transparent;
+    background: var(--ts-inverse-bg);
+    color: var(--ts-inverse-fg);
+  }
+
+  .ts-button-primary:hover:not(:disabled) { background: color-mix(in srgb, var(--ts-inverse-bg) 88%, transparent); }
+
+  .ts-button-danger {
+    border-color: color-mix(in srgb, var(--ts-danger) 45%, transparent);
+    color: var(--ts-danger);
+  }
+
+  .ts-button-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--ts-danger) 8%, transparent); }
+
+  .ts-link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    color: var(--ts-fg-muted);
+    font: 500 13px/1.2 var(--ts-font-sans);
+    cursor: pointer;
+  }
+
+  .ts-link-button:hover { color: var(--ts-fg); }
+}
+
 @layer utilities {
-  .gradient-primary {
-    background: linear-gradient(to right, #ff8800, #ff9a1f);
-  }
-
-  .gradient-secondary {
-    background: linear-gradient(to right, #1A1B41, #292a65);
-  }
-
   .text-balance {
     text-wrap: balance;
   }
 
-  /* Timesheet.io brand colors for forms and buttons */
-  .bg-primary\/100 {
-    background-color: rgb(255, 136, 0);
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
-  .bg-primary\/70 {
-    background-color: rgba(255, 136, 0, 0.7);
-  }
+  /* Brand accent, kept under the class names the forms already use */
+  .bg-primary\/100 { background-color: var(--ts-accent); }
+  .bg-primary\/70 { background-color: color-mix(in srgb, var(--ts-accent) 70%, transparent); }
+  .bg-primary\/60 { background-color: color-mix(in srgb, var(--ts-accent) 60%, transparent); }
+  .bg-primary\/50 { background-color: color-mix(in srgb, var(--ts-accent) 50%, transparent); }
+  .text-primary,
+  .text-primary\/100 { color: var(--ts-accent-text); }
+  .text-primary\/70 { color: color-mix(in srgb, var(--ts-accent-text) 70%, transparent); }
+  .text-primary\/60 { color: color-mix(in srgb, var(--ts-accent-text) 60%, transparent); }
+  .hover\:bg-primary\/70:hover { background-color: color-mix(in srgb, var(--ts-accent) 70%, transparent); }
+  .hover\:text-primary\/70:hover,
+  .focus\:hover\:text-primary\/70:focus:hover { color: color-mix(in srgb, var(--ts-accent-text) 70%, transparent); }
+  .ring-primary\/0 { --tw-ring-color: transparent; }
 
-  .bg-primary\/60 {
-    background-color: rgba(255, 136, 0, 0.6);
-  }
+  /* Primary action: the host's inverse surface, readable in both themes */
+  .bg-complementary\/100,
+  .bg-submit-button { background-color: var(--ts-inverse-bg); color: var(--ts-inverse-fg); }
+}
 
-  .bg-primary\/50 {
-    background-color: rgba(255, 136, 0, 0.5);
-  }
+/*
+ * Variant classes (focus:, hover:) the forms use. Tailwind reads "focus:ring-primary/100" as a
+ * variant of a utility it does not have and drops a rule for it from @layer utilities, so these
+ * stay outside the layers where they are always emitted.
+ */
+.border-primary\/100,
+.focus\:border-primary\/100:focus { border-color: var(--ts-accent); }
+.focus\:ring-primary\/100:focus { --tw-ring-color: var(--ts-ring); }
+.focus\:ring-primary\/50:focus { --tw-ring-color: color-mix(in srgb, var(--ts-ring) 50%, transparent); }
+.bg-complementary\/90,
+.hover\:bg-complementary\/90:hover,
+.hover\:bg-submit-button-hover:hover { background-color: color-mix(in srgb, var(--ts-inverse-bg) 88%, transparent); }
 
-  .text-primary {
-    color: rgb(255, 136, 0);
-  }
-
-  .text-primary\/100 {
-    color: rgb(255, 136, 0);
-  }
-
-  .text-primary\/70 {
-    color: rgba(255, 136, 0, 0.7);
-  }
-
-  .text-primary\/60 {
-    color: rgba(255, 136, 0, 0.6);
-  }
-
-  .hover\:bg-primary\/70:hover {
-    background-color: rgba(255, 136, 0, 0.7);
-  }
-
-  .hover\:text-primary\/70:hover {
-    color: rgba(255, 136, 0, 0.7);
-  }
-
-  .focus\:hover\:text-primary\/70:focus:hover {
-    color: rgba(255, 136, 0, 0.7);
-  }
-
-  .border-primary\/100 {
-    border-color: rgb(255, 136, 0);
-  }
-
-  .focus\:border-primary\/100:focus {
-    border-color: rgb(255, 136, 0);
-  }
-
-  .focus\:ring-primary\/100:focus {
-    --tw-ring-color: rgb(255, 136, 0);
-  }
-
-  .focus\:ring-primary\/50:focus {
-    --tw-ring-color: rgba(255, 136, 0, 0.5);
-  }
-
-  .ring-primary\/0 {
-    --tw-ring-color: rgba(255, 136, 0, 0);
-  }
-
-  .bg-complementary\/100 {
-    background-color: rgb(26, 27, 65);
-  }
-
-  .bg-complementary\/90 {
-    background-color: rgba(26, 27, 65, 0.9);
-  }
-
-  .hover\:bg-complementary\/90:hover {
-    background-color: rgba(26, 27, 65, 0.9);
-  }
-
-  .bg-background-primary {
-    background-color: rgb(248, 250, 252);
-  }
-
-  .dark .bg-background-primary {
-    background-color: rgb(17, 24, 39);
-  }
-
-  .bg-background-secondary {
-    background-color: rgb(241, 245, 249);
-  }
-
-  .dark .bg-background-secondary {
-    background-color: rgb(31, 41, 55);
-  }
-
-  /* Submit button: complementary (dark blue) in light mode, primary (orange) in dark mode */
-  .bg-submit-button {
-    background-color: rgb(26, 27, 65); /* complementary in light mode */
-  }
-
-  .dark .bg-submit-button {
-    background-color: rgb(255, 136, 0); /* primary in dark mode */
-  }
-
-  .hover\:bg-submit-button-hover:hover {
-    background-color: rgba(26, 27, 65, 0.9);
-  }
-
-  .dark .hover\:bg-submit-button-hover:hover {
-    background-color: rgba(255, 136, 0, 0.9);
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

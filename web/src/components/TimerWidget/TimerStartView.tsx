@@ -1,107 +1,97 @@
 /**
- * TimerStartView - Project selector and start button
- * Shows when timer is stopped
+ * TimerStartView - no timer running: pick a project and start one.
+ * A native select keeps the project list inside the host's rules for inline widgets
+ * (no popover that the host would clip).
  */
 
 import React, {useState} from 'react';
+import {useTranslation} from 'react-i18next';
+import {ClockIcon} from '@heroicons/react/outline';
 import {useData} from './DataProvider';
 import {useTimerOperations} from '../../utils/timesheet-hooks';
-import {useSendFollowUpMessage} from '../../hooks';
-import ProjectSelector from './inputs/ProjectSelector';
-import Spinner from '../shared/Spinner';
-import FormattedMessage from '../shared/FormattedMessage';
+import {useTimeZone, useUpdateModelContext} from '../../hooks';
+import {formatTime} from '../../format';
+import Card from '../shared/Card';
+import IconTile from '../shared/IconTile';
+import ActionRow, {Button} from '../shared/ActionRow';
+import {SkeletonLine} from '../shared/Skeleton';
+import type {ExtendedTimer} from '../../utils/types';
 
 export default function TimerStartView() {
-  const {projects, selectedProject, setSelectedProject, reloadTimer} = useData();
+  const {t} = useTranslation();
+  const timeZone = useTimeZone();
+  const {projects, projectsLoaded, selectedProject, setSelectedProject, applyTimer} = useData();
   const timerOps = useTimerOperations();
-  const sendFollowUpMessage = useSendFollowUpMessage();
-  const [loading, setLoading] = useState(false);
+  const updateModelContext = useUpdateModelContext();
+  const [projectId, setProjectId] = useState<string>(selectedProject || '');
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [localSelectedProject, setLocalSelectedProject] = useState<string | null>(
-    selectedProject
-  );
 
   const handleStart = async () => {
-    console.log('[TimerStartView] handleStart - clicked');
     setError(null);
-
-    if (!localSelectedProject) {
-      console.log('[TimerStartView] handleStart - no project selected');
-      setError('Please select a project');
+    if (!projectId) {
+      setError(t('timerWidget.pickProject'));
       return;
     }
-
-    console.log('[TimerStartView] handleStart - starting timer for project:', localSelectedProject);
-    setLoading(true);
-
+    setStarting(true);
     try {
-      // Strip seconds and milliseconds from timestamps (matches web app behavior)
       const now = new Date();
       now.setSeconds(0, 0);
-      const timestamp = now.toISOString();
-
-      console.log('[TimerStartView] handleStart - calling timerOps.start with timestamp:', timestamp);
-      const startedTimer = await timerOps.start({
-        projectId: localSelectedProject,
-        startDateTime: timestamp,
-      });
-      console.log('[TimerStartView] handleStart - timer started:', startedTimer);
-
-      // Save selected project
-      setSelectedProject(localSelectedProject);
-
-      // Reload timer to get updated state
-      console.log('[TimerStartView] handleStart - reloading timer');
-      await reloadTimer();
-      console.log('[TimerStartView] handleStart - timer reloaded');
-
-      // Send follow-up message to chat
-      const projectName = projects.find(p => p.id === localSelectedProject)?.title || 'project';
-      console.log('[TimerStartView] handleStart - sending follow-up message for project:', projectName);
-      sendFollowUpMessage(`Timer started for ${projectName}`);
+      const at = now.toISOString();
+      const started = await timerOps.start({projectId, startDateTime: at});
+      setSelectedProject(projectId);
+      applyTimer(started as unknown as ExtendedTimer);
+      const title = projects.find(p => p.id === projectId)?.title || 'a project';
+      updateModelContext(`The user started a timer on ${title} at ${formatTime(at, 'en', timeZone)}.`);
     } catch (err) {
       console.error('[TimerStartView] Failed to start timer:', err);
-      setError(err instanceof Error ? err.message : 'Failed to start timer');
+      setError(t('timerWidget.actionFailed'));
     } finally {
-      console.log('[TimerStartView] handleStart - done, loading=false');
-      setLoading(false);
+      setStarting(false);
     }
   };
 
-  if (loading) {
-    return <Spinner />;
-  }
-
   return (
-    <div className="m-4">
-      {(projects?.length || 0) > 0 ? (
-        <div className="grid grid-cols-1 space-y-2">
-          <ProjectSelector
-            value={localSelectedProject}
-            onChange={setLocalSelectedProject}
-            error={error || undefined}
-          />
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={loading}
-            className="flex w-full items-center justify-center px-4 py-2 border border-transparent text-base text-center font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="uppercase">
-              <FormattedMessage id="timerStart" defaultMessage="Start" />
-            </span>
-          </button>
+    <Card tone="plain" className="p-4 sm:p-5">
+      <div className="flex items-start gap-4">
+        <IconTile><ClockIcon /></IconTile>
+        <div className="flex-1 min-w-0">
+          <h2 className="m-0 text-body font-semibold text-text-primary">{t('timerWidget.idle.title')}</h2>
+          <p className="m-0 mt-0.5 text-body-small text-secondary">{t('timerWidget.idle.subtitle')}</p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 space-y-2">
-          <p className="text-sm text-gray-700 dark:text-gray-300">
-            <FormattedMessage
-              id="timerNoProjectsYet"
-              defaultMessage="You don't have any projects yet. Create your first one on timesheet.io"
-            />
-          </p>
-        </div>
-      )}
-    </div>
+      </div>
+
+      <div className="mt-4 pl-0 min-[480px]:pl-[60px] grid gap-3">
+        {!projectsLoaded ? (
+          <SkeletonLine height={44} />
+        ) : projects.length === 0 ? (
+          <p className="m-0 text-body-small text-secondary">{t('timerWidget.noProjectsYet')}</p>
+        ) : (
+          <>
+            <label className="grid gap-1.5">
+              <span className="text-caption font-medium text-secondary">{t('timerWidget.project')}</span>
+              <select
+                value={projectId}
+                onChange={event => setProjectId(event.target.value)}
+                className="min-h-[44px] w-full rounded-md border border-border bg-background-primary text-text-primary px-3 text-body-small"
+              >
+                <option value="">{t('timerWidget.pickProject')}</option>
+                {projects.map(project => (
+                  <option key={project.id} value={project.id}>
+                    {project.title}{project.employer ? ` · ${project.employer}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {error && <p className="m-0 text-body-small text-accent-danger" role="alert">{error}</p>}
+            <ActionRow>
+              <Button variant="primary" onClick={handleStart} disabled={starting}>
+                {starting ? t('common.working') : t('timerWidget.controls.start')}
+              </Button>
+            </ActionRow>
+          </>
+        )}
+      </div>
+    </Card>
   );
 }

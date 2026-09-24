@@ -12,11 +12,13 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { getChartTheme, intToHexColor } from './chartTheme';
+import i18n from '../../i18n';
 
 interface ProjectBreakdownItem {
   projectId?: string;
   projectTitle: string;
   projectColor?: number;
+  color?: string;
   hours: number;
   billableHours: number;
   nonBillableHours: number;
@@ -30,21 +32,29 @@ interface ProjectBreakdownProps {
   theme?: 'light' | 'dark';
 }
 
+/** Same rule as the compact card's bars: a project with no billable time is shown muted. */
+function sliceColor(item: ProjectBreakdownItem, index: number): string {
+  if (item.hours > 0 && !(item.billableHours > 0)) {
+    return 'var(--ts-fg-subtle)';
+  }
+  return item.color || intToHexColor(item.projectColor, index);
+}
+
 export default function ProjectBreakdown({ projects, formatHours, theme = 'light' }: ProjectBreakdownProps) {
   const ct = getChartTheme(theme);
 
   const chartData = projects.map((item, index) => ({
     name: item.projectTitle,
     value: Number(item.hours.toFixed(2)),
-    fill: intToHexColor(item.projectColor, index),
+    fill: sliceColor(item, index),
     percentage: item.percentage,
     taskCount: item.taskCount,
   }));
 
   return (
     <div style={{ marginBottom: '24px' }}>
-      <h3 className="text-lg font-semibold mb-4 text-text-primary dark:text-text-primary">
-        Project Breakdown
+      <h3 className="text-heading m-0 mb-4 text-text-primary">
+        {i18n.t('statistics.projectBreakdown')}
       </h3>
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
         {/* Donut chart */}
@@ -73,10 +83,7 @@ export default function ProjectBreakdown({ projects, formatHours, theme = 'light
                   color: ct.tooltipText,
                   fontSize: '13px',
                 }}
-                formatter={(value: number, name: string) => [
-                  `${formatHours(value)}h`,
-                  name,
-                ]}
+                formatter={(value: number, name: string) => [formatHours(value), name]}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -94,7 +101,7 @@ export default function ProjectBreakdown({ projects, formatHours, theme = 'light
                   width: '12px',
                   height: '12px',
                   borderRadius: '3px',
-                  backgroundColor: intToHexColor(item.projectColor, index),
+                  backgroundColor: sliceColor(item, index),
                   flexShrink: 0,
                 }}
               />
@@ -107,7 +114,7 @@ export default function ProjectBreakdown({ projects, formatHours, theme = 'light
               <span
                 style={{ fontSize: '13px', color: ct.textSecondary, whiteSpace: 'nowrap' }}
               >
-                {formatHours(item.hours)}h ({item.percentage}%)
+                {formatHours(item.hours)} ({item.percentage}%)
               </span>
             </div>
           ))}

@@ -6,6 +6,7 @@
 import React from 'react';
 import {type RegisterOptions, useFormContext} from 'react-hook-form';
 import {classNames} from '../../utils/lib';
+import i18n from '../../i18n';
 
 interface Props {
   label: string;
@@ -39,7 +40,7 @@ export default function Textarea({
     <div className={wrapperClasses}>
       <label
         htmlFor={id}
-        className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+        className="block text-xs font-medium text-secondary"
       >
         {label}
       </label>
@@ -51,7 +52,7 @@ export default function Textarea({
           name={id}
           rows={rows}
           className={classNames(
-            'focus:ring-primary/100 focus:border-primary/100 block w-full text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-xl resize-none px-3 py-2',
+            'focus:ring-primary/100 focus:border-primary/100 block w-full text-sm border border-border bg-background-primary text-text-primary rounded-xl resize-none px-3 py-2',
             !!errors[id] &&
               'border-red-300 dark:border-red-600 text-red-900 dark:text-red-400 focus:ring-red-500 focus:border-red-500',
             className
@@ -63,11 +64,11 @@ export default function Textarea({
       </div>
       <div className="mt-1">
         {helperText !== '' && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
+          <p className="text-xs text-secondary">{helperText}</p>
         )}
         {errors[id] && (
           <p className="mt-2 text-sm text-red-600 dark:text-red-400" id={`${id}-error`}>
-            {String(errors[id]?.message || 'Invalid input')}
+            {String(errors[id]?.message || i18n.t('forms.invalidInput'))}
           </p>
         )}
       </div>

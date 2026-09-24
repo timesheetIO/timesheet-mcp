@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ExportTemplate } from './index';
 
 interface TemplateSelectProps {
@@ -18,15 +19,16 @@ export default function TemplateSelect({
   onChange,
   theme,
 }: TemplateSelectProps) {
+  const { t } = useTranslation();
   return (
     <div className="relative">
       <select
         value={selectedTemplateId}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-primary dark:text-primary text-body appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent-primary"
+        className="w-full px-3 py-2.5 pr-10 rounded-lg border border-card-border dark:border-card-border bg-card-bg dark:bg-card-bg text-text-primary text-body appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent"
       >
         <option value="" disabled>
-          Choose a template...
+          {t('exportWidget.chooseTemplate')}
         </option>
         {templates.map((template) => (
           <option key={template.id} value={template.id}>

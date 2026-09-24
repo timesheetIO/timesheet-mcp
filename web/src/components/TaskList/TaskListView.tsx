@@ -5,6 +5,7 @@
 
 import React from 'react';
 import {useTranslation} from 'react-i18next';
+import ExternalLinkButton from '../shared/ExternalLinkButton';
 import TaskListItem from './TaskListItem';
 import type {Task} from '../../types';
 
@@ -149,33 +150,12 @@ export default function TaskListView({
                     </div>
 
                     {/* Link to web app */}
-                    <div className="border-t border-card-border dark:border-card-border p-4">
-                        <a
-                            href={webAppUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-orange-500 hover:underline flex items-center justify-center gap-1 text-body-small"
-                        >
-                            <span>
-                              {hasMore
-                                  ? t('taskList.viewAll', {count: totalCount})
-                                  : t('taskList.viewInTimesheet')
-                              }
-                            </span>
-                            <svg
-                                className="w-4 h-4"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                                />
-                            </svg>
-                        </a>
+                    <div className="border-t border-card-border dark:border-card-border px-4 py-1">
+                        <ExternalLinkButton url={webAppUrl}>
+                            {hasMore
+                                ? t('taskList.viewAll', {count: totalCount})
+                                : t('taskList.viewInTimesheet')}
+                        </ExternalLinkButton>
                     </div>
                 </>
             )}

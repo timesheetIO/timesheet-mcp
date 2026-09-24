@@ -35,17 +35,17 @@ export default function ProjectSelector({value, onChange, error}: ProjectSelecto
     <Combobox value={value || selectedProject || ''} onChange={onChange}>
       {({open}) => (
         <div className="col-span-2">
-          <Combobox.Label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+          <Combobox.Label className="block text-xs font-medium text-secondary">
             <FormattedMessage id="projectSelect" defaultMessage="Select Project" />
           </Combobox.Label>
           <div className="mt-1 relative">
-            <div className="relative w-full text-left bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer focus-within:ring-1 focus-within:ring-primary/100 focus-within:border-primary/100 sm:text-sm overflow-hidden">
+            <div className="relative w-full text-left bg-background-primary border border-border rounded-xl cursor-pointer focus-within:ring-1 focus-within:ring-primary/100 focus-within:border-primary/100 sm:text-sm overflow-hidden">
               <Combobox.Input
                 onChange={e => setQuery(e.target.value)}
                 displayValue={(id: string) =>
                   projects.find(p => p.id === id)?.title || ''
                 }
-                className="w-full border-none focus:ring-0 focus:outline-none py-2 pl-3 pr-10 text-sm leading-5 text-gray-900 dark:text-gray-100 bg-transparent"
+                className="w-full border-none focus:ring-0 focus:outline-none py-2 pl-3 pr-10 text-sm leading-5 text-text-primary bg-transparent"
                 onFocus={event => {
                   requestAnimationFrame(() => {
                     event.target.setSelectionRange(0, event.target.value.length);
@@ -66,9 +66,9 @@ export default function ProjectSelector({value, onChange, error}: ProjectSelecto
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <Combobox.Options className="absolute z-10 mt-1 mb-2 w-full bg-white dark:bg-gray-800 shadow-lg max-h-60 rounded-xl py-1 text-sm ring-1 ring-black dark:ring-gray-600 ring-opacity-5 overflow-auto focus:outline-none">
+              <Combobox.Options className="absolute z-10 mt-1 mb-2 w-full bg-background-primary shadow-lg max-h-60 rounded-xl py-1 text-sm ring-1 ring-black dark:ring-gray-600 ring-opacity-5 overflow-auto focus:outline-none">
                 {filtered.length === 0 && query !== '' ? (
-                  <div className="cursor-pointer select-none relative py-2 px-4 text-gray-700 dark:text-gray-300">
+                  <div className="cursor-pointer select-none relative py-2 px-4 text-secondary">
                     <FormattedMessage
                       id="nothingFound"
                       defaultMessage="Nothing found."
@@ -82,7 +82,7 @@ export default function ProjectSelector({value, onChange, error}: ProjectSelecto
                         classNames(
                           active
                             ? 'text-white bg-primary/100'
-                            : 'text-gray-900 dark:text-gray-100',
+                            : 'text-text-primary',
                           'cursor-pointer select-none relative py-2 pl-3 pr-9'
                         )
                       }
@@ -103,7 +103,7 @@ export default function ProjectSelector({value, onChange, error}: ProjectSelecto
                               <span
                                 className={classNames(
                                   'block truncate text-xs',
-                                  active ? 'text-gray-50' : 'text-gray-600 dark:text-gray-400'
+                                  active ? 'text-gray-50' : 'text-secondary'
                                 )}
                               >
                                 {project.employer}

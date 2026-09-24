@@ -23,6 +23,7 @@ const components = [
   { name: 'TaskCard', file: 'TaskCard/index.tsx' },
   { name: 'Statistics', file: 'Statistics/index.tsx' },
   { name: 'ExportWidget', file: 'ExportWidget/index.tsx' },
+  { name: 'ResultCard', file: 'ResultCard/index.tsx' },
 ];
 
 const watch = process.argv.includes('--watch');
@@ -48,6 +49,7 @@ const createHTML = (componentName, jsFile) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>${componentName}</title>
   <style>
     body {
@@ -117,6 +119,7 @@ async function buildComponent(component) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>${component.name}</title>
   <style>
 ${cssCode}
@@ -202,6 +205,7 @@ async function watchComponents() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>${component.name}</title>
   <style>
 ${cssCode}

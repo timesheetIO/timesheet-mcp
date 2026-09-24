@@ -1,0 +1,23 @@
+/**
+ * ExternalLinkButton - opens a page of the web app through the host. A sandboxed widget
+ * cannot navigate itself, and hosts confirm external links with the user.
+ */
+
+import React from 'react';
+import { ExternalLinkIcon } from '@heroicons/react/outline';
+import { useOpenLink } from '../../hooks';
+
+export default function ExternalLinkButton({ url, children }: { url: string; children: React.ReactNode }) {
+  const openLink = useOpenLink();
+
+  return (
+    <button
+      type="button"
+      onClick={() => openLink(url)}
+      className="flex items-center justify-center gap-1 w-full min-h-[44px] text-body-small text-accent-text hover:underline bg-transparent border-0 cursor-pointer"
+    >
+      <span>{children}</span>
+      <ExternalLinkIcon className="w-4 h-4" aria-hidden="true" />
+    </button>
+  );
+}

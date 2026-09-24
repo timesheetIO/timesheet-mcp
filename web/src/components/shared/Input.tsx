@@ -8,6 +8,7 @@ import {type RegisterOptions, useFormContext} from 'react-hook-form';
 import {classNames} from '../../utils/lib';
 import {FaRegEye, FaRegEyeSlash} from 'react-icons/fa';
 import {ExclamationCircleIcon} from '@heroicons/react/solid';
+import i18n from '../../i18n';
 
 interface Props {
   label: string;
@@ -44,7 +45,7 @@ export default function Input({
 
   const getClasses = (): string => {
     let classes =
-      'block w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100';
+      'block w-full rounded-xl border border-border bg-background-primary text-text-primary';
 
     // Add theme support for date/time/datetime-local inputs
     if (type === 'date' || type === 'time' || type === 'datetime-local') {
@@ -80,7 +81,7 @@ export default function Input({
     <div className={wrapperClasses}>
       <label
         htmlFor={id}
-        className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+        className="block text-xs font-medium text-secondary"
       >
         {label}
       </label>
@@ -128,11 +129,11 @@ export default function Input({
       </div>
       <div className="mt-1">
         {helperText !== '' && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{helperText}</p>
+          <p className="text-xs text-secondary">{helperText}</p>
         )}
         {errors[id] && (
           <p className="mt-2 text-sm text-red-600 dark:text-red-400" id={`${id}-error`}>
-            {String(errors[id]?.message || 'Invalid input')}
+            {String(errors[id]?.message || i18n.t('forms.invalidInput'))}
           </p>
         )}
       </div>

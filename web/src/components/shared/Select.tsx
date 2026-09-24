@@ -71,11 +71,11 @@ export default function Select({
             name={id}
             aria-invalid={!!errors[id] ? 'true' : 'false'}
           />
-          <Listbox.Label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+          <Listbox.Label className="block text-xs font-medium text-secondary">
             {label}
           </Listbox.Label>
           <div className="mt-1 relative">
-            <Listbox.Button className="bg-white dark:bg-gray-800 relative w-full border border-gray-300 dark:border-gray-600 rounded-xl pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/100 focus:border-primary/100 text-sm text-gray-900 dark:text-gray-100 min-h-[38px]">
+            <Listbox.Button className="bg-background-primary relative w-full border border-border rounded-xl pl-3 pr-10 py-2 text-left cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary/100 focus:border-primary/100 text-sm text-text-primary min-h-[38px]">
               <span className="block min-h-5 truncate">{selected?.label}</span>
               <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
                 <SelectorIcon
@@ -92,7 +92,7 @@ export default function Select({
               leaveFrom="opacity-100"
               leaveTo="opacity-0"
             >
-              <Listbox.Options className="absolute z-10 mt-1 mb-2 w-full bg-white dark:bg-gray-800 shadow-lg max-h-60 rounded-xl py-1 text-sm ring-1 ring-black dark:ring-gray-600 ring-opacity-5 overflow-auto focus:outline-none">
+              <Listbox.Options className="absolute z-10 mt-1 mb-2 w-full bg-background-primary shadow-lg max-h-60 rounded-xl py-1 text-sm ring-1 ring-black dark:ring-gray-600 ring-opacity-5 overflow-auto focus:outline-none">
                 {options.map(option => (
                   <Listbox.Option
                     key={option.key}
@@ -100,7 +100,7 @@ export default function Select({
                       classNames(
                         active
                           ? 'text-white bg-primary/100'
-                          : 'text-gray-900 dark:text-gray-100',
+                          : 'text-text-primary',
                         'cursor-pointer select-none relative py-2 pl-3 pr-9'
                       )
                     }

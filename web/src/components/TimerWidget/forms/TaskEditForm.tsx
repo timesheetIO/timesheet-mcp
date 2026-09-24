@@ -67,7 +67,7 @@ export default function TaskEditForm(): JSX.Element {
       goBack();
     } catch (err) {
       console.error('Failed to update task:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save task');
+      setError(t('forms.saveFailed.task'));
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export default function TaskEditForm(): JSX.Element {
       {loading ? (
         <div className="flex flex-col items-center justify-center p-8">
           <Spinner />
-          <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-4 text-sm text-secondary">
             <FormattedMessage id="taskSaving" defaultMessage="Saving task..." />
           </p>
         </div>
@@ -105,7 +105,7 @@ export default function TaskEditForm(): JSX.Element {
               defaultValue={format(new Date(), 'yyyy-MM-dd')}
               min={format(new Date(timer.task.startDateTime || 0), 'yyyy-MM-dd')}
               className="text-sm"
-              label={t('taskStartDate', 'Start Date')}
+              label={t('forms.startDate')}
             />
             <Input
               id="startTime"
@@ -113,18 +113,18 @@ export default function TaskEditForm(): JSX.Element {
               validation={{required: true}}
               className="text-sm"
               defaultValue={format(new Date(), 'HH:mm')}
-              label={t('taskStartTime', 'Start Time')}
+              label={t('forms.startTime')}
             />
             <Textarea
               id="description"
               wrapperClasses="col-span-2"
-              label={t('noteDescription', 'Description')}
+              label={t('forms.description')}
               rows={4}
             />
             <Select
               id="typeId"
               validation={{required: true}}
-              label={t('taskType', 'Type')}
+              label={t('forms.type')}
               options={[
                 {key: 'task-0', value: '0', label: 'Task'},
                 {key: 'mileage-1', value: '1', label: 'Mileage'},
@@ -148,7 +148,7 @@ export default function TaskEditForm(): JSX.Element {
                 className="text-sm"
                 wrapperClasses="col-span-2"
                 validation={{required: true}}
-                label={t('taskPhoneNumber', 'Phone Number')}
+                label={t('forms.phoneNumber')}
               />
             )}
             {watchType === '1' && (
@@ -158,14 +158,14 @@ export default function TaskEditForm(): JSX.Element {
                   type="text"
                   className="text-sm"
                   validation={{required: true}}
-                  label={t('taskLocationEnd', 'End Location')}
+                  label={t('forms.locationEnd')}
                 />
                 <Input
                   id="distance"
                   type="number"
                   className="text-sm"
                   validation={{required: true, min: 0}}
-                  label={t('taskDistance', 'Distance')}
+                  label={t('forms.distance')}
                 />
               </>
             )}
@@ -174,14 +174,14 @@ export default function TaskEditForm(): JSX.Element {
                 <button
                   type="button"
                   onClick={() => goBack()}
-                  className="bg-white dark:bg-gray-800 py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-background-primary py-2 px-4 border border-border rounded-md shadow-sm text-sm font-medium text-text-primary hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FormattedMessage id="cancel" defaultMessage="Cancel" />
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-submit-button hover:bg-submit-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md bg-submit-button hover:bg-submit-button-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/100 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FormattedMessage id="taskCreate" defaultMessage="Save Task" />
                 </button>

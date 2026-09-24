@@ -6,9 +6,11 @@
 import React, { useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useTheme, useToolOutput, useCallTool, useSendFollowUpMessage } from '../../hooks';
+import { useTheme, useToolOutput, useCallTool, useUpdateModelContext } from '../../hooks';
+import { toCalendarDate } from '../../format';
 import { useApplyTheme } from '../../utils';
 import ExportView from './ExportView';
+import { useTranslation } from 'react-i18next';
 import '../../i18n';
 import '../../index.css';
 
@@ -34,22 +36,23 @@ interface ExportWidgetData {
 }
 
 function ExportWidgetApp() {
+  const { t } = useTranslation();
   const initialData = useToolOutput<ExportWidgetData>();
   const theme = useTheme();
   const callTool = useCallTool();
-  const sendFollowUp = useSendFollowUpMessage();
+  const updateModelContext = useUpdateModelContext();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(getDefaultStartDate());
   const [endDate, setEndDate] = useState<string>(getDefaultEndDate());
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [result, setResult] = useState<{ success: boolean; message: string; downloadUrl?: string } | null>(null);
 
   useApplyTheme();
 
   const handleGenerate = useCallback(async () => {
     if (!selectedTemplateId || !startDate || !endDate) {
-      setResult({ success: false, message: 'Please select a template and date range' });
+      setResult({ success: false, message: t('exportWidget.missingInput') });
       return;
     }
 
@@ -63,30 +66,40 @@ function ExportWidgetApp() {
         endDate,
       });
 
-      if (response?.structuredContent?.success) {
+      const content = response?.structuredContent as any;
+      if (content?.kind === 'export' && content.export) {
         setResult({
           success: true,
-          message: `Export generated successfully (${formatBytes(response.structuredContent.size)})`
+          message: content.export.filename
+            ? t('exportWidget.readyFile', { filename: content.export.filename })
+            : t('exportWidget.ready'),
+          downloadUrl: content.export.downloadUrl,
         });
-        // Send follow-up to notify the chat
-        sendFollowUp(`Export generated from template for ${startDate} to ${endDate}`);
+        // The model learns about it without a new chat message
+        updateModelContext(`The user generated an export from a template for ${startDate} to ${endDate}.`);
+      } else if (content?.success) {
+        setResult({
+          success: true,
+          message: t('exportWidget.generated', { size: formatBytes(content.size) })
+        });
+        updateModelContext(`The user generated an export from a template for ${startDate} to ${endDate}.`);
       } else {
-        setResult({ success: false, message: 'Failed to generate export' });
+        setResult({ success: false, message: t('exportWidget.failed') });
       }
     } catch (error) {
       console.error('[ExportWidget] Error generating export:', error);
-      setResult({ success: false, message: 'Error generating export' });
+      setResult({ success: false, message: t('exportWidget.failed') });
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTemplateId, startDate, endDate, callTool, sendFollowUp]);
+  }, [selectedTemplateId, startDate, endDate, callTool, updateModelContext, t]);
 
   // Loading state
   if (!initialData) {
     return (
       <div className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-4">
         <div className="text-body-small text-secondary dark:text-secondary">
-          Loading templates...
+          {t('exportWidget.loading')}
         </div>
       </div>
     );
@@ -97,7 +110,7 @@ function ExportWidgetApp() {
     return (
       <div className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-4">
         <div className="text-body-small text-accent-danger">
-          Failed to load templates
+          {t('exportWidget.loadFailed')}
         </div>
       </div>
     );
@@ -126,12 +139,11 @@ function ExportWidgetApp() {
 function getDefaultStartDate(): string {
   const date = new Date();
   date.setDate(1); // First day of current month
-  return date.toISOString().split('T')[0];
+  return toCalendarDate(date);
 }
 
 function getDefaultEndDate(): string {
-  const date = new Date();
-  return date.toISOString().split('T')[0];
+  return toCalendarDate(new Date());
 }
 
 function formatBytes(bytes: number): string {

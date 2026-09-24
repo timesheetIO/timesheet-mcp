@@ -15,6 +15,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { getChartTheme } from './chartTheme';
+import i18n from '../../i18n';
+import { parseCalendarDate } from '../../format';
 
 interface DailyHoursItem {
   date: string;
@@ -37,16 +39,16 @@ interface DailyChartProps {
   weeklyData?: WeeklyHoursItem[];
   formatHours: (hours: number) => string;
   theme?: 'light' | 'dark';
+  locale: string;
 }
 
-function formatDateLabel(dateStr: string): string {
-  const date = new Date(dateStr + 'T00:00:00');
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function formatDateLabel(dateStr: string, locale: string): string {
+  return parseCalendarDate(dateStr).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
 }
 
-function formatWeekLabel(weekStart: string): string {
-  const date = new Date(weekStart + 'T00:00:00');
-  return `W${getISOWeek(date)} ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+function formatWeekLabel(weekStart: string, locale: string): string {
+  const date = parseCalendarDate(weekStart);
+  return `W${getISOWeek(date)} ${date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })}`;
 }
 
 function getISOWeek(date: Date): number {
@@ -56,27 +58,30 @@ function getISOWeek(date: Date): number {
   return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
 
-export default function DailyChart({ data, weeklyData, formatHours, theme = 'light' }: DailyChartProps) {
+export default function DailyChart({ data, weeklyData, formatHours, theme = 'light', locale }: DailyChartProps) {
   const ct = getChartTheme(theme);
+  const t = i18n.t.bind(i18n);
+  const seriesName = (name: string) =>
+    name === 'billable' ? t('statistics.billable') : t('statistics.nonBillable');
 
   // Use weekly data when available (range > 14 days)
   const useWeekly = weeklyData && weeklyData.length > 0;
   const chartData = useWeekly
     ? weeklyData.map((item) => ({
-        label: formatWeekLabel(item.weekStart),
+        label: formatWeekLabel(item.weekStart, locale),
         billable: Number(item.billableHours.toFixed(1)),
         nonBillable: Number(item.nonBillableHours.toFixed(1)),
       }))
     : data.map((item) => ({
-        label: formatDateLabel(item.date),
+        label: formatDateLabel(item.date, locale),
         billable: Number(item.billableHours.toFixed(1)),
         nonBillable: Number(item.nonBillableHours.toFixed(1)),
       }));
 
   return (
     <div>
-      <h3 className="text-lg font-semibold mb-4 text-text-primary dark:text-text-primary">
-        {useWeekly ? 'Weekly Hours' : 'Daily Hours'}
+      <h3 className="text-heading m-0 mb-4 text-text-primary">
+        {useWeekly ? t('statistics.weeklyHours') : t('statistics.dailyHours')}
       </h3>
       <ResponsiveContainer width="100%" height={260}>
         <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 25 }}>
@@ -103,16 +108,11 @@ export default function DailyChart({ data, weeklyData, formatHours, theme = 'lig
               color: ct.tooltipText,
               fontSize: '13px',
             }}
-            formatter={(value: number, name: string) => [
-              `${formatHours(value)}h`,
-              name === 'billable' ? 'Billable' : 'Non-billable',
-            ]}
+            formatter={(value: number, name: string) => [formatHours(value), seriesName(name)]}
           />
           <Legend
             wrapperStyle={{ fontSize: '12px', color: ct.textSecondary }}
-            formatter={(value: string) =>
-              value === 'billable' ? 'Billable' : 'Non-billable'
-            }
+            formatter={(value: string) => seriesName(value)}
           />
           <Bar
             dataKey="billable"

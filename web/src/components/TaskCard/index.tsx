@@ -1,143 +1,96 @@
 /**
- * TaskCard Widget - Detailed Task View
- * Shows comprehensive information about a single time entry
+ * TaskCard Widget
+ * One time entry as a result card: "Entry added" after task_create, "Entry updated" after
+ * task_update, the entry itself for task_get.
  */
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { useTranslation } from 'react-i18next';
+import { CheckIcon, ClockIcon, PencilAltIcon } from '@heroicons/react/outline';
 import { McpAppProvider } from '../../McpAppProvider';
-import { useToolOutput, useTheme } from '../../hooks';
-import { useApplyTheme } from '../../utils';
+import { useLocale, useTimeZone, useToolOutput } from '../../hooks';
+import { formatDate, formatDuration, formatTime, projectColor } from '../../format';
+import Card from '../shared/Card';
+import IconTile from '../shared/IconTile';
+import Badge from '../shared/Badge';
+import Skeleton from '../shared/Skeleton';
 import type { Task } from '../../types';
+import '../../i18n';
 import '../../index.css';
 
+type TaskCardData = Task & { action?: 'created' | 'updated'; durationBreak?: number; location?: string };
+
 function TaskCardApp() {
-  const task = useToolOutput<Task>();
-  const theme = useTheme();
+  const { t } = useTranslation();
+  const task = useToolOutput<TaskCardData>();
+  const locale = useLocale();
+  const timeZone = useTimeZone();
 
-  // Apply theme
-  useApplyTheme();
-
-  if (!task) {
-    return (
-      <div className="text-body-small text-secondary dark:text-secondary p-4">
-        Loading task...
-      </div>
-    );
+  if (!task || !task.id) {
+    return <Skeleton label={t('taskCard.loading')} />;
   }
 
-  const duration = task.duration || 0;
-  const hours = task.hours || Math.floor(duration / 3600);
-  const minutes = task.minutes || Math.floor((duration % 3600) / 60);
+  const project = task.project as (Task['project'] & { color?: number; employer?: string }) | undefined;
+  const dot = projectColor(project?.color);
+  const running = !task.endDateTime;
+  const start = task.startDateTime ? formatTime(task.startDateTime, locale, timeZone) : null;
+  const end = task.endDateTime ? formatTime(task.endDateTime, locale, timeZone) : null;
 
-  const startDate = task.startDateTime ? new Date(task.startDateTime) : null;
-  const endDate = task.endDateTime ? new Date(task.endDateTime) : null;
+  const title =
+    task.action === 'created'
+      ? t('taskCard.added')
+      : task.action === 'updated'
+        ? t('taskCard.updated')
+        : project?.title || t('taskCard.entry');
+
+  const icon = task.action === 'created' ? <CheckIcon /> : task.action === 'updated' ? <PencilAltIcon /> : <ClockIcon />;
 
   return (
-    <div className="bg-card-bg dark:bg-card-bg border border-card-border dark:border-card-border rounded-2xl p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-start justify-between gap-4 mb-3">
-          <h2 className="text-heading text-text-primary dark:text-text-primary flex-1">
-            {task.description || 'Time Entry'}
-          </h2>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="px-3 py-1.5 bg-accent-success/10 text-accent-success rounded text-body font-semibold">
-              {hours}h {minutes}m
-            </div>
-            {task.billable && (
-              <div className="px-3 py-1 bg-accent-success/10 text-accent-success rounded-sm text-body-small">
-                Billable
-              </div>
-            )}
-            {task.billable === false && (
-              <div className="px-3 py-1 bg-background-secondary dark:bg-background-secondary text-secondary dark:text-secondary rounded-sm text-body-small">
-                Non-billable
-              </div>
-            )}
-          </div>
+    <Card className="p-4 sm:p-5">
+      <div className="flex items-start gap-4">
+        <IconTile>{icon}</IconTile>
+        <div className="flex-1 min-w-0">
+          <h2 className="m-0 text-body font-semibold text-text-primary">{title}</h2>
+          <p className="m-0 mt-0.5 text-body-small text-secondary flex items-center gap-1.5 min-w-0">
+            {dot && <i className="inline-block w-2 h-2 rounded-full flex-none" style={{ background: dot }} aria-hidden="true" />}
+            <span className="truncate">
+              {project?.title || t('taskList.noProject')}
+              {project?.employer ? ` · ${project.employer}` : ''}
+            </span>
+          </p>
         </div>
-
-        {task.project?.title && (
-          <div className="flex items-center gap-2">
-            <div className="text-body-small text-secondary dark:text-secondary">
-              Project:
-            </div>
-            <div className="text-body-small text-text-primary dark:text-text-primary font-medium">
-              {task.project.title}
-            </div>
-          </div>
-        )}
+        <span className="font-mono tabular-nums text-[22px] sm:text-[24px] leading-none pt-1 text-accent-text whitespace-nowrap">
+          {formatDuration(task.duration || 0)}
+        </span>
       </div>
 
-      {/* Task Details */}
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-body-small text-secondary dark:text-secondary mb-1">
-              Start Time
-            </div>
-            <div className="text-body-small text-text-primary dark:text-text-primary">
-              {startDate ? (
-                <>
-                  <div>{startDate.toLocaleDateString()}</div>
-                  <div className="font-mono text-secondary dark:text-secondary">
-                    {startDate.toLocaleTimeString()}
-                  </div>
-                </>
-              ) : (
-                'Not set'
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-body-small text-secondary dark:text-secondary mb-1">
-              End Time
-            </div>
-            <div className="text-body-small text-text-primary dark:text-text-primary">
-              {endDate ? (
-                <>
-                  <div>{endDate.toLocaleDateString()}</div>
-                  <div className="font-mono text-secondary dark:text-secondary">
-                    {endDate.toLocaleTimeString()}
-                  </div>
-                </>
-              ) : (
-                'Running'
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <div className="text-body-small text-secondary dark:text-secondary mb-1">
-            Task ID
-          </div>
-          <div className="font-mono text-body-small text-text-primary dark:text-text-primary">
-            {task.id}
-          </div>
-        </div>
-
-        {(task as any).location && (
-          <div>
-            <div className="text-body-small text-secondary dark:text-secondary mb-1">
-              Location
-            </div>
-            <div className="text-body-small text-text-primary dark:text-text-primary">
-              {(task as any).location}
-            </div>
-          </div>
+      <div className="flex items-center flex-wrap gap-x-3 gap-y-2 mt-3 pl-0 min-[480px]:pl-[60px] text-caption text-secondary">
+        {task.startDateTime && <span>{formatDate(task.startDateTime, locale, {}, timeZone)}</span>}
+        {start && (
+          <span className="tabular-nums">
+            {running ? t('timerWidget.runningSince', { time: start }) : `${start} - ${end}`}
+          </span>
         )}
+        {(task.durationBreak || 0) > 0 && (
+          <span>{t('taskCard.breaks', { duration: formatDuration(task.durationBreak || 0) })}</span>
+        )}
+        {task.billable === true && <Badge tone="success">{t('taskList.billable')}</Badge>}
+        {task.billable === false && <Badge tone="neutral">{t('taskList.nonBillable')}</Badge>}
       </div>
-    </div>
+
+      {task.description && (
+        <p className="m-0 mt-3 pl-0 min-[480px]:pl-[60px] text-body-small text-text-primary whitespace-pre-line break-words">
+          {task.description}
+        </p>
+      )}
+    </Card>
   );
 }
 
-// Mount the component
 const container = document.getElementById('root');
 if (container) {
-  const root = createRoot(container);
-  root.render(
+  createRoot(container).render(
     <McpAppProvider appName="TaskCard">
       <TaskCardApp />
     </McpAppProvider>

@@ -22,9 +22,9 @@
       "team": "Team"
     },
     "stats": {
-      "totalTime": "Total Time",
+      "totalTime": "Total time",
       "office": "Office",
-      "defaultBillable": "Default Billable"
+      "defaultBillable": "Default billable"
     },
     "billable": {
       "yes": "Yes",
@@ -40,12 +40,39 @@
     "controls": {
       "pause": "Pause",
       "resume": "Resume",
-      "stop": "Stop"
+      "stop": "Stop",
+      "start": "Start timer"
     },
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "title": {
+      "running": "Timer running on {{project}}",
+      "paused": "Timer paused on {{project}}",
+      "stopped": "Timer stopped on {{project}}"
+    },
+    "runningSince": "since {{time}}",
+    "pausedSince": "paused since {{time}}",
+    "more": "More",
+    "startAgain": "Start again",
+    "noProject": "No project",
+    "project": "Project",
+    "pickProject": "Choose a project",
+    "noProjectsYet": "You don't have any projects yet. Create your first one on timesheet.io.",
+    "actionFailed": "That did not work. Please try again.",
+    "loadFailed": "The timer could not be loaded.",
+    "idle": {
+      "title": "No timer running",
+      "subtitle": "Pick a project to start tracking."
+    },
+    "actions": {
+      "editTask": "Edit entry",
+      "addBreak": "Add break",
+      "addExpense": "Add expense",
+      "addNote": "Add note"
+    },
+    "projectsLoadFailed": "Projects could not be loaded."
   },
   "taskList": {
-    "title": "Time Entries",
+    "title": "Time entries",
     "loading": "Loading tasks...",
     "error": "Error: No tasks data received",
     "emptyState": {
@@ -65,21 +92,131 @@
   "taskCard": {
     "loading": "Loading task details...",
     "error": "Error: Task not found",
-    "noDescription": "No description"
+    "noDescription": "No description",
+    "added": "Entry added",
+    "updated": "Entry updated",
+    "entry": "Time entry",
+    "breaks": "{{duration}} break"
   },
   "statistics": {
     "title": "Statistics",
-    "totalHours": "Total Hours",
-    "billableHours": "Billable Hours",
+    "totalHours": "Total hours",
+    "billableHours": "Billable hours",
     "billablePercentage": "Billable %",
-    "projectBreakdown": "Project Breakdown",
-    "dailyHours": "Daily Hours",
-    "expand": "Expand"
+    "projectBreakdown": "Project breakdown",
+    "dailyHours": "Daily hours",
+    "expand": "Expand",
+    "collapse": "Close",
+    "entriesLabel": "Entries",
+    "entries": "{{count}} entry",
+    "entries_other": "{{count}} entries",
+    "billable": "Billable",
+    "nonBillable": "Non-billable",
+    "billableFootnote": "{{duration}} billable",
+    "weeklyHours": "Weekly hours",
+    "moreProjects": "and {{count}} more project",
+    "moreProjects_other": "and {{count}} more projects",
+    "empty": "No time tracked in this period."
   },
   "common": {
     "hours": "{{count}}h",
     "minutes": "{{count}}m",
     "loading": "Loading...",
-    "error": "Error"
+    "error": "Error",
+    "working": "One moment...",
+    "back": "Back",
+    "cancelled": "Cancelled",
+    "durationHours": "{{hours}}h {{minutes}}m",
+    "durationMinutes": "{{minutes}}m"
+  },
+  "resultCard": {
+    "export": {
+      "sent": "Timesheet sent",
+      "sentTo": "Timesheet sent to {{email}}",
+      "ready": "Export ready",
+      "download": "Download"
+    },
+    "absence": {
+      "title": {
+        "requested": "{{type}} requested",
+        "updated": "{{type}} updated",
+        "approved": "{{type}} approved",
+        "rejected": "{{type}} rejected",
+        "cancelled": "{{type}} cancelled",
+        "viewed": "{{type}}"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "cancelled": "Cancelled"
+      },
+      "days": "{{count}} day",
+      "days_other": "{{count}} days",
+      "halfDay": "half day",
+      "cancel": {
+        "action": "Cancel request",
+        "reasonLabel": "Why are you cancelling?",
+        "confirm": "Cancel request",
+        "reasonRequired": "Please enter a reason.",
+        "failed": "The request could not be cancelled. Please try again."
+      }
+    }
+  },
+  "exportWidget": {
+    "title": "Export from template",
+    "template": "Template",
+    "chooseTemplate": "Choose a template",
+    "summarized": "Summarized",
+    "splitTasks": "Split tasks",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "presets": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisWeek": "This week",
+      "lastWeek": "Last week"
+    },
+    "generate": "Generate export",
+    "generating": "Generating...",
+    "download": "Download",
+    "ready": "Export ready",
+    "readyFile": "Export ready: {{filename}}",
+    "generated": "Export generated ({{size}})",
+    "failed": "The export could not be generated.",
+    "missingInput": "Choose a template and a period.",
+    "loading": "Loading templates...",
+    "loadFailed": "The templates could not be loaded.",
+    "empty": "No export templates yet",
+    "emptyHint": "Ask the assistant to save an export as a template first."
+  },
+  "forms": {
+    "date": "Date",
+    "time": "Time",
+    "description": "Description",
+    "descriptionRequired": "Please enter a description.",
+    "amount": "Amount",
+    "paid": "Paid",
+    "startDate": "Start date",
+    "startTime": "Start time",
+    "type": "Type",
+    "phoneNumber": "Phone number",
+    "locationEnd": "End location",
+    "distance": "Distance",
+    "pauseStartDate": "Break start date",
+    "pauseStartTime": "Break start time",
+    "pauseEndDate": "Break end date",
+    "pauseEndTime": "Break end time",
+    "pauseStartBeforeTask": "The break cannot start before the entry starts.",
+    "pauseEndAfterTask": "The break cannot end after the entry ends.",
+    "pauseStartAfterEnd": "The break has to start before it ends.",
+    "noActiveTask": "No running entry found.",
+    "invalidInput": "Invalid input",
+    "saveFailed": {
+      "note": "The note could not be saved.",
+      "expense": "The expense could not be saved.",
+      "pause": "The break could not be saved.",
+      "task": "The entry could not be saved."
+    }
   }
 }

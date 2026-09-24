@@ -7,6 +7,7 @@ import React, {createContext, useContext, useState, useCallback, ReactNode} from
 
 export type ViewType =
   | 'timer'
+  | 'actions'
   | 'task/edit'
   | 'pause/new'
   | 'expense/new'

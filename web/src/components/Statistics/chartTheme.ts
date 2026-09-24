@@ -18,27 +18,27 @@ export interface ChartTheme {
 export function getChartTheme(theme: 'light' | 'dark'): ChartTheme {
   if (theme === 'dark') {
     return {
-      text: '#e5e7eb',
-      textSecondary: '#9ca3af',
-      grid: '#374151',
-      tooltipBg: '#1f2937',
-      tooltipBorder: '#4b5563',
-      tooltipText: '#f3f4f6',
-      billableBar: '#34d399',
-      nonBillableBar: '#fbbf24',
-      axisLine: '#4b5563',
+      text: '#fafafa',
+      textSecondary: '#a1a1aa',
+      grid: 'rgba(255, 255, 255, 0.08)',
+      tooltipBg: '#18181b',
+      tooltipBorder: 'rgba(255, 255, 255, 0.15)',
+      tooltipText: '#fafafa',
+      billableBar: '#ff8800',
+      nonBillableBar: '#52525b',
+      axisLine: 'rgba(255, 255, 255, 0.15)',
     };
   }
   return {
-    text: '#1f2937',
-    textSecondary: '#6b7280',
-    grid: '#e5e7eb',
+    text: '#18181b',
+    textSecondary: '#52525b',
+    grid: 'rgba(0, 0, 0, 0.08)',
     tooltipBg: '#ffffff',
-    tooltipBorder: '#e5e7eb',
-    tooltipText: '#1f2937',
-    billableBar: '#10b981',
-    nonBillableBar: '#f59e0b',
-    axisLine: '#d1d5db',
+    tooltipBorder: 'rgba(0, 0, 0, 0.1)',
+    tooltipText: '#18181b',
+    billableBar: '#ff8800',
+    nonBillableBar: '#d4d4d8',
+    axisLine: 'rgba(0, 0, 0, 0.15)',
   };
 }
 

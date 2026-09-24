@@ -40,7 +40,6 @@ export default function SwitchComponent({
       >
         <input
           id={id}
-          name={id}
           {...register(id, validation)}
           type="checkbox"
           className="hidden"
