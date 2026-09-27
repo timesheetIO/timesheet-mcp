@@ -473,6 +473,9 @@ add(
   async (client, args) => jsonOk(await client.contracts.get(args.organizationId, args.id))
 );
 
+// Contracts store work days as seven characters from Monday: 1 is a work day, 0 a day off.
+const WORK_DAYS = describe('Work days from Monday to Sunday as seven characters, 1 for a work day and 0 for a day off, such as "1111100" for Monday to Friday');
+
 add(
   'contract_create',
   'Create a new employment contract.',
@@ -482,7 +485,7 @@ add(
     userId: STR,
     validFrom: STR,
     validTo: STR,
-    workDays: describe('Work-days pattern (e.g. "MTWTF--")'),
+    workDays: WORK_DAYS,
     weeklyHours: NUM,
     dailyHours: NUM,
     salaryType: STR,
@@ -510,7 +513,7 @@ add(
     name: STR,
     validFrom: STR,
     validTo: STR,
-    workDays: STR,
+    workDays: WORK_DAYS,
     weeklyHours: NUM,
     dailyHours: NUM,
     salaryType: STR,
