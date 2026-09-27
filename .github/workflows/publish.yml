@@ -74,6 +74,17 @@ jobs:
           for VERSION in "$(jq -r .version server.json)" "$(jq -r '.packages[0].version' server.json)"; do
             [ "$VERSION" = "$TAG_VERSION" ] || { echo "server.json says $VERSION, the tag is v$TAG_VERSION" >&2; exit 1; }
           done
+      # npm processes a publish asynchronously ("may take a few minutes to become available"),
+      # and the registry refuses a version npm does not serve yet: wait until it does
+      - name: Wait for the version on npm
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          for attempt in $(seq 1 40); do
+            [ "$(npm view "@timesheet/mcp@$VERSION" version 2>/dev/null)" = "$VERSION" ] && exit 0
+            sleep 15
+          done
+          echo "@timesheet/mcp@$VERSION is still not on npm after 10 minutes" >&2
+          exit 1
       - name: Install mcp-publisher
         working-directory: ${{ runner.temp }}
         run: |
