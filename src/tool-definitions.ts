@@ -718,7 +718,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         sort: {
           type: 'string',
           enum: ['dateTime', 'time', 'created'],
-          description: 'Sort field for tasks: dateTime=by start/end time, time=by duration, created=by creation date',
+          description: 'Sort field for tasks: dateTime = by day, newest first unless order is asc, and by start time within a day; time = by start time; created = by creation date',
         },
         order: {
           type: 'string',
