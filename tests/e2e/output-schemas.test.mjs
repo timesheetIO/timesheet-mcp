@@ -212,3 +212,29 @@ test('every tool returns structured content that matches its output schema', asy
     await client.close();
   }
 });
+
+// The Claude directory lists each tool by annotations.title and flags a tool that doesn't say
+// whether it only reads or also changes data.
+test('every tool has the title and hints the Claude directory lists', async () => {
+  const client = new Client({ name: 'annotation-check', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(baseUrl + '/'), { requestInit: { headers: { Authorization: `Bearer ${API_KEY}` } } })
+  );
+  try {
+    const incomplete = [];
+    let cursor;
+    do {
+      const page = await client.listTools(cursor ? { cursor } : undefined);
+      for (const tool of page.tools) {
+        const { title, readOnlyHint, destructiveHint } = tool.annotations ?? {};
+        if (!title || title !== tool.title || typeof readOnlyHint !== 'boolean' || typeof destructiveHint !== 'boolean') {
+          incomplete.push(tool.name);
+        }
+      }
+      cursor = page.nextCursor;
+    } while (cursor);
+    assert.deepEqual(incomplete, [], 'tools without annotations.title or the read-only and destructive hints');
+  } finally {
+    await client.close();
+  }
+});

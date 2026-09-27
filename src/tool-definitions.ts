@@ -33,7 +33,20 @@ const TIMER_OUTPUT_SCHEMA = {
   required: ['status'],
 } as const;
 
-export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
+/**
+ * The Claude directory lists a tool by annotations.title, which the tools below only give at the
+ * top level: copy it into the annotations. The extended tools set both already.
+ */
+function withAnnotationTitles<T extends Record<string, unknown>>(tools: T[]): T[] {
+  return tools.map((tool) => {
+    const annotations = tool.annotations as Record<string, unknown> | undefined;
+    return typeof tool.title === 'string' && !annotations?.title
+      ? ({ ...tool, annotations: { ...annotations, title: tool.title } } as T)
+      : tool;
+  });
+}
+
+export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationTitles([
   // Timer Management Tools
   {
     name: 'timer_start',
@@ -1926,7 +1939,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
     },
   },
   ...EXTENDED_TOOL_DEFINITIONS,
-] as Array<{ name: string; _meta?: Record<string, unknown> } & Record<string, unknown>>) as unknown as Tool[];
+] as Array<{ name: string; _meta?: Record<string, unknown> } & Record<string, unknown>>)) as unknown as Tool[];
 
 /** outputSchema per tool name, for projecting tools/call results through the protocol codec. */
 export const TOOL_OUTPUT_SCHEMAS: ReadonlyMap<string, Tool['outputSchema']> = new Map(
