@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.2] - 2026-09-27
+
+### Fixed
+- Results name the IDs a follow-up call needs in their text. Hosts that show a widget, such as
+  claude.ai, give the model only that text, so asking Claude to start a timer on a project made it
+  guess the project ID. Time entries also give their date, times and project there.
+- Every tool carries `annotations.title`, which the Claude directory lists. The 41 core tools set
+  only the top-level `title`.
+- `contract_create` and `contract_update` describe work days as the API stores them: seven
+  characters from Monday, 1 for a work day and 0 for a day off, such as `1111100`. The old example
+  `MTWTF--` saved a contract without work days.
+- The widgets report version 2.0.2 to the host instead of 2.0.0.
+
 ## [2.0.1] - 2026-09-27
 
 ### Fixed

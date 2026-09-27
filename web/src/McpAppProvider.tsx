@@ -79,7 +79,7 @@ export function McpAppProvider({ appName, children }: McpAppProviderProps) {
   }, []);
 
   const { app, isConnected, error } = useApp({
-    appInfo: { name: appName, version: '2.0.0' },
+    appInfo: { name: appName, version: '2.0.2' },
     // Inline cards may expand into fullscreen (Statistics charts, timer forms)
     capabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
     onAppCreated,
