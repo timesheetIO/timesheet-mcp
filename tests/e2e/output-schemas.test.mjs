@@ -213,6 +213,37 @@ test('every tool returns structured content that matches its output schema', asy
   }
 });
 
+// claude.ai hands structuredContent to the widget only, so the model reads the text alone: it has
+// to name the IDs a follow-up call needs, or Claude guesses one (timer_start then fails on the project).
+test('the text of widget tools names the IDs a follow-up call needs', async () => {
+  const client = new Client({ name: 'text-id-check', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(baseUrl + '/'), { requestInit: { headers: { Authorization: `Bearer ${API_KEY}` } } })
+  );
+  try {
+    const text = async (name, args = {}) => {
+      const result = await client.callTool({ name, arguments: args });
+      return result.content.filter((block) => block.type === 'text').map((block) => block.text).join('\n');
+    };
+    const missing = [];
+    const expect = (name, value, needle) => { if (!value.includes(needle)) missing.push(`${name}: ${needle}`); };
+    // The stub answers the project routes with ENTITY
+    expect('project_list', await text('project_list'), `(ID: ${ENTITY.id})`);
+    expect('project_get', await text('project_get', { id: ENTITY.id }), `(ID: ${ENTITY.id})`);
+    const taskList = await text('task_list');
+    expect('task_list', taskList, TASK.id);
+    expect('task_list', taskList, '2026-09-24 09:00-10:30');
+    expect('task_list', taskList, PROJECT.title);
+    expect('task_get', await text('task_get', { id: TASK.id }), TASK.id);
+    const timer = await text('timer_status');
+    expect('timer_status', timer, `Project: ${PROJECT.title} (ID: ${PROJECT.id})`);
+    expect('timer_status', timer, `Task ID: ${TASK.id}`);
+    assert.deepEqual(missing, [], 'IDs and facts missing from the text the model reads');
+  } finally {
+    await client.close();
+  }
+});
+
 // The Claude directory lists each tool by annotations.title and flags a tool that doesn't say
 // whether it only reads or also changes data.
 test('every tool has the title and hints the Claude directory lists', async () => {

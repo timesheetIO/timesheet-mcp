@@ -220,6 +220,27 @@ export function calendarDate(dateTime?: string | null): string | undefined {
   return Number.isNaN(parsed.getTime()) ? dateTime.substring(0, 10) : toLocalDateKey(parsed);
 }
 
+/*
+ * The text content of a result is what the model reads, also in hosts that show a widget:
+ * claude.ai hands structuredContent to the widget only. So the text names every ID a follow-up
+ * call needs, such as the project for timer_start or the entry for task_update.
+ */
+
+/** " (ID: x)", or nothing when there is no ID. */
+function withId(id: unknown): string {
+  return typeof id === 'string' && id ? ` (ID: ${id})` : '';
+}
+
+/** "2026-09-24 08:45-10:45" from a task's local start and end, or "..., running" without an end. */
+function taskWhen(task: any): string {
+  const start = typeof task?.startDateTime === 'string' ? task.startDateTime : '';
+  if (start.length < 16) {
+    return '';
+  }
+  const end = typeof task.endDateTime === 'string' && task.endDateTime.length >= 16 ? task.endDateTime.slice(11, 16) : '';
+  return `${start.slice(0, 10)} ${start.slice(11, 16)}${end ? `-${end}` : ', running'}`;
+}
+
 /**
  * Format timer response with component
  */
@@ -230,14 +251,19 @@ export const TOOL_META_KEY = 'timesheet/tool';
 export const STOPPED_TASK_META_KEY = 'timesheet/stoppedTask';
 
 export function formatTimerResponse(timerData: any, profile?: any, settings?: any, toolName?: string, stoppedTask?: any) {
-  // Build text content for non-widget MCP clients
   let textContent = `Timer status: ${timerData.status}`;
 
   // The timer data nests the task and its project (see formatCompleteTimerData)
   const projectTitle = timerData.task?.project?.title;
   const description = timerData.task?.description;
   if (projectTitle) {
-    textContent += `\nProject: ${projectTitle}`;
+    textContent += `\nProject: ${projectTitle}${withId(timerData.task?.project?.id)}`;
+  }
+  if (timerData.task?.id) {
+    textContent += `\nTask ID: ${timerData.task.id}`;
+  }
+  if (timerData.task?.startDateTime) {
+    textContent += `\nStarted: ${timerData.task.startDateTime}`;
   }
   if (description) {
     textContent += `\nDescription: ${description}`;
@@ -251,7 +277,7 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
     const duration = stoppedTask.duration || 0;
     const title = stoppedTask.project?.title;
     textContent += `\nSaved ${Math.floor(duration / 3600)}h ${Math.floor((duration % 3600) / 60)}m`
-      + `${title ? ` on ${title}` : ''}${stoppedTask.description ? ` (${stoppedTask.description})` : ''}`;
+      + `${title ? ` on ${title}` : ''}${stoppedTask.description ? ` (${stoppedTask.description})` : ''}${withId(stoppedTask.id)}`;
   }
 
   const result = withUiData(
@@ -281,10 +307,12 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
  * Format project list response with component
  */
 export function formatProjectListResponse(projects: any[], totalCount: number, queryParams?: Record<string, any>, profile?: any, settings?: any) {
-  // Build text content for non-widget MCP clients
   const projectList = projects
     .map((p: any) => {
-      let line = `- ${p.title}`;
+      let line = `- ${p.title}${withId(p.id)}`;
+      if (p.employer) {
+        line += `, client ${p.employer}`;
+      }
       if (p.description) {
         line += ` - ${p.description}`;
       }
@@ -320,8 +348,11 @@ export function formatProjectListResponse(projects: any[], totalCount: number, q
  * Format project card response with component
  */
 export function formatProjectCardResponse(project: any) {
-  // Build text content for non-widget MCP clients
-  let textContent = `Project: ${project.title || 'Untitled'}`;
+  let textContent = `Project: ${project.title || 'Untitled'}${withId(project.id)}`;
+
+  if (project.employer) {
+    textContent += `\nClient: ${project.employer}`;
+  }
 
   if (project.description) {
     textContent += `\nDescription: ${project.description}`;
@@ -345,19 +376,20 @@ export function formatProjectCardResponse(project: any) {
  * Format task list response with component
  */
 export function formatTaskListResponse(tasks: any[], queryParams?: any, profile?: any, settings?: any, totalCount?: number) {
-  // Build text content for non-widget MCP clients
   const taskList = tasks
     .map((t: any) => {
       const hours = t.hours || 0;
       const minutes = t.minutes || 0;
-      let line = `- ${t.description || 'No description'} (${hours}h ${minutes}m)`;
-      if (t.projectTitle) {
-        line += ` - ${t.projectTitle}`;
+      const when = taskWhen(t);
+      let line = `- ${when ? `${when} ` : ''}${t.description || 'No description'} (${hours}h ${minutes}m)`;
+      const projectTitle = t.project?.title ?? t.projectTitle;
+      if (projectTitle) {
+        line += ` - ${projectTitle}`;
       }
       if (t.billable) {
         line += ' [Billable]';
       }
-      return line;
+      return line + withId(t.id);
     })
     .join('\n');
 
@@ -396,9 +428,10 @@ export function formatTaskCardResponse(task: any, action?: TaskCardAction) {
   const duration = task.duration || 0;
   const hours = Math.floor(duration / 3600);
   const minutes = Math.floor((duration % 3600) / 60);
-  const summary = `${task.description || 'No description'} (${hours}h ${minutes}m)${task.project?.title ? ` - ${task.project.title}` : ''}`;
+  const when = taskWhen(task);
+  const summary = `${when ? `${when} ` : ''}${task.description || 'No description'} (${hours}h ${minutes}m)${task.project?.title ? ` - ${task.project.title}` : ''}`;
 
-  let text = `Task: ${summary}`;
+  let text = `Task${withId(task.id)}: ${summary}`;
   if (action === 'created') {
     text = `Task created (ID: ${task.id}): ${summary}`;
   } else if (action === 'updated') {
@@ -420,7 +453,6 @@ export function formatTaskCardResponse(task: any, action?: TaskCardAction) {
  * Format statistics response with component
  */
 export function formatStatisticsResponse(stats: any, profile?: any, settings?: any) {
-  // Build detailed text content for non-widget MCP clients
   const lines: string[] = [];
 
   if (stats.startDate && stats.endDate) {
@@ -444,7 +476,7 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
     lines.push('');
     lines.push('Project Breakdown:');
     for (const p of stats.projectBreakdown) {
-      lines.push(`  - ${p.projectTitle || 'No project'}: ${p.hours.toFixed(1)}h (${p.percentage}%, ${p.taskCount} tasks)`);
+      lines.push(`  - ${p.projectTitle || 'No project'}${withId(p.projectId)}: ${p.hours.toFixed(1)}h (${p.percentage}%, ${p.taskCount} tasks)`);
     }
   }
 
@@ -523,11 +555,10 @@ export function formatPdfReportResponse(kind: PdfReportKind, id: string, pdf: Ar
  * Format export template list response with component
  */
 export function formatExportTemplateListResponse(templates: any[], totalCount: number) {
-  // Build text content for non-widget MCP clients
   const templateList = templates
     .slice(0, 10)
     .map((t: any) => {
-      let line = `- ${t.name}`;
+      let line = `- ${t.name}${withId(t.id)}`;
       if (t.format) {
         line += ` [${t.format.toUpperCase()}]`;
       }

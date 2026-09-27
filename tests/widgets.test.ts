@@ -131,7 +131,7 @@ describe('TaskCard', () => {
   test('created and updated carry the action, task_get does not', () => {
     const created = formatTaskCardResponse(task, 'created');
     expect(created.structuredContent).toEqual({ ...task, action: 'created' });
-    expect(created.content[0].text).toBe('Task created (ID: t1): Header review (3h 30m) - Website redesign');
+    expect(created.content[0].text).toBe('Task created (ID: t1): 2026-09-23 09:00-12:30 Header review (3h 30m) - Website redesign');
     expect(formatTaskCardResponse(task, 'updated').structuredContent).toMatchObject({ action: 'updated' });
     expect(formatTaskCardResponse(task).structuredContent).toEqual(task);
   });
