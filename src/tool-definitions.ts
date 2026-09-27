@@ -1420,7 +1420,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         },
         summarize: {
           type: 'boolean',
-          description: 'Whether to summarize data instead of showing individual entries',
+          description: 'Whether to add a totals row at the end. Individual entries are still listed',
         },
         filename: {
           type: 'string',
@@ -1746,7 +1746,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta([
         },
         summarize: {
           type: 'boolean',
-          description: 'Summarize data',
+          description: 'Add a totals row at the end (entries are still listed)',
         },
         email: {
           type: 'string',
