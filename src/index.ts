@@ -76,7 +76,7 @@ export class TimesheetMCPServer {
     this.server = new Server(
       {
         name: 'timesheet-mcp',
-        version: '2.0.0',
+        version: '2.0.1',
       },
       {
         capabilities: {

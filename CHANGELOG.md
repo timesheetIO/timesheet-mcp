@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1] - 2026-09-27
+
+### Fixed
+- The `summarize` option of `export_generate` and `export_template_create` is described as what
+  it does: it adds a totals row after the entries. The old text said it replaced the entries, so
+  clients left it off when a user asked for totals.
+
 ## [2.0.0] - 2026-09-24
 
 ### Breaking
