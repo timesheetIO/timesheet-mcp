@@ -1658,6 +1658,34 @@ export class TimesheetMCPServer {
       };
     }
 
+    // Signed in but not allowed (403): say so plainly, so the client neither retries nor asks the
+    // user to connect again. The backend's reason is kept unless it is only the generic refusal.
+    if (error instanceof TimesheetApiError && error.statusCode === 403) {
+      let reason: string | null = null;
+      try {
+        const body = JSON.parse(error.responseBody ?? '') as { error?: unknown; message?: unknown };
+        if (body.error !== 'InvalidPermissionException' && typeof body.message === 'string' && body.message) {
+          reason = body.message;
+        }
+      } catch {
+        // No JSON body: the generic text below.
+      }
+      return {
+        content: [
+          {
+            type: 'text',
+            text:
+              "The user doesn't have permission for this action" +
+              (reason ? ` (${reason})` : '') +
+              '. For time entries this means the project, rate or tags are not ones the user may book on or use. ' +
+              "Don't retry it unchanged; ask the user which project, rate or tags to use instead.",
+          },
+        ],
+        structuredContent: { error: 'permission_denied', reason },
+        isError: true,
+      };
+    }
+
     const isApiError = error instanceof TimesheetApiError;
     const errorMessage = isApiError
       ? error.message
