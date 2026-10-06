@@ -224,11 +224,22 @@ describe('http', () => {
     assert.equal(pages.flatMap((p) => p.result.tools).length, 122);
     assert.ok(!pages.flatMap((p) => p.result.tools).some((tool) => tool.name === 'auth_configure'));
 
+    // ChatGPT's review: every tool names its sign-in, and only tools that reach any email address are open-world
+    const hostedTools = pages.flatMap((p) => p.result.tools);
+    assert.ok(hostedTools.every((tool) => tool.securitySchemes?.[0]?.type === 'oauth2' && tool._meta?.securitySchemes));
+    assert.deepEqual(
+      hostedTools.filter((tool) => tool.annotations.openWorldHint).map((tool) => tool.name).sort(),
+      ['export_send', 'organization_member_add', 'project_member_add', 'team_member_add']
+    );
+
     const resources = await call(5, 'resources/list', {});
     assert.equal(resources.result.resources.length, 8);
     const widget = await call(6, 'resources/read', { uri: 'ui://timesheet/TimerWidget.html' });
     assert.equal(widget.result.contents[0].mimeType, 'text/html;profile=mcp-app');
     assert.ok(widget.result.contents[0]._meta.ui.csp);
+    // ChatGPT's widget origin; ui.domain would stop Claude from rendering the widget
+    assert.equal(widget.result.contents[0]._meta['openai/widgetDomain'], 'https://mcp.timesheet.io');
+    assert.equal(widget.result.contents[0]._meta.ui.domain, undefined);
 
     const unknownResource = await call(7, 'resources/read', { uri: 'ui://timesheet/Nope.html' });
     assert.equal(unknownResource.error.code, -32602);

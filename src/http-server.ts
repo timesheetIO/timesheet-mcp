@@ -141,6 +141,19 @@ app.get('/.well-known/openid-configuration', async (req, res) => {
   await sendProxiedDocument(res, openIdConfiguration);
 });
 
+/**
+ * Domain verification for the ChatGPT plugin directory: the token from the OpenAI portal, exactly
+ * as given, in plain text. Not found until OPENAI_APPS_CHALLENGE is set.
+ */
+app.get('/.well-known/openai-apps-challenge', (req, res) => {
+  const token = process.env.OPENAI_APPS_CHALLENGE?.trim();
+  if (!token) {
+    res.status(404).end();
+    return;
+  }
+  res.type('text/plain').send(token);
+});
+
 // ============================================================================
 // MCP Endpoint with OAuth 2.1 Token Support
 // ============================================================================

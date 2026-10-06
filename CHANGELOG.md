@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `openWorldHint` is `false` on every tool that stays in the user's own Timesheet account. Only
+  `export_send` and the three `*_member_add` tools, which email any address, keep `true`.
+- `absence_reject`, `absence_cancel`, `contract_suspend` and `contract_terminate` are marked
+  destructive.
+- The hosted endpoint's tools declare OAuth in `securitySchemes`, with a copy in `_meta`.
+- Widget resources name `https://mcp.timesheet.io` as their ChatGPT widget domain
+  (`openai/widgetDomain`).
+
+### Added
+- `/.well-known/openai-apps-challenge` serves the `OPENAI_APPS_CHALLENGE` token for the ChatGPT
+  plugin directory's domain check.
+
+### Fixed
+- A feature the user's plan lacks links to the plans page, `https://timesheet.io/en/pricing`. The
+  old link, `https://timesheet.io/subscription/edit`, was a 404. The result's `upgradeUrl` is now
+  `plansUrl`.
+
 ## [2.0.2] - 2026-09-27
 
 ### Fixed

@@ -89,6 +89,7 @@ describe('widget resources', () => {
           csp: { connectDomains: [], resourceDomains: ['https://assets.claude.ai'] },
           prefersBorder: false,
         },
+        'openai/widgetDomain': 'https://mcp.timesheet.io',
         'openai/widgetDescription': expect.any(String),
       });
     }

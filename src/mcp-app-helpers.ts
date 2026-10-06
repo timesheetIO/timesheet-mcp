@@ -4,7 +4,7 @@
  *
  * Where each piece of MCP Apps metadata lives:
  * - Tool descriptors: `_meta.ui.resourceUri` + `visibility`, plus ChatGPT's invoking/invoked status text
- * - Resources (list and read): `_meta.ui.csp` + `prefersBorder`, plus ChatGPT's widget description
+ * - Resources (list and read): `_meta.ui.csp` + `prefersBorder`, plus ChatGPT's widget domain and description
  * - Tool results: only data the widget needs and the model does not, under `_meta["timesheet/..."]`
  */
 
@@ -88,6 +88,8 @@ export function parseWidgetUri(uri: string): WidgetName | null {
 /**
  * `_meta` for a widget resource, on resources/list entries and resources/read contents alike.
  * The resource domain lets the widget load the fonts Claude injects as host styles.
+ * ChatGPT's directory needs a dedicated widget origin. It goes in the OpenAI key, not `ui.domain`:
+ * Claude accepts `ui.domain` only as its own hash of the connector URL and won't render otherwise.
  */
 export function getWidgetResourceMeta(name: WidgetName) {
   return {
@@ -95,6 +97,7 @@ export function getWidgetResourceMeta(name: WidgetName) {
       csp: { connectDomains: [] as string[], resourceDomains: ['https://assets.claude.ai'] },
       prefersBorder: false,
     },
+    'openai/widgetDomain': 'https://mcp.timesheet.io',
     'openai/widgetDescription': getStaticWidgetDescription(name),
   };
 }

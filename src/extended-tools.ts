@@ -71,9 +71,12 @@ async function absenceResult(
   return formatAbsenceResultResponse(text, action, toAbsenceCard(absence, type, organizationId), legacy);
 }
 
-const READ_ANNOT = { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
-const WRITE_ANNOT = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
-const DESTRUCT_ANNOT = { readOnlyHint: false, destructiveHint: true, openWorldHint: true };
+// openWorldHint stays false for tools confined to the user's own Timesheet account, as ChatGPT's
+// review asks; only tools that reach any email address, such as an invite, set it.
+const READ_ANNOT = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
+const WRITE_ANNOT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+const DESTRUCT_ANNOT = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
+const INVITE_ANNOT = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
 
 /**
  * Convert "snake_case_name" → "Snake Case Name", reordering verb-suffixes to
@@ -333,7 +336,7 @@ add(
   'Reject a pending absence with a reason.',
   { organizationId: STR, id: STR, reason: STR },
   ['organizationId', 'id', 'reason'],
-  WRITE_ANNOT,
+  DESTRUCT_ANNOT,
   async (client, args) => {
     const a = await client.absences.reject(args.organizationId, args.id, { reason: args.reason });
     return absenceResult(client, args.organizationId, a, 'rejected',
@@ -346,7 +349,7 @@ add(
   'Cancel an absence with a reason.',
   { organizationId: STR, id: STR, reason: STR },
   ['organizationId', 'id', 'reason'],
-  WRITE_ANNOT,
+  DESTRUCT_ANNOT,
   async (client, args) => {
     const a = await client.absences.cancel(args.organizationId, args.id, { reason: args.reason });
     return absenceResult(client, args.organizationId, a, 'cancelled',
@@ -548,7 +551,7 @@ for (const action of ['activate', 'suspend', 'reactivate', 'terminate'] as const
     `${action.charAt(0).toUpperCase()}${action.slice(1)} a contract.`,
     { organizationId: STR, id: STR },
     ['organizationId', 'id'],
-    WRITE_ANNOT,
+    action === 'suspend' || action === 'terminate' ? DESTRUCT_ANNOT : WRITE_ANNOT,
     async (client, args) => {
       const c = await client.contracts[action](args.organizationId, args.id);
       return textOk(`Contract ${c.id} ${action}d (status: ${c.status ?? '-'}).`, { id: c.id, status: c.status });
@@ -652,7 +655,7 @@ add(
     billing: BOOL,
   },
   ['organizationId', 'email'],
-  WRITE_ANNOT,
+  INVITE_ANNOT,
   async (client, args) => {
     const { organizationId, ...data } = args;
     const m = await client.organizations.addMember(organizationId, data);
@@ -734,7 +737,7 @@ add(
     role: describe('Permission role (owner, manager, member)'),
   },
   ['teamId', 'email'],
-  WRITE_ANNOT,
+  INVITE_ANNOT,
   async (client, args) => {
     const { teamId, role, ...data } = args;
     const m = await client.teams.addMember(teamId, {
@@ -848,7 +851,7 @@ add(
     role: describe('Permission role (owner, manager, member)'),
   },
   ['projectId'],
-  WRITE_ANNOT,
+  INVITE_ANNOT,
   async (client, args) => {
     const { projectId, role, ...data } = args;
     if (!data.email && !data.userId) {

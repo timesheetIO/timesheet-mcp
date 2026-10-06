@@ -56,8 +56,21 @@ export interface TimesheetMCPServerOptions {
   hosted?: boolean;
 }
 
+/** Public page that describes the plans, named when the user's plan lacks a feature. */
+const PLANS_URL = 'https://timesheet.io/en/pricing';
+
+/**
+ * How the tools of the HTTP endpoint sign in. ChatGPT reads this per tool; the copy in `_meta` is
+ * for hosts that only read that.
+ */
+const HOSTED_SECURITY_SCHEMES = [{ type: 'oauth2', scopes: ['openid', 'profile'] }];
+
 /** The tools of the HTTP endpoint: everything except auth_configure, see TimesheetMCPServerOptions. */
-const HOSTED_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'auth_configure');
+const HOSTED_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'auth_configure').map((tool) => ({
+  ...tool,
+  securitySchemes: HOSTED_SECURITY_SCHEMES,
+  _meta: { ...tool._meta, securitySchemes: HOSTED_SECURITY_SCHEMES },
+}));
 
 export class TimesheetMCPServer {
   private server: Server;
@@ -1599,7 +1612,8 @@ export class TimesheetMCPServer {
 
   private handleApiError(error: any) {
     // Tier-gate rejection from the backend (402). Surface the required tier so
-    // the AI client can tell the user exactly what to upgrade.
+    // the AI client can tell the user what their plan is missing. The link is the
+    // plans page: ChatGPT's directory forbids links that start an upgrade.
     if (error instanceof TimesheetApiError && error.statusCode === 402) {
       let body: { error?: string; required?: string; current?: string } = {};
       if (error.responseBody) {
@@ -1616,19 +1630,19 @@ export class TimesheetMCPServer {
       let text: string;
       switch (code) {
         case 'no_subscription':
-          text = 'This action requires an active Timesheet subscription. Ask the user to subscribe at https://timesheet.io/subscription/edit.';
+          text = `This action is not available without an active Timesheet subscription. The plans are described at ${PLANS_URL}.`;
           break;
         case 'subscription_expired':
-          text = `The user's${current ? ' ' + current : ''} Timesheet subscription has expired. Ask them to reactivate at https://timesheet.io/subscription/edit.`;
+          text = `The user's${current ? ' ' + current : ''} Timesheet subscription has expired, so this action is not available. The plans are described at ${PLANS_URL}.`;
           break;
         case 'tier_insufficient':
         default:
           if (required && current) {
-            text = `This action requires the ${required} tier. The user is on ${current}. Ask them to upgrade at https://timesheet.io/subscription/edit.`;
+            text = `This action requires the ${required} tier and is not available on the user's ${current} plan. The plans are described at ${PLANS_URL}.`;
           } else if (required) {
-            text = `This action requires the ${required} tier. Ask the user to upgrade at https://timesheet.io/subscription/edit.`;
+            text = `This action requires the ${required} tier and is not available on the user's current plan. The plans are described at ${PLANS_URL}.`;
           } else {
-            text = 'This action requires a higher Timesheet subscription tier. Ask the user to upgrade at https://timesheet.io/subscription/edit.';
+            text = `This action is not available on the user's current Timesheet plan. The plans are described at ${PLANS_URL}.`;
           }
       }
 
@@ -1638,7 +1652,7 @@ export class TimesheetMCPServer {
           error: code,
           required,
           current,
-          upgradeUrl: 'https://timesheet.io/subscription/edit',
+          plansUrl: PLANS_URL,
         },
         isError: true,
       };

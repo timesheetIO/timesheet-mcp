@@ -31,3 +31,7 @@ spec:
               value: "/"
             - name: MCP_SERVER_URL
               value: "https://mcp.timesheet.io"
+            # Token from the OpenAI plugin portal's "Verify Domain" step, served at
+            # /.well-known/openai-apps-challenge. It is public by design. Empty means 404.
+            - name: OPENAI_APPS_CHALLENGE
+              value: ""
