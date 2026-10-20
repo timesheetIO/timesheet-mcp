@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Changed
+- Built on MCP SDK 2.3.1 (`@modelcontextprotocol/server` and `@modelcontextprotocol/client` 2.3.1,
+  `@modelcontextprotocol/node` 2.1.1), up from 2.1.0. The server already builds one instance per
+  request and per stdio connection, which 2.3.0 requires.
 - `openWorldHint` is `false` on every tool that stays in the user's own Timesheet account. Only
   `export_send` and the three `*_member_add` tools, which email any address, keep `true`.
 - `absence_reject`, `absence_cancel`, `contract_suspend` and `contract_terminate` are marked
