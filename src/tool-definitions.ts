@@ -203,7 +203,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
     outputSchema: TIMER_OUTPUT_SCHEMA,
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: false,
     },
   },
@@ -613,7 +613,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
     },
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: false,
     },
   },
@@ -968,7 +968,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
     },
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: false,
     },
   },
@@ -1831,7 +1831,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
     },
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: false,
     },
   },

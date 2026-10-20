@@ -76,6 +76,9 @@ async function absenceResult(
 const READ_ANNOT = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
 const WRITE_ANNOT = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
 const DESTRUCT_ANNOT = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
+// An update overwrites existing values, which the MCP spec counts as destructive (only additive
+// changes are not). ChatGPT's tool scan flags updates marked otherwise.
+const UPDATE_ANNOT = DESTRUCT_ANNOT;
 const INVITE_ANNOT = { readOnlyHint: false, destructiveHint: false, openWorldHint: true };
 
 /**
@@ -91,7 +94,7 @@ function humanTitle(name: string): string {
     'list', 'get', 'create', 'update', 'delete',
     'add', 'remove', 'approve', 'reject', 'cancel',
     'activate', 'suspend', 'reactivate', 'terminate',
-    'close', 'reopen', 'refund',
+    'close', 'reopen',
   ]);
   const parts = name.split('_');
   const last = parts[parts.length - 1];
@@ -138,6 +141,8 @@ interface AddOptions {
   idempotent?: boolean;
   /** Override the default output schema. Pass null to omit. */
   outputSchema?: Record<string, unknown> | null;
+  /** Override the title derived from the name. */
+  title?: string;
 }
 
 /** Strip undefined keys so the SDK doesn't serialize them. */
@@ -163,7 +168,6 @@ const IDEMPOTENT_SUFFIXES = new Set([
   'approve', 'reject', 'cancel',
   'activate', 'suspend', 'reactivate', 'terminate',
   'close', 'reopen',
-  'refund',
 ]);
 
 function add(
@@ -175,7 +179,7 @@ function add(
   handler: ToolHandler,
   opts: AddOptions = {}
 ) {
-  const title = humanTitle(name);
+  const title = opts.title ?? humanTitle(name);
   const readOnly = annotations.readOnlyHint === true;
   const suffix = name.split('_').pop()!;
   const idempotent = opts.idempotent ?? IDEMPOTENT_SUFFIXES.has(suffix);
@@ -297,7 +301,7 @@ add(
     fileUri: STR,
   },
   ['organizationId', 'id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const absence = await client.absences.update(organizationId, id, compact(data));
@@ -424,7 +428,7 @@ add(
     minNoticeDays: NUM,
   },
   ['organizationId', 'id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const t = await client.absenceTypes.update(organizationId, id, compact(data));
@@ -525,7 +529,7 @@ add(
     vacationDaysAnnual: NUM,
   },
   ['organizationId', 'id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const c = await client.contracts.update(organizationId, id, compact(data));
@@ -600,7 +604,7 @@ add(
   'Update an organization.',
   { id: STR, name: STR, description: STR, color: NUM, aiChatEnabled: BOOL },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const org = await client.organizations.update(id, compact(data));
@@ -668,7 +672,7 @@ add(
   "Update an organization member's permissions.",
   { organizationId: STR, memberId: STR, admin: BOOL, invoicing: BOOL, billing: BOOL },
   ['organizationId', 'memberId'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { organizationId, memberId, ...data } = args;
     const m = await client.organizations.updateMember(organizationId, memberId, compact(data));
@@ -762,7 +766,7 @@ add(
     autoJoinProjects: BOOL,
   },
   ['teamId', 'memberId'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { teamId, memberId, role, ...data } = args;
     const m = await client.teams.updateMember(teamId, memberId, {
@@ -871,7 +875,7 @@ add(
   "Update a project member's role.",
   { projectId: STR, memberId: STR, role: STR },
   ['projectId', 'memberId', 'role'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const m = await client.projects.updateMember(args.projectId, args.memberId, {
       permission: { role: args.role },
@@ -960,7 +964,7 @@ add(
     estimatedMinutes: NUM,
   },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, status, ...rest } = args;
     const data: Record<string, unknown> = { ...compact(rest) };
@@ -1066,7 +1070,7 @@ add(
   'Update a rate.',
   { id: STR, title: STR, factor: STR, extra: STR, enabled: BOOL, archived: BOOL },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const r = await client.rates.update(id, compact(data));
@@ -1135,7 +1139,7 @@ add(
   'Update a tag.',
   { id: STR, name: STR, color: NUM, archived: BOOL },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const t = await client.tags.update(id, compact(data));
@@ -1211,7 +1215,7 @@ add(
   'Update a note.',
   { id: STR, text: STR, dateTime: STR, uri: STR, driveId: STR },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const n = await client.notes.update(id, compact(data));
@@ -1299,7 +1303,7 @@ add(
     fileUri: STR,
   },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const e = await client.expenses.update(id, compact(data));
@@ -1320,15 +1324,16 @@ add(
 );
 
 add(
-  'expense_refund',
-  'Mark an expense as refunded (or not).',
+  'expense_set_refunded',
+  'Set whether an expense has been refunded (reimbursed) to the user. This only changes the status flag on the expense in Timesheet; it does not send or request any payment.',
   { id: STR, refunded: BOOL },
   ['id', 'refunded'],
   WRITE_ANNOT,
   async (client, args) => {
     const e = await client.expenses.updateStatus({ id: args.id, refunded: args.refunded });
     return textOk(`Expense ${e.id} refunded=${args.refunded}.`, { id: e.id, refunded: args.refunded });
-  }
+  },
+  { title: 'Set Expense Refunded Status', idempotent: true }
 );
 
 add(
@@ -1401,7 +1406,7 @@ add(
   'Update a pause.',
   { id: STR, startDateTime: STR, endDateTime: STR, description: STR },
   ['id'],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const { id, ...data } = args;
     const p = await client.pauses.update(id, compact(data));
@@ -1438,7 +1443,7 @@ add(
   "Update the current user's profile.",
   { email: STR, firstname: STR, lastname: STR, imageUrl: STR, newsletter: BOOL },
   [],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const p = await client.profile.updateProfile(compact(args));
     return textOk('Profile updated.', { email: p.email });
@@ -1470,7 +1475,7 @@ add(
     defaultBreakDuration: NUM,
   },
   [],
-  WRITE_ANNOT,
+  UPDATE_ANNOT,
   async (client, args) => {
     const s = await client.settings.update(compact(args));
     return textOk('Settings updated.', { theme: s.theme, language: s.language });

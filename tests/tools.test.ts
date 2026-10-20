@@ -1,4 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
+import { TOOL_DEFINITIONS } from '../src/tool-definitions.js';
 
 describe('Tool Definitions', () => {
   const toolDefinitions = [
@@ -77,5 +78,19 @@ describe('Tool Definitions', () => {
   test('destructive tools should have appropriate annotations', () => {
     const destructiveTools = ['project_delete', 'task_delete'];
     expect(destructiveTools).toHaveLength(2);
+  });
+});
+
+describe('Tool annotations', () => {
+  // TOOL_DEFINITIONS is the served list, extended tools included.
+  const all = TOOL_DEFINITIONS as unknown as Array<{
+    name: string;
+    annotations?: { destructiveHint?: boolean };
+  }>;
+
+  test('every update and delete tool is marked destructive, as updates overwrite values', () => {
+    const changing = all.filter((t) => /_(update|delete)$/.test(t.name));
+    expect(changing.length).toBeGreaterThan(30);
+    expect(changing.filter((t) => t.annotations?.destructiveHint !== true).map((t) => t.name)).toEqual([]);
   });
 });

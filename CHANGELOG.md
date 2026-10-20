@@ -7,6 +7,10 @@
   `export_send` and the three `*_member_add` tools, which email any address, keep `true`.
 - `absence_reject`, `absence_cancel`, `contract_suspend` and `contract_terminate` are marked
   destructive.
+- All 19 `*_update` tools are marked destructive: an update overwrites existing values, which the
+  MCP spec does not count as additive. Clients may ask for confirmation before an update.
+- `expense_refund` is renamed `expense_set_refunded` (breaking for callers that use the old name).
+  It only sets the expense's refunded flag; the old name read as if it paid out a refund.
 - The hosted endpoint's tools declare OAuth in `securitySchemes`, with a copy in `_meta`.
 - The protected resource metadata and `securitySchemes` add the `email` scope to `openid` and
   `profile`, so ChatGPT can apply workspace domain restrictions with the verified address from
