@@ -34,4 +34,4 @@ spec:
             # Token from the OpenAI plugin portal's "Verify Domain" step, served at
             # /.well-known/openai-apps-challenge. It is public by design. Empty means 404.
             - name: OPENAI_APPS_CHALLENGE
-              value: ""
+              value: "BVqAkp2rQ-3rA6f0zOvWGnG3cLrS-xTzbj1w8JPAN3Q"

@@ -8,6 +8,9 @@
 - `absence_reject`, `absence_cancel`, `contract_suspend` and `contract_terminate` are marked
   destructive.
 - The hosted endpoint's tools declare OAuth in `securitySchemes`, with a copy in `_meta`.
+- The protected resource metadata and `securitySchemes` add the `email` scope to `openid` and
+  `profile`, so ChatGPT can apply workspace domain restrictions with the verified address from
+  `/oauth2/userinfo`. The authorization server ignores scopes, so existing sign-ins keep working.
 - Widget resources name `https://mcp.timesheet.io` as their ChatGPT widget domain
   (`openai/widgetDomain`).
 

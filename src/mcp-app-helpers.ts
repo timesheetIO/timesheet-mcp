@@ -785,8 +785,9 @@ export function getProtectedResourceMetadata() {
     resource: mcpServerUrl,
     // Authorization servers that can issue tokens for this resource
     authorization_servers: [apiBaseUrl],
-    // Supported scopes (optional - Timesheet uses data-level permissions)
-    scopes_supported: ['openid', 'profile'],
+    // Supported scopes (optional - Timesheet uses data-level permissions). ChatGPT needs `email`
+    // (the verified address from /oauth2/userinfo) to apply workspace domain restrictions.
+    scopes_supported: ['openid', 'profile', 'email'],
     // How Bearer tokens can be transmitted
     bearer_methods_supported: ['header'],
     // Documentation link

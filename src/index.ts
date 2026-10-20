@@ -63,7 +63,7 @@ const PLANS_URL = 'https://timesheet.io/en/pricing';
  * How the tools of the HTTP endpoint sign in. ChatGPT reads this per tool; the copy in `_meta` is
  * for hosts that only read that.
  */
-const HOSTED_SECURITY_SCHEMES = [{ type: 'oauth2', scopes: ['openid', 'profile'] }];
+const HOSTED_SECURITY_SCHEMES = [{ type: 'oauth2', scopes: ['openid', 'profile', 'email'] }];
 
 /** The tools of the HTTP endpoint: everything except auth_configure, see TimesheetMCPServerOptions. */
 const HOSTED_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'auth_configure').map((tool) => ({
