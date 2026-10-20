@@ -29,7 +29,7 @@
     "typecheck:web": "tsc -p web/tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "test:e2e": "node --test --test-concurrency=1 tests/e2e/*.test.mjs",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "prepublishOnly": "npm run build",

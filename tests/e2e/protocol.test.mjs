@@ -101,7 +101,7 @@ describe('stdio', () => {
     const messages = lines.map((line) => JSON.parse(line)); // throws on any non-JSON stdout
     const byId = Object.fromEntries(messages.map((m) => [m.id, m]));
     assert.equal(byId[1].result.protocolVersion, LEGACY_VERSION);
-    assert.deepEqual(byId[1].result.capabilities.extensions, { 'io.modelcontextprotocol/ui': {} });
+    assert.deepEqual(byId[1].result.capabilities.extensions, { 'io.modelcontextprotocol/ui': {}, 'io.modelcontextprotocol/events': {} });
     assert.equal(byId[2].result.tools.length, 50);
     assert.equal(byId[2].result.nextCursor, '50');
     assert.equal(byId[3].result.tools.length, 50);

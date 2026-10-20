@@ -6,6 +6,7 @@ import {
   ResourceNotFoundError,
   type CallToolResult,
   type ListToolsResult,
+  type ServerCapabilities,
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
@@ -35,6 +36,7 @@ import {
   resolveTokenAuthOptions,
 } from './mcp-app-helpers.js';
 import { dispatchExtendedTool } from './extended-tools.js';
+import { EVENTS_EXTENSION_ID, registerEventHandlers } from './events.js';
 import { TOOL_DEFINITIONS, TOOL_OUTPUT_SCHEMAS } from './tool-definitions.js';
 import { computeStatistics, fetchAllPages, STATISTICS_PAGE_SIZE, validateStatisticsRange } from './statistics.js';
 
@@ -95,17 +97,22 @@ export class TimesheetMCPServer {
         capabilities: {
           tools: {},
           resources: {},
-          // MCP Apps: tool results can render as the ui:// widgets listed under resources
+          // MCP Apps: tool results can render as the ui:// widgets listed under resources.
+          // MCP Events (SEP-3415): events/list, events/subscribe and events/unsubscribe.
           extensions: {
             [EXTENSION_ID]: {},
+            [EVENTS_EXTENSION_ID]: {},
           },
-        },
+          // MCP Events as the earlier design sketch declares it, which ChatGPT reads
+          events: {},
+        } as ServerCapabilities,
         // Protocol 2026-07-28 only: how long clients may cache the static lists and widgets
         cacheHints: CACHE_HINTS,
       }
     );
 
     this.setupHandlers();
+    registerEventHandlers(this.server, () => this.getClient());
   }
 
   /**

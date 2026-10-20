@@ -27,6 +27,13 @@
   are for the user and the widgets only (`visibility: ["app"]`); other hosts ignore the entrypoints.
 - Timer results say when the server read the timer (`_meta["timesheet/observedAt"]`), so the
   widgets can tell which copy of the timer is the latest.
+- MCP Events (draft SEP-3415; ChatGPT Work chats): `events/list`, `events/subscribe` and
+  `events/unsubscribe`, advertised as `capabilities.events` (the design sketch ChatGPT reads) and
+  `capabilities.extensions["io.modelcontextprotocol/events"]`. Ten events (`timer.start`,
+  `timer.stop`, `timer.pause`, `timer.resume`, `task.create`, `task.update`, `project.create`,
+  `project.update`, `todo.create`, `todo.update`), webhook delivery only, no arguments, no replay.
+  The backend stores, verifies and delivers the subscriptions (`POST /v1/webhooks/subscribe`,
+  `/unsubscribe`). Errors use the sketch's codes ChatGPT implements (-32011 to -32015).
 
 ### Fixed
 - A timer card in an earlier message no longer counts on after its entry ended. The timer widgets
