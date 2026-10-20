@@ -17,12 +17,24 @@
   `/oauth2/userinfo`. The authorization server ignores scopes, so existing sign-ins keep working.
 - Widget resources name `https://mcp.timesheet.io` as their ChatGPT widget domain
   (`openai/widgetDomain`).
+- The timer widgets show hours and minutes (`1:24`), like the web app, and update once a minute.
 
 ### Added
 - `/.well-known/openai-apps-challenge` serves the `OPENAI_APPS_CHALLENGE` token for the ChatGPT
   plugin directory's domain check.
+- The live timer opens from ChatGPT's sidebar (`timer_sidebar`, "Timesheet IO") and as a tab beside
+  a conversation (`timer_panel`, "Timer"), through OpenAI's MCP Extensions entrypoints. Both tools
+  are for the user and the widgets only (`visibility: ["app"]`); other hosts ignore the entrypoints.
+- Timer results say when the server read the timer (`_meta["timesheet/observedAt"]`), so the
+  widgets can tell which copy of the timer is the latest.
 
 ### Fixed
+- A timer card in an earlier message no longer counts on after its entry ended. The timer widgets
+  of a conversation and the sidebar share the latest timer in the browser: a card follows the entry
+  it showed running and stops once that entry is paused or stopped elsewhere. A card shown again
+  with a copy over a minute old (a reopened conversation, the tab back in view) reads the timer
+  once through `timer_panel`, for all cards on the page, which also catches a timer stopped in
+  another app.
 - A feature the user's plan lacks links to the plans page, `https://timesheet.io/en/pricing`. The
   old link, `https://timesheet.io/subscription/edit`, was a 404. The result's `upgradeUrl` is now
   `plansUrl`.

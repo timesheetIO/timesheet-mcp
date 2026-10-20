@@ -13,6 +13,7 @@ import {useCallback, useMemo} from 'react';
 import {useCallTool} from '../hooks';
 import type {Timer, Task, Project, Team} from '@timesheet/sdk';
 import type {TimerTask} from './types';
+import {publishSnapshot, snapshotFromResult, STOPPED_TASK_META_KEY, type TimerSnapshot} from './timer-sync';
 
 /**
  * Timer Operations
@@ -62,71 +63,91 @@ export interface TimerStopResponse {
   stoppedTask?: TimerTask;
 }
 
-/** UI-only _meta key of timer_stop results */
-export const STOPPED_TASK_META_KEY = 'timesheet/stoppedTask';
+export {STOPPED_TASK_META_KEY};
 
 export function useTimerOperations() {
   const callTool = useCallTool();
 
-  const getStatus = useCallback(async (): Promise<TimerResponse> => {
-    const result = await callTool('timer_status', {});
-    return result?.structuredContent;
-  }, [callTool]);
-
-  const start = useCallback(
-    async (params: TimerStartParams): Promise<TimerResponse> => {
-      const result = await callTool('timer_start', params);
-      return result?.structuredContent;
+  // Every timer result is shared with the other widgets: the latest one wins everywhere
+  const callTimerTool = useCallback(
+    async (toolName: string, input: unknown) => {
+      const result = await callTool(toolName, input);
+      publishSnapshot(snapshotFromResult(result));
+      return result;
     },
     [callTool]
   );
 
+  const getStatus = useCallback(async (): Promise<TimerResponse> => {
+    const result = await callTimerTool('timer_status', {});
+    return result?.structuredContent;
+  }, [callTimerTool]);
+
+  /**
+   * The live timer, read through the app-only timer_panel tool. Given the entry a widget shows
+   * as running, the result also reports how that entry was saved once the timer no longer runs it.
+   */
+  const live = useCallback(
+    async (taskId?: string): Promise<TimerSnapshot | null> =>
+      snapshotFromResult(await callTimerTool('timer_panel', taskId ? {taskId} : {})),
+    [callTimerTool]
+  );
+
+  const start = useCallback(
+    async (params: TimerStartParams): Promise<TimerResponse> => {
+      const result = await callTimerTool('timer_start', params);
+      return result?.structuredContent;
+    },
+    [callTimerTool]
+  );
+
   const stop = useCallback(
     async (params?: TimerStopParams): Promise<TimerStopResponse> => {
-      const result = await callTool('timer_stop', params || {});
+      const result = await callTimerTool('timer_stop', params || {});
       return {
         timer: result?.structuredContent,
         stoppedTask: result?._meta?.[STOPPED_TASK_META_KEY] ?? undefined,
       };
     },
-    [callTool]
+    [callTimerTool]
   );
 
   const pause = useCallback(
     async (params?: TimerPauseParams): Promise<TimerResponse> => {
-      const result = await callTool('timer_pause', params || {});
+      const result = await callTimerTool('timer_pause', params || {});
       return result?.structuredContent;
     },
-    [callTool]
+    [callTimerTool]
   );
 
   const resume = useCallback(
     async (params?: TimerResumeParams): Promise<TimerResponse> => {
-      const result = await callTool('timer_resume', params || {});
+      const result = await callTimerTool('timer_resume', params || {});
       return result?.structuredContent;
     },
-    [callTool]
+    [callTimerTool]
   );
 
   const update = useCallback(
     async (params: TimerUpdateParams): Promise<TimerResponse> => {
-      const result = await callTool('timer_update', params);
+      const result = await callTimerTool('timer_update', params);
       return result?.structuredContent;
     },
-    [callTool]
+    [callTimerTool]
   );
 
   // Memoize the return object to prevent infinite loops
   return useMemo(
     () => ({
       getStatus,
+      live,
       start,
       stop,
       pause,
       resume,
       update,
     }),
-    [getStatus, start, stop, pause, resume, update]
+    [getStatus, live, start, stop, pause, resume, update]
   );
 }
 

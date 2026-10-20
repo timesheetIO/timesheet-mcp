@@ -15,6 +15,7 @@ import {
   idList,
   intToHexColor,
   MAX_ATTACHED_PDF_BYTES,
+  OBSERVED_AT_META_KEY,
   listWidgetResources,
   parseWidgetUri,
   PROFILE_META_KEY,
@@ -44,6 +45,7 @@ describe('tool descriptors link their widget', () => {
     const expected: Record<string, string> = {
       timer_start: 'TimerWidget', timer_stop: 'TimerWidget', timer_pause: 'TimerWidget',
       timer_resume: 'TimerWidget', timer_status: 'TimerWidget', timer_update: 'TimerWidget',
+      timer_panel: 'TimerWidget', timer_sidebar: 'TimerWidget',
       project_list: 'ProjectList', project_get: 'ProjectCard',
       task_list: 'TaskList', task_get: 'TaskCard', task_create: 'TaskCard', task_update: 'TaskCard',
       statistics_get: 'Statistics', export_template_list: 'ExportWidget',
@@ -58,13 +60,34 @@ describe('tool descriptors link their widget', () => {
     for (const name of Object.keys(TOOL_WIDGET_LINKS)) {
       const meta = getToolUiMeta(name)!;
       expect(meta.ui.resourceUri).toBe(`ui://timesheet/${TOOL_WIDGET_LINKS[name].widget}.html`);
-      expect(meta.ui.visibility).toEqual(['model', 'app']);
+      expect(meta.ui.visibility).toEqual(TOOL_WIDGET_LINKS[name].entrypoint ? ['app'] : ['model', 'app']);
       for (const status of [meta['openai/toolInvocation/invoking'], meta['openai/toolInvocation/invoked']]) {
         expect(status.length).toBeGreaterThan(0);
         expect(status.length).toBeLessThanOrEqual(64);
         expect(status).not.toMatch(/—/);
       }
     }
+  });
+
+  // OpenAI MCP Extensions: one entrypoint per tool, titled, read-only, accepting {} (docs/spec.md)
+  test('the sidebar timer opens from ChatGPT\'s sidebar and beside the conversation, for the user only', () => {
+    const entrypoints = Object.entries(TOOL_WIDGET_LINKS).filter(([, link]) => link.entrypoint);
+    expect(entrypoints.map(([name, link]) => [name, link.entrypoint])).toEqual([
+      ['timer_panel', 'thread'],
+      ['timer_sidebar', 'global'],
+    ]);
+    for (const [name, link] of entrypoints) {
+      const tool = TOOL_DEFINITIONS.find((t) => t.name === name) as any;
+      expect(tool._meta['openai/ui']).toEqual({ entrypoints: [{ type: link.entrypoint }] });
+      expect(tool._meta.ui.visibility).toEqual(['app']);
+      expect(tool.title).toBeTruthy();
+      expect(tool.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+      expect(tool.inputSchema.required).toBeUndefined();
+      expect(tool.icons.map((icon: any) => icon.theme)).toEqual(['light', 'dark']);
+      expect(tool.icons[0].src).toMatch(/^data:image\/svg\+xml,/);
+    }
+    // Other tools stay out of ChatGPT's entrypoints
+    expect(TOOL_DEFINITIONS.filter((t: any) => t._meta?.['openai/ui']).map((t) => t.name)).toEqual(['timer_panel', 'timer_sidebar']);
   });
 
   test('applyToolUiMeta stamps linked tools, keeps other _meta and leaves plain tools alone', () => {
@@ -345,6 +368,16 @@ describe('timer text for the model', () => {
     expect(text).toContain('Project: Website redesign');
     expect(text).toContain('Description: Header review');
     expect(text).toContain('Duration: 1h 25m');
+  });
+});
+
+describe('timer results are dated, so widgets can tell the latest copy', () => {
+  test('every timer result says when the server read the timer', () => {
+    const before = Date.now();
+    const result = formatTimerResponse({ status: 'stopped' }, PROFILE, SETTINGS, 'timer_status') as any;
+    expect(result._meta[OBSERVED_AT_META_KEY]).toBeGreaterThanOrEqual(before);
+    expect(result._meta[OBSERVED_AT_META_KEY]).toBeLessThanOrEqual(Date.now());
+    expect(result.structuredContent[OBSERVED_AT_META_KEY]).toBeUndefined();
   });
 });
 

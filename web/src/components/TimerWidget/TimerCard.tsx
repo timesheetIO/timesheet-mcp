@@ -42,7 +42,7 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
   const {t} = useTranslation();
   const locale = useLocale();
   const timeZone = useTimeZone();
-  const {timer, stoppedTask, settings, applyTimer} = useData();
+  const {timer, stoppedTask, settings, applyTimer, endedElsewhere} = useData();
   const {navigate} = useViewRouter();
   const timerOps = useTimerOperations();
   const updateModelContext = useUpdateModelContext();
@@ -50,7 +50,8 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
   const [busy, setBusy] = useState<null | 'pause' | 'resume' | 'stop' | 'start'>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const status = timer?.status;
+  // An entry that ended elsewhere is no longer running, though the timer this card has says so
+  const status = endedElsewhere ? 'stopped' : timer?.status;
   const active = status === 'running' || status === 'paused';
   // A stopped timer has no task: the summary shows the entry the stop saved
   const task = active ? timer?.task : (stoppedTask ?? timer?.task);
@@ -138,11 +139,14 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
             {task.description || t('timerWidget.noDescription')}
           </p>
         </div>
-        <Clock
-          elapsedAt={elapsedAt}
-          running={status === 'running' || (status === 'paused' && !relative)}
-          className="text-[22px] sm:text-[26px] leading-none pt-1"
-        />
+        {/* How long an entry that ended elsewhere ran is unknown here */}
+        {!endedElsewhere && (
+          <Clock
+            elapsedAt={elapsedAt}
+            running={status === 'running' || (status === 'paused' && !relative)}
+            className="text-[22px] sm:text-[26px] leading-none pt-1"
+          />
+        )}
       </div>
 
       <div className="flex items-center flex-wrap gap-x-3 gap-y-2 mt-3 pl-0 min-[480px]:pl-[60px] text-caption text-secondary">
@@ -163,7 +167,9 @@ export default function TimerCard({justStopped}: {justStopped?: boolean}) {
               ? t('timerWidget.runningSince', {time: started})
               : started && ended
                 ? `${started} - ${ended} · ${formatDuration(finishedSeconds, locale)}`
-                : null}
+                : endedElsewhere && started
+                  ? t('timerWidget.startedAt', {time: started})
+                  : null}
         </span>
       </div>
 

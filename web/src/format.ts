@@ -47,11 +47,10 @@ export function formatDuration(totalSeconds: number, locale?: string): string {
 /** Hours as a decimal number (38.5) to seconds */
 export const hoursToSeconds = (hours: number) => Math.round((hours || 0) * 3600);
 
-/** "01:24:15" */
+/** "1:24": hours and minutes, the minutes rounded down, as the web app shows a running timer */
 export function formatClock(milliseconds: number): string {
-  const total = Math.max(0, Math.floor(milliseconds / 1000));
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(Math.floor(total / 3600))}:${pad(Math.floor(total / 60) % 60)}:${pad(total % 60)}`;
+  const totalMinutes = Math.max(0, Math.floor(milliseconds / 60000));
+  return `${Math.floor(totalMinutes / 60)}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
 
 /**

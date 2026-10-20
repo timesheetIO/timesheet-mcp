@@ -269,6 +269,9 @@ export class TimesheetMCPServer {
         return this.handleTimerStatus();
       case 'timer_update':
         return this.handleTimerUpdate(args);
+      case 'timer_panel':
+      case 'timer_sidebar':
+        return this.handleTimerLive(name, args);
 
       // Task item operations
       case 'task_add_note':
@@ -521,6 +524,31 @@ export class TimesheetMCPServer {
       ]);
       const timerData = this.formatCompleteTimerData(timer);
       return formatTimerResponse(timerData, userData.profile, userData.settings, 'timer_status');
+    } catch (error) {
+      return this.handleApiError(error);
+    }
+  }
+
+  /**
+   * The live timer for the sidebar entrypoints, and for widgets that refresh a timer they show.
+   * Given the entry a widget shows as running, a timer that no longer runs it also reports how it
+   * was saved; a failed lookup (the entry was deleted) only drops that report.
+   */
+  private async handleTimerLive(toolName: string, args: any) {
+    const client = this.getClient();
+    const taskId = typeof args?.taskId === 'string' && args.taskId ? args.taskId : undefined;
+
+    try {
+      const [timer, userData] = await Promise.all([
+        client.timer.get(),
+        this.getProfileAndSettings(),
+      ]);
+      const ended = taskId && timer.task?.id !== taskId
+        ? await client.tasks.get(taskId).catch(() => undefined)
+        : undefined;
+      const timerData = this.formatCompleteTimerData(timer);
+      return formatTimerResponse(timerData, userData.profile, userData.settings, toolName,
+        ended ? this.formatTimerTask(ended) : undefined);
     } catch (error) {
       return this.handleApiError(error);
     }

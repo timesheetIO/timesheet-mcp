@@ -244,6 +244,33 @@ test('the text of widget tools names the IDs a follow-up call needs', async () =
   }
 });
 
+// The timer in ChatGPT's sidebar, which the widgets also read to refresh a running card: the result
+// is dated, and given an entry the timer no longer runs, it reports how that entry was saved.
+test('timer_panel dates the timer and reports an entry the timer no longer runs', async () => {
+  const client = new Client({ name: 'timer-panel-check', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(baseUrl + '/'), { requestInit: { headers: { Authorization: `Bearer ${API_KEY}` } } })
+  );
+  try {
+    const before = Date.now();
+    const stillRunning = await client.callTool({ name: 'timer_panel', arguments: { taskId: TASK.id } });
+    assert.equal(stillRunning.isError, undefined);
+    assert.ok(stillRunning._meta['timesheet/observedAt'] >= before);
+    assert.equal(stillRunning._meta['timesheet/tool'], 'timer_panel');
+    assert.equal(stillRunning._meta['timesheet/stoppedTask'], undefined, 'the timer still runs that entry');
+
+    // The stub answers every task route with TASK, a finished entry
+    const ended = await client.callTool({ name: 'timer_panel', arguments: { taskId: 'an-earlier-entry' } });
+    assert.equal(ended._meta['timesheet/stoppedTask'].endDateTime, TASK.endDateTime);
+
+    const sidebar = await client.callTool({ name: 'timer_sidebar', arguments: {} });
+    assert.equal(sidebar._meta['timesheet/tool'], 'timer_sidebar');
+    assert.equal(sidebar.structuredContent.status, 'running');
+  } finally {
+    await client.close();
+  }
+});
+
 // The Claude directory lists each tool by annotations.title and flags a tool that doesn't say
 // whether it only reads or also changes data.
 test('every tool has the title and hints the Claude directory lists', async () => {

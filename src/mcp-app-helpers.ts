@@ -119,6 +119,11 @@ interface ToolWidgetLink {
   invoking: string;
   /** Status line once it finished (ChatGPT), at most 64 characters. */
   invoked: string;
+  /**
+   * ChatGPT entrypoint the user opens the widget from: `global` in the main sidebar, `thread` as
+   * a tab beside the conversation. Such a tool is for the user and the widgets, not the model.
+   */
+  entrypoint?: 'global' | 'thread';
 }
 
 /**
@@ -132,6 +137,8 @@ export const TOOL_WIDGET_LINKS: Record<string, ToolWidgetLink> = {
   timer_resume: { widget: 'TimerWidget', invoking: 'Resuming the timer', invoked: 'Timer resumed' },
   timer_status: { widget: 'TimerWidget', invoking: 'Checking the timer', invoked: 'Timer checked' },
   timer_update: { widget: 'TimerWidget', invoking: 'Updating the timer', invoked: 'Timer updated' },
+  timer_panel: { widget: 'TimerWidget', invoking: 'Opening the timer', invoked: 'Timer opened', entrypoint: 'thread' },
+  timer_sidebar: { widget: 'TimerWidget', invoking: 'Opening the timer', invoked: 'Timer opened', entrypoint: 'global' },
   project_list: { widget: 'ProjectList', invoking: 'Loading projects', invoked: 'Projects loaded' },
   project_get: { widget: 'ProjectCard', invoking: 'Loading the project', invoked: 'Project loaded' },
   task_list: { widget: 'TaskList', invoking: 'Loading time entries', invoked: 'Time entries loaded' },
@@ -160,12 +167,33 @@ export function getToolUiMeta(toolName: string) {
   return {
     ui: {
       resourceUri: getComponentResourceUri(link.widget),
-      visibility: ['model', 'app'],
+      visibility: link.entrypoint ? ['app'] : ['model', 'app'],
     },
+    // OpenAI MCP Extensions (github.com/openai/mcp-extensions docs/spec.md); other hosts ignore them
+    ...(link.entrypoint
+      ? { 'openai/ui': { entrypoints: [{ type: link.entrypoint }] }, 'openai/iconStyle': 'monochrome' }
+      : {}),
     'openai/toolInvocation/invoking': link.invoking,
     'openai/toolInvocation/invoked': link.invoked,
   };
 }
+
+/**
+ * Icon of the entrypoint tools: a clock drawn as one 1.33 px stroke on a 20 x 20 grid, as OpenAI's
+ * template for sidebar icons asks. ChatGPT tints it (`openai/iconStyle`); the themes are for hosts
+ * that show it as it is.
+ */
+function clockIcon(stroke: string) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" stroke="${stroke}"`
+    + ' stroke-width="1.33" stroke-linecap="round" stroke-linejoin="round">'
+    + '<circle cx="10" cy="10" r="7.33"/><path d="M10 6v4l2.67 1.67"/></svg>';
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+export const ENTRYPOINT_ICONS = [
+  { src: clockIcon('#27272a'), mimeType: 'image/svg+xml', sizes: ['any'], theme: 'light' },
+  { src: clockIcon('#f4f4f5'), mimeType: 'image/svg+xml', sizes: ['any'], theme: 'dark' },
+];
 
 /** Stamps the widget link onto every tool descriptor that has one. */
 export function applyToolUiMeta<T extends { name: string; _meta?: Record<string, unknown> }>(tools: T[]): T[] {
@@ -250,8 +278,17 @@ function taskWhen(task: any): string {
 /** UI-only: which timer tool produced the result, for hosts that do not tell the widget. */
 export const TOOL_META_KEY = 'timesheet/tool';
 
-/** UI-only: the entry timer_stop just saved. The API clears the timer's task when it stops. */
+/**
+ * UI-only: the entry timer_stop just saved (the API clears the timer's task when it stops), or for
+ * timer_panel, the entry a widget asked about that the timer no longer runs.
+ */
 export const STOPPED_TASK_META_KEY = 'timesheet/stoppedTask';
+
+/**
+ * UI-only: when the server read the timer (epoch ms). Every widget in a conversation keeps its own
+ * copy of the timer; they compare this to tell which copy is the latest.
+ */
+export const OBSERVED_AT_META_KEY = 'timesheet/observedAt';
 
 export function formatTimerResponse(timerData: any, profile?: any, settings?: any, toolName?: string, stoppedTask?: any) {
   let textContent = `Timer status: ${timerData.status}`;
@@ -296,14 +333,14 @@ export function formatTimerResponse(timerData: any, profile?: any, settings?: an
     profile,
     settings
   );
-  const meta: Record<string, unknown> = { ...(result as any)._meta };
+  const meta: Record<string, unknown> = { ...(result as any)._meta, [OBSERVED_AT_META_KEY]: Date.now() };
   if (toolName) {
     meta[TOOL_META_KEY] = toolName;
   }
   if (stoppedTask) {
     meta[STOPPED_TASK_META_KEY] = stoppedTask;
   }
-  return Object.keys(meta).length > 0 ? { ...result, _meta: meta } : result;
+  return { ...result, _meta: meta };
 }
 
 /**

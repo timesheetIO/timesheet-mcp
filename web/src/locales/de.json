@@ -51,6 +51,7 @@
     },
     "runningSince": "seit {{time}}",
     "pausedSince": "pausiert seit {{time}}",
+    "startedAt": "gestartet um {{time}}",
     "more": "Mehr",
     "startAgain": "Erneut starten",
     "noProject": "Kein Projekt",

@@ -106,7 +106,7 @@ describe('stdio', () => {
     assert.equal(byId[2].result.nextCursor, '50');
     assert.equal(byId[3].result.tools.length, 50);
     assert.equal(byId[3].result.nextCursor, '100');
-    assert.equal(byId[4].result.tools.length, 23);
+    assert.equal(byId[4].result.tools.length, 25);
     assert.equal(byId[4].result.nextCursor, undefined);
     for (const message of messages) {
       assert.equal('ttlMs' in (message.result ?? {}), false, 'no cache hints on 2025 responses');
@@ -131,7 +131,7 @@ describe('stdio', () => {
         assert.equal(client.getProtocolEra(), era);
         // The v2 client follows the cursors itself
         const all = await client.listTools();
-        assert.equal(all.tools.length, 123);
+        assert.equal(all.tools.length, 125);
         const result = await client.callTool({ name: 'timer_status', arguments: {} });
         assert.equal(result.isError, true);
         assert.match(result.content[0].text, /401/);
@@ -218,10 +218,10 @@ describe('http', () => {
       return rpcMessages(response.headers.get('content-type'), await response.text())[0];
     };
 
-    // 123 tools, less auth_configure, which the hosted endpoint does not offer
+    // 125 tools, less auth_configure, which the hosted endpoint does not offer
     const pages = [await call(2, 'tools/list', {}), await call(3, 'tools/list', { cursor: '50' }), await call(4, 'tools/list', { cursor: '100' })];
-    assert.deepEqual(pages.map((p) => p.result.tools.length), [50, 50, 22]);
-    assert.equal(pages.flatMap((p) => p.result.tools).length, 122);
+    assert.deepEqual(pages.map((p) => p.result.tools.length), [50, 50, 24]);
+    assert.equal(pages.flatMap((p) => p.result.tools).length, 124);
     assert.ok(!pages.flatMap((p) => p.result.tools).some((tool) => tool.name === 'auth_configure'));
 
     // ChatGPT's review: every tool names its sign-in, and only tools that reach any email address are open-world
@@ -271,7 +271,7 @@ describe('http', () => {
       try {
         assert.equal(client.getProtocolEra(), 'modern');
         const tools = await client.listTools();
-        assert.equal(tools.tools.length, 122);
+        assert.equal(tools.tools.length, 124);
         const widget = await client.readResource({ uri: 'ui://timesheet/Statistics.html' });
         assert.equal(widget.contents[0].mimeType, 'text/html;profile=mcp-app');
         const result = await client.callTool({ name: 'timer_status', arguments: {} });

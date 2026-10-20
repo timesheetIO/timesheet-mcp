@@ -1,24 +1,57 @@
 /**
  * DataProvider - timer state for the TimerWidget.
  *
- * The timer comes from the tool result the host pushes to the widget. The widget never polls:
- * the clock ticks client-side, and the timer is fetched again only after the user acts in the
- * widget. Projects are loaded when the start path needs them.
+ * The timer comes from the tool result the host pushes to the widget. Every widget in a
+ * conversation keeps its own copy, so they share the latest one (utils/timer-sync):
+ * - A card that shows a running entry follows that entry: paused, resumed, or ended, it stops
+ *   ticking once the timer no longer runs it. Idle cards and finished entries stay as they were.
+ * - The timer in the sidebar (the timer_panel and timer_sidebar entrypoints) follows the timer.
+ * The widget never polls. A running card or the sidebar reads the timer again only when it is
+ * shown with a copy over a minute old (a conversation reopened, the tab back in view), and one
+ * widget reads it for all of them. The clock ticks client-side in between.
+ * Projects are loaded when the start path needs them.
  */
 
-import React, {createContext, useContext, useState, useCallback, useEffect, ReactNode} from 'react';
+import React, {createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode} from 'react';
 import type {Project, Tag, Rate, Settings} from '@timesheet/sdk';
 import type {ExtendedTimer, TimerTask} from '../../utils/types';
 import {STOPPED_TASK_META_KEY, useTimerOperations, useProjectOperations} from '../../utils/timesheet-hooks';
 import {
+  OBSERVED_AT_META_KEY,
+  type TimerSnapshot,
+  belongsTo,
+  claimRefresh,
+  publishSnapshot,
+  readSnapshot,
+  subscribeSnapshots,
+} from '../../utils/timer-sync';
+import {
   type ToolFailure,
   useCanCallServerTools,
+  useHostContext,
+  useLifecycle,
   useProfileAndSettings,
   useToolFailure,
   useToolMeta,
   useToolOutput,
 } from '../../hooks';
 import type {ViewType} from './ViewRouter';
+
+/** The tools that open the timer in ChatGPT's sidebar or beside the conversation */
+const SIDEBAR_TOOLS = ['timer_panel', 'timer_sidebar'];
+
+/** A copy of the timer older than this is read again when the widget is shown */
+const STALE_MS = 60_000;
+
+const isActive = (timer?: ExtendedTimer | null) => timer?.status === 'running' || timer?.status === 'paused';
+
+/** What the widget shows */
+interface Shown {
+  timer: ExtendedTimer | null;
+  stoppedTask: TimerTask | null;
+  /** The entry this card showed running has ended elsewhere, and how it was saved is unknown */
+  endedElsewhere: boolean;
+}
 
 export type ProjectsStatus = 'loading' | 'loaded' | 'error';
 
@@ -40,6 +73,8 @@ interface DataContextType {
   applyTimer: (timer: ExtendedTimer | null | undefined, stoppedTask?: TimerTask | null) => void;
   /** The user started, paused, resumed or stopped the timer from this widget */
   changedInWidget: boolean;
+  /** The entry this card showed running has ended elsewhere; its end and duration are unknown */
+  endedElsewhere: boolean;
   reloadTimer: () => Promise<void>;
   reloadProjects: () => Promise<void>;
 }
@@ -99,26 +134,101 @@ export function DataProvider({
   const projectOps = useProjectOperations();
   const pushed = useToolOutput<ExtendedTimer>();
   const pushedStoppedTask = useToolMeta<TimerTask>(STOPPED_TASK_META_KEY);
+  const pushedObservedAt = useToolMeta<number>(OBSERVED_AT_META_KEY);
   const toolFailure = useToolFailure();
   const canCallTools = useCanCallServerTools();
-  const {settings: pushedSettings} = useProfileAndSettings<unknown, Partial<Settings>>();
+  const {tornDown} = useLifecycle();
+  const {profile, settings: pushedSettings} = useProfileAndSettings<{user?: string}, Partial<Settings>>();
+  const user = profile?.user;
+  // Hosts that do not send toolInfo still get it from the result (UI-only _meta)
+  const hostToolName = useHostContext()?.toolInfo?.tool?.name;
+  const resultToolName = useToolMeta<string>('timesheet/tool');
+  const toolName = hostToolName ?? resultToolName;
+  const isSidebar = !!toolName && SIDEBAR_TOOLS.includes(toolName);
 
-  const [timer, setTimer] = useState<ExtendedTimer | null>(null);
-  const [stoppedTask, setStoppedTask] = useState<TimerTask | null>(null);
+  // The ref is read by the storage and visibility handlers, the state renders it
+  const shown = useRef<Shown>({timer: null, stoppedTask: null, endedElsewhere: false});
+  const [view, setView] = useState<Shown>(shown.current);
+  const {timer, stoppedTask, endedElsewhere} = view;
+  /** When the server read the timer the widget shows (0: unknown) */
+  const observedAt = useRef(0);
+  const display = useCallback((next: Shown, at: number) => {
+    shown.current = next;
+    observedAt.current = at;
+    setView(next);
+  }, []);
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsState, setProjectsState] = useState<'idle' | ProjectsStatus>('idle');
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [changedInWidget, setChangedInWidget] = useState(false);
 
-  // The result the host pushed for the tool call that rendered this widget. timer_stop sends
-  // the entry it saved alongside, since the stopped timer has no task any more.
-  useEffect(() => {
-    if (isTimer(pushed)) {
-      setTimer(pushed);
-      setStoppedTask(pushedStoppedTask ?? null);
+  /** Applies a newer timer from another widget or a refresh, following the rules above */
+  const adopt = useCallback((snapshot: TimerSnapshot | null) => {
+    if (!snapshot || snapshot.observedAt <= observedAt.current || !belongsTo(snapshot, user)) return;
+    const current = shown.current;
+    // A card waits for its own result first: the timer it was rendered for decides what it follows
+    if (!current.timer && !isSidebar) return;
+    const ownId = !current.endedElsewhere && isActive(current.timer) ? current.timer?.task?.id : undefined;
+    const stopped = ownId && snapshot.stoppedTask?.id === ownId ? snapshot.stoppedTask : null;
+    const next = {timer: snapshot.timer, endedElsewhere: false};
+    if (isActive(snapshot.timer) && (isSidebar || snapshot.timer.task?.id === ownId)) {
+      display({...next, stoppedTask: null}, snapshot.observedAt);
+    } else if (stopped) {
+      display({...next, stoppedTask: stopped}, snapshot.observedAt);
+    } else if (isSidebar && (isActive(current.timer) || !current.timer)) {
+      display({...next, stoppedTask: null}, snapshot.observedAt);
+    } else if (ownId) {
+      display({...current, endedElsewhere: true}, snapshot.observedAt);
+    } else {
+      // Idle and finished cards keep what they show; the sidebar keeps the summary of its stop
+      observedAt.current = snapshot.observedAt;
     }
-  }, [pushed, pushedStoppedTask]);
+  }, [isSidebar, user, display]);
+
+  /** Reads the timer again when the copy shown is stale, for a running card or the sidebar */
+  const refreshIfStale = useCallback(async () => {
+    const current = shown.current;
+    const ownId = !current.endedElsewhere && isActive(current.timer) ? current.timer?.task?.id : undefined;
+    if (!canCallTools || tornDown || !current.timer || (!isSidebar && !ownId)) return;
+    const latest = Math.max(observedAt.current, readSnapshot(user)?.observedAt ?? 0);
+    if (Date.now() - latest < STALE_MS || !claimRefresh()) return;
+    try {
+      adopt(await timerOps.live(ownId));
+    } catch (err) {
+      console.error('[TimerWidget] Failed to refresh the timer:', err);
+    }
+  }, [canCallTools, tornDown, isSidebar, user, timerOps, adopt]);
+
+  // The result the host pushed for the tool call that rendered this widget. timer_stop sends
+  // the entry it saved alongside, since the stopped timer has no task any more. The other widgets
+  // get it if it is the newest; a newer one they shared applies on top.
+  useEffect(() => {
+    if (!isTimer(pushed)) return;
+    const at = pushedObservedAt ?? 0;
+    // The sidebar may already show a newer copy than the one it was opened with
+    if (at && at <= observedAt.current) return;
+    display({timer: pushed, stoppedTask: pushedStoppedTask ?? null, endedElsewhere: false}, at);
+    if (at) publishSnapshot({timer: pushed, stoppedTask: pushedStoppedTask ?? null, observedAt: at, user});
+    adopt(readSnapshot(user));
+    void refreshIfStale();
+    // Only a new result runs this: adopt and refreshIfStale read the current state from refs
+  }, [pushed, pushedStoppedTask, pushedObservedAt]);
+
+  // Timers the other widgets share
+  useEffect(() => subscribeSnapshots(adopt), [adopt]);
+
+  // Back in view (the tab was hidden): catch up, and read the timer if the copy is stale
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      adopt(readSnapshot(user));
+      void refreshIfStale();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [adopt, refreshIfStale, user]);
 
   useEffect(() => {
     if (pushedSettings) {
@@ -134,13 +244,14 @@ export function DataProvider({
 
   const applyTimer = useCallback((next: ExtendedTimer | null | undefined, stopped: TimerTask | null = null) => {
     if (isTimer(next)) {
-      setTimer(next);
-      setStoppedTask(stopped);
+      // The timer operation shared its result just now, so the shared copy dates this one
+      const at = Math.max(observedAt.current, readSnapshot(user)?.observedAt ?? 0);
+      display({timer: next, stoppedTask: stopped, endedElsewhere: false}, at);
       setChangedInWidget(true);
       const nextSettings = (next as any).settings;
       if (nextSettings) setSettings(mergeSettings(nextSettings));
     }
-  }, []);
+  }, [user, display]);
 
   const reloadTimer = useCallback(async () => {
     const result = await timerOps.getStatus();
@@ -202,6 +313,7 @@ export function DataProvider({
         setSelectedProject,
         applyTimer,
         changedInWidget,
+        endedElsewhere,
         reloadTimer,
         reloadProjects,
       }}

@@ -3,7 +3,7 @@
  * status text) is stamped from TOOL_WIDGET_LINKS in mcp-app-helpers.
  */
 import type { Tool } from '@modelcontextprotocol/server';
-import { applyToolUiMeta } from './mcp-app-helpers.js';
+import { applyToolUiMeta, ENTRYPOINT_ICONS } from './mcp-app-helpers.js';
 import { EXTENDED_TOOL_DEFINITIONS } from './extended-tools.js';
 
 /**
@@ -204,6 +204,45 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
     annotations: {
       readOnlyHint: false,
       destructiveHint: true,
+      openWorldHint: false,
+    },
+  },
+  // The live timer the user opens beside a conversation or from ChatGPT's sidebar (entrypoints in
+  // TOOL_WIDGET_LINKS). Hidden from the model, which has timer_status.
+  {
+    name: 'timer_panel',
+    title: 'Timer',
+    description: 'Shows the live timer in a tab beside the conversation, where the user can start, pause, resume and stop it. The Timesheet widgets also call it to refresh the timer they show. For the assistant, timer_status reports the timer.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: {
+          type: 'string',
+          description: 'A time entry a widget shows as running. When the timer no longer runs it, the result also reports how the entry was saved.',
+        },
+      },
+    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
+    icons: ENTRYPOINT_ICONS,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'timer_sidebar',
+    title: 'Timesheet IO',
+    description: 'Shows the live timer from the sidebar, where the user can start, pause, resume and stop it. For the assistant, timer_status reports the timer.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+    outputSchema: TIMER_OUTPUT_SCHEMA,
+    icons: ENTRYPOINT_ICONS,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
       openWorldHint: false,
     },
   },

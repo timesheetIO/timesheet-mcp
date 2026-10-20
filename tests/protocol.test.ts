@@ -80,9 +80,9 @@ describe('paginate', () => {
 });
 
 describe('tool definitions', () => {
-  test('123 tools with unique names, pageable in three pages', () => {
+  test('125 tools with unique names, pageable in three pages', () => {
     const names = TOOL_DEFINITIONS.map((tool) => tool.name);
-    expect(names).toHaveLength(123);
+    expect(names).toHaveLength(125);
     expect(new Set(names).size).toBe(names.length);
     expect(Math.ceil(names.length / TOOLS_LIST_PAGE_SIZE)).toBe(3);
   });
