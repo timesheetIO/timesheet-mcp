@@ -53,6 +53,9 @@ app.use(cors({
     'https://chat.openai.com',
     'https://chatgpt.com',
     'https://web-sandbox.oaiusercontent.com',
+    // Microsoft 365 Copilot widget host: the first 32 hex characters of SHA-256("mcp.timesheet.io"),
+    // as Microsoft's generator (aka.ms/mcpwidgeturlgenerator) derives it from the server URL
+    'https://2d696c5327cc51d6dfd953cf1968bab6.widget-renderer.usercontent.microsoft',
     // Cloud Run domains. Anchored: unanchored, https://x.run.app.example.com matched as well.
     /^https:\/\/[a-z0-9.-]+\.run\.app$/,
     'https://mcp.timesheet.io',

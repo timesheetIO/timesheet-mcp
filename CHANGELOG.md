@@ -23,6 +23,9 @@
 - The timer widgets show hours and minutes (`1:24`), like the web app, and update once a minute.
 
 ### Added
+- The HTTP server allows the Microsoft 365 Copilot widget host for `mcp.timesheet.io`
+  (`https://2d696c5327cc51d6dfd953cf1968bab6.widget-renderer.usercontent.microsoft`) in CORS, for the
+  Timesheet agent in `apps/app-microsoft-365`.
 - `/.well-known/openai-apps-challenge` serves the `OPENAI_APPS_CHALLENGE` token for the ChatGPT
   plugin directory's domain check.
 - The live timer opens from ChatGPT's sidebar (`timer_sidebar`, "Timesheet IO") and as a tab beside
