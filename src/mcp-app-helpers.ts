@@ -156,6 +156,64 @@ export const TOOL_WIDGET_LINKS: Record<string, ToolWidgetLink> = {
   absence_approve: { widget: 'ResultCard', invoking: 'Approving the absence', invoked: 'Absence approved' },
   absence_reject: { widget: 'ResultCard', invoking: 'Rejecting the absence', invoked: 'Absence rejected' },
   absence_cancel: { widget: 'ResultCard', invoking: 'Cancelling the absence', invoked: 'Absence cancelled' },
+  // Every other write tool confirms with a ResultCard record card: Microsoft's agent store asks
+  // for a card after each completed action.
+  task_add_note: { widget: 'ResultCard', invoking: 'Adding the note', invoked: 'Note added' },
+  task_add_expense: { widget: 'ResultCard', invoking: 'Adding the expense', invoked: 'Expense added' },
+  task_add_pause: { widget: 'ResultCard', invoking: 'Adding the break', invoked: 'Break added' },
+  task_delete: { widget: 'ResultCard', invoking: 'Deleting the time entry', invoked: 'Time entry deleted' },
+  project_create: { widget: 'ResultCard', invoking: 'Creating the project', invoked: 'Project created' },
+  project_update: { widget: 'ResultCard', invoking: 'Updating the project', invoked: 'Project updated' },
+  project_delete: { widget: 'ResultCard', invoking: 'Deleting the project', invoked: 'Project deleted' },
+  export_template_create: { widget: 'ResultCard', invoking: 'Saving the export template', invoked: 'Export template saved' },
+  export_template_update: { widget: 'ResultCard', invoking: 'Updating the export template', invoked: 'Export template updated' },
+  export_template_delete: { widget: 'ResultCard', invoking: 'Deleting the export template', invoked: 'Export template deleted' },
+  absence_delete: { widget: 'ResultCard', invoking: 'Deleting the absence', invoked: 'Absence deleted' },
+  absence_type_create: { widget: 'ResultCard', invoking: 'Creating the absence type', invoked: 'Absence type created' },
+  absence_type_update: { widget: 'ResultCard', invoking: 'Updating the absence type', invoked: 'Absence type updated' },
+  absence_type_delete: { widget: 'ResultCard', invoking: 'Deleting the absence type', invoked: 'Absence type deleted' },
+  contract_create: { widget: 'ResultCard', invoking: 'Creating the contract', invoked: 'Contract created' },
+  contract_update: { widget: 'ResultCard', invoking: 'Updating the contract', invoked: 'Contract updated' },
+  contract_delete: { widget: 'ResultCard', invoking: 'Deleting the contract', invoked: 'Contract deleted' },
+  contract_activate: { widget: 'ResultCard', invoking: 'Activating the contract', invoked: 'Contract activated' },
+  contract_suspend: { widget: 'ResultCard', invoking: 'Suspending the contract', invoked: 'Contract suspended' },
+  contract_reactivate: { widget: 'ResultCard', invoking: 'Reactivating the contract', invoked: 'Contract reactivated' },
+  contract_terminate: { widget: 'ResultCard', invoking: 'Terminating the contract', invoked: 'Contract terminated' },
+  organization_create: { widget: 'ResultCard', invoking: 'Creating the organization', invoked: 'Organization created' },
+  organization_update: { widget: 'ResultCard', invoking: 'Updating the organization', invoked: 'Organization updated' },
+  organization_delete: { widget: 'ResultCard', invoking: 'Deleting the organization', invoked: 'Organization deleted' },
+  organization_member_add: { widget: 'ResultCard', invoking: 'Inviting the member', invoked: 'Member invited' },
+  organization_member_update: { widget: 'ResultCard', invoking: 'Updating the member', invoked: 'Member updated' },
+  organization_member_remove: { widget: 'ResultCard', invoking: 'Removing the member', invoked: 'Member removed' },
+  team_member_add: { widget: 'ResultCard', invoking: 'Inviting the team member', invoked: 'Team member invited' },
+  team_member_update: { widget: 'ResultCard', invoking: 'Updating the team member', invoked: 'Team member updated' },
+  team_member_remove: { widget: 'ResultCard', invoking: 'Removing the team member', invoked: 'Team member removed' },
+  project_member_add: { widget: 'ResultCard', invoking: 'Adding the project member', invoked: 'Project member added' },
+  project_member_update: { widget: 'ResultCard', invoking: 'Updating the project member', invoked: 'Project member updated' },
+  project_member_remove: { widget: 'ResultCard', invoking: 'Removing the project member', invoked: 'Project member removed' },
+  todo_create: { widget: 'ResultCard', invoking: 'Creating the todo', invoked: 'Todo created' },
+  todo_update: { widget: 'ResultCard', invoking: 'Updating the todo', invoked: 'Todo updated' },
+  todo_close: { widget: 'ResultCard', invoking: 'Completing the todo', invoked: 'Todo completed' },
+  todo_reopen: { widget: 'ResultCard', invoking: 'Reopening the todo', invoked: 'Todo reopened' },
+  todo_delete: { widget: 'ResultCard', invoking: 'Deleting the todo', invoked: 'Todo deleted' },
+  rate_create: { widget: 'ResultCard', invoking: 'Creating the rate', invoked: 'Rate created' },
+  rate_update: { widget: 'ResultCard', invoking: 'Updating the rate', invoked: 'Rate updated' },
+  rate_delete: { widget: 'ResultCard', invoking: 'Deleting the rate', invoked: 'Rate deleted' },
+  tag_create: { widget: 'ResultCard', invoking: 'Creating the tag', invoked: 'Tag created' },
+  tag_update: { widget: 'ResultCard', invoking: 'Updating the tag', invoked: 'Tag updated' },
+  tag_delete: { widget: 'ResultCard', invoking: 'Deleting the tag', invoked: 'Tag deleted' },
+  note_create: { widget: 'ResultCard', invoking: 'Adding the note', invoked: 'Note added' },
+  note_update: { widget: 'ResultCard', invoking: 'Updating the note', invoked: 'Note updated' },
+  note_delete: { widget: 'ResultCard', invoking: 'Deleting the note', invoked: 'Note deleted' },
+  expense_create: { widget: 'ResultCard', invoking: 'Adding the expense', invoked: 'Expense added' },
+  expense_update: { widget: 'ResultCard', invoking: 'Updating the expense', invoked: 'Expense updated' },
+  expense_delete: { widget: 'ResultCard', invoking: 'Deleting the expense', invoked: 'Expense deleted' },
+  expense_set_refunded: { widget: 'ResultCard', invoking: 'Updating the refund status', invoked: 'Refund status updated' },
+  pause_create: { widget: 'ResultCard', invoking: 'Adding the break', invoked: 'Break added' },
+  pause_update: { widget: 'ResultCard', invoking: 'Updating the break', invoked: 'Break updated' },
+  pause_delete: { widget: 'ResultCard', invoking: 'Deleting the break', invoked: 'Break deleted' },
+  profile_update: { widget: 'ResultCard', invoking: 'Updating your profile', invoked: 'Profile updated' },
+  settings_update: { widget: 'ResultCard', invoking: 'Updating your settings', invoked: 'Settings updated' },
 };
 
 /** Descriptor `_meta` for a tool that renders a widget, or undefined for a plain tool. */
@@ -773,6 +831,79 @@ export function formatAbsenceResultResponse(
       absence,
     },
   };
+}
+
+/** The kind of record a confirmation card names (contract: kind "record"). */
+export type RecordCardType =
+  | 'project' | 'task' | 'note' | 'expense' | 'pause' | 'exportTemplate'
+  | 'absence' | 'absenceType' | 'contract' | 'organization'
+  | 'organizationMember' | 'teamMember' | 'projectMember'
+  | 'todo' | 'rate' | 'tag' | 'profile' | 'settings';
+
+/** What a write tool did: the card's title and, for status changes, its badge. */
+export type RecordCardAction =
+  | 'created' | 'added' | 'updated' | 'deleted' | 'removed' | 'invited'
+  | 'completed' | 'reopened' | 'activated' | 'suspended' | 'reactivated' | 'terminated'
+  | 'refunded' | 'unrefunded';
+
+/** What the ResultCard shows to confirm a write (contract: kind "record"). Empty fields are left out. */
+export interface RecordCard {
+  type: RecordCardType;
+  /** The record itself: a title, a name, an email address. Absent when it is unknown. */
+  name?: string;
+  /** What it belongs to, such as the project and client. */
+  context?: string[];
+  /** "#rrggbb" for the dot beside the name. */
+  color?: string;
+  /** An expense's amount, shown like a time entry's duration. */
+  amount?: number;
+  /** A break's length in seconds. */
+  durationSeconds?: number;
+  /** A date or date-time for the detail line. */
+  date?: string;
+  billable?: boolean;
+  /** Free text, such as a note's. */
+  text?: string;
+  /** Changed settings or profile fields, labeled by the widget. */
+  changes?: Array<{ key: string; value: string }>;
+}
+
+/**
+ * ResultCard result that confirms a write. `legacy` keeps the fields each tool returned before
+ * (and its outputSchema declares) at the top level of structuredContent, next to the card data.
+ */
+export function formatRecordResultResponse(
+  text: string,
+  action: RecordCardAction,
+  record: RecordCard,
+  legacy: Record<string, unknown>
+) {
+  const card = Object.fromEntries(
+    Object.entries(record).filter(
+      ([, value]) => value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && value.length === 0)
+    )
+  ) as unknown as RecordCard;
+  if (card.context) {
+    card.context = card.context.filter((part) => typeof part === 'string' && part.length > 0);
+  }
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent: {
+      ...legacy,
+      kind: 'record',
+      action,
+      record: card,
+    },
+  };
+}
+
+/** A person's name for a card: the display name, else first and last name, else the email address. */
+export function personName(person?: { displayName?: string; firstname?: string; lastname?: string; email?: string } | null): string | undefined {
+  if (!person) {
+    return undefined;
+  }
+  const full = [person.firstname, person.lastname].filter(Boolean).join(' ');
+  return person.displayName || full || person.email || undefined;
 }
 
 /**

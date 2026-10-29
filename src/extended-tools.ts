@@ -10,7 +10,16 @@
  * before reporting an unknown tool.
  */
 import type { TimesheetClient } from '@timesheet/sdk';
-import { formatAbsenceResultResponse, toAbsenceCard, type AbsenceCardAction } from './mcp-app-helpers.js';
+import {
+  formatAbsenceResultResponse,
+  formatRecordResultResponse,
+  intToHexColor,
+  personName,
+  toAbsenceCard,
+  type AbsenceCardAction,
+  type RecordCard,
+  type RecordCardAction,
+} from './mcp-app-helpers.js';
 
 type ToolHandler = (client: TimesheetClient, args: any) => Promise<unknown>;
 
@@ -28,11 +37,50 @@ function describe(text: string) {
   return { ...STR, description: text };
 }
 
-function textOk(text: string, structured?: Record<string, unknown>) {
-  return {
-    content: [{ type: 'text', text }],
-    structuredContent: structured ?? { success: true },
-  };
+/**
+ * Result of a write tool: the text for the model, the fields it returned before, and the
+ * ResultCard confirmation card ("Tag created", "Contract suspended").
+ */
+function recordOk(text: string, legacy: Record<string, unknown>, action: RecordCardAction, record: RecordCard) {
+  return formatRecordResultResponse(text, action, record, legacy);
+}
+
+/**
+ * The record as it was before a delete or removal, so the card can name it. A failed read
+ * leaves the card without a name and never stops the delete.
+ */
+async function before<T>(read: () => Promise<T>): Promise<T | undefined> {
+  try {
+    return await read();
+  } catch {
+    return undefined;
+  }
+}
+
+/** A stored color as "#rrggbb": an integer from the API or a hex string. */
+function hexColor(value: unknown): string | undefined {
+  if (typeof value === 'number') return intToHexColor(value);
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : undefined;
+}
+
+/** What a note, expense or break belongs to: its time entry's project, when the API embeds it. */
+function entryContext(entity: any): string[] {
+  const project = entity?.task?.project?.title;
+  return project ? [project] : [];
+}
+
+/** A break's length in seconds, or undefined while it runs. */
+function pauseSeconds(pause: any): number | undefined {
+  const start = Date.parse(pause?.startDateTime ?? '');
+  const end = Date.parse(pause?.endDateTime ?? '');
+  return Number.isFinite(start) && Number.isFinite(end) && end >= start ? Math.round((end - start) / 1000) : undefined;
+}
+
+/** The fields an update sent, as key and value, for the card's detail line. */
+function changedFields(args: Record<string, unknown>): Array<{ key: string; value: string }> {
+  return Object.entries(args)
+    .filter(([, value]) => value !== undefined && value !== null && typeof value !== 'object')
+    .map(([key, value]) => ({ key, value: String(value) }));
 }
 
 /**
@@ -317,8 +365,14 @@ add(
   ['organizationId', 'id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const absence: any = await before(() => client.absences.get(args.organizationId, args.id));
     await client.absences.delete(args.organizationId, args.id);
-    return textOk(`Absence ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Absence ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'absence',
+      name: absence?.absenceType?.name,
+      color: hexColor(absence?.absenceType?.color),
+      date: absence?.startDateTime,
+    });
   }
 );
 
@@ -407,7 +461,11 @@ add(
   async (client, args) => {
     const { organizationId, ...data } = args;
     const t = await client.absenceTypes.create(organizationId, data);
-    return textOk(`Absence type "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name });
+    return recordOk(`Absence type "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name }, 'created', {
+      type: 'absenceType',
+      name: t.name,
+      color: hexColor(t.color),
+    });
   }
 );
 
@@ -432,7 +490,11 @@ add(
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const t = await client.absenceTypes.update(organizationId, id, compact(data));
-    return textOk(`Absence type ${t.id} updated.`, { id: t.id, name: t.name });
+    return recordOk(`Absence type ${t.id} updated.`, { id: t.id, name: t.name }, 'updated', {
+      type: 'absenceType',
+      name: t.name,
+      color: hexColor(t.color),
+    });
   }
 );
 
@@ -443,8 +505,13 @@ add(
   ['organizationId', 'id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const type: any = await before(() => client.absenceTypes.get(args.organizationId, args.id));
     await client.absenceTypes.delete(args.organizationId, args.id);
-    return textOk(`Absence type ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Absence type ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'absenceType',
+      name: type?.name,
+      color: hexColor(type?.color),
+    });
   }
 );
 
@@ -507,7 +574,11 @@ add(
   async (client, args) => {
     const { organizationId, ...data } = args;
     const c = await client.contracts.create(organizationId, data);
-    return textOk(`Contract "${c.name}" created (ID: ${c.id}).`, { id: c.id, name: c.name, status: c.status });
+    return recordOk(`Contract "${c.name}" created (ID: ${c.id}).`, { id: c.id, name: c.name, status: c.status }, 'created', {
+      type: 'contract',
+      name: c.name,
+      context: [personName((c as any).member)].filter(Boolean) as string[],
+    });
   }
 );
 
@@ -533,7 +604,11 @@ add(
   async (client, args) => {
     const { organizationId, id, ...data } = args;
     const c = await client.contracts.update(organizationId, id, compact(data));
-    return textOk(`Contract ${c.id} updated.`, { id: c.id, name: c.name });
+    return recordOk(`Contract ${c.id} updated.`, { id: c.id, name: c.name }, 'updated', {
+      type: 'contract',
+      name: c.name,
+      context: [personName((c as any).member)].filter(Boolean) as string[],
+    });
   }
 );
 
@@ -544,10 +619,17 @@ add(
   ['organizationId', 'id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const contract: any = await before(() => client.contracts.get(args.organizationId, args.id));
     await client.contracts.delete(args.organizationId, args.id);
-    return textOk(`Contract ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Contract ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'contract',
+      name: contract?.name,
+      context: [personName(contract?.member)].filter(Boolean) as string[],
+    });
   }
 );
+
+const CONTRACT_DONE = { activate: 'activated', suspend: 'suspended', reactivate: 'reactivated', terminate: 'terminated' } as const;
 
 for (const action of ['activate', 'suspend', 'reactivate', 'terminate'] as const) {
   add(
@@ -558,7 +640,12 @@ for (const action of ['activate', 'suspend', 'reactivate', 'terminate'] as const
     action === 'suspend' || action === 'terminate' ? DESTRUCT_ANNOT : WRITE_ANNOT,
     async (client, args) => {
       const c = await client.contracts[action](args.organizationId, args.id);
-      return textOk(`Contract ${c.id} ${action}d (status: ${c.status ?? '-'}).`, { id: c.id, status: c.status });
+      const done = CONTRACT_DONE[action];
+      return recordOk(`Contract ${c.id} ${done} (status: ${c.status ?? '-'}).`, { id: c.id, status: c.status }, done, {
+        type: 'contract',
+        name: c.name,
+        context: [personName((c as any).member)].filter(Boolean) as string[],
+      });
     }
   );
 }
@@ -595,7 +682,11 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const org = await client.organizations.create(args);
-    return textOk(`Organization "${org.name}" created (ID: ${org.id}).`, { id: org.id, name: org.name });
+    return recordOk(`Organization "${org.name}" created (ID: ${org.id}).`, { id: org.id, name: org.name }, 'created', {
+      type: 'organization',
+      name: org.name,
+      color: hexColor(org.color),
+    });
   }
 );
 
@@ -608,7 +699,11 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const org = await client.organizations.update(id, compact(data));
-    return textOk(`Organization ${org.id} updated.`, { id: org.id, name: org.name });
+    return recordOk(`Organization ${org.id} updated.`, { id: org.id, name: org.name }, 'updated', {
+      type: 'organization',
+      name: org.name,
+      color: hexColor(org.color),
+    });
   }
 );
 
@@ -619,8 +714,13 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const org: any = await before(() => client.organizations.get(args.id));
     await client.organizations.delete(args.id);
-    return textOk(`Organization ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Organization ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'organization',
+      name: org?.name,
+      color: hexColor(org?.color),
+    });
   }
 );
 
@@ -663,7 +763,10 @@ add(
   async (client, args) => {
     const { organizationId, ...data } = args;
     const m = await client.organizations.addMember(organizationId, data);
-    return textOk(`Member ${m.email} added.`, { id: m.id, email: m.email });
+    return recordOk(`Member ${m.email} added.`, { id: m.id, email: m.email }, (m as any).invited ? 'invited' : 'added', {
+      type: 'organizationMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -676,7 +779,10 @@ add(
   async (client, args) => {
     const { organizationId, memberId, ...data } = args;
     const m = await client.organizations.updateMember(organizationId, memberId, compact(data));
-    return textOk(`Member ${m.id} updated.`, { id: m.id, email: m.email });
+    return recordOk(`Member ${m.id} updated.`, { id: m.id, email: m.email }, 'updated', {
+      type: 'organizationMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -687,12 +793,16 @@ add(
   ['organizationId', 'memberId'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const member: any = await before(() => client.organizations.getMember(args.organizationId, args.memberId));
     if (args.invited) {
       await client.organizations.removeInvitedMember(args.organizationId, args.memberId);
     } else {
       await client.organizations.removeMember(args.organizationId, args.memberId);
     }
-    return textOk(`Member ${args.memberId} removed.`, { deletedId: args.memberId });
+    return recordOk(`Member ${args.memberId} removed.`, { deletedId: args.memberId }, 'removed', {
+      type: 'organizationMember',
+      name: personName(member),
+    });
   }
 );
 
@@ -748,7 +858,10 @@ add(
       ...data,
       permission: role ? { role } : undefined,
     });
-    return textOk(`Team member ${m.email} added.`, { id: m.id, email: m.email });
+    return recordOk(`Team member ${m.email} added.`, { id: m.id, email: m.email }, (m as any).invited ? 'invited' : 'added', {
+      type: 'teamMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -773,7 +886,10 @@ add(
       ...compact(data),
       permission: role ? { role } : undefined,
     });
-    return textOk(`Team member ${m.id} updated.`, { id: m.id, email: m.email });
+    return recordOk(`Team member ${m.id} updated.`, { id: m.id, email: m.email }, 'updated', {
+      type: 'teamMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -784,12 +900,16 @@ add(
   ['teamId', 'memberId'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const member: any = await before(() => client.teams.getMember(args.teamId, args.memberId));
     if (args.invited) {
       await client.teams.removeInvitedMember(args.teamId, args.memberId);
     } else {
       await client.teams.removeMember(args.teamId, args.memberId);
     }
-    return textOk(`Team member ${args.memberId} removed.`, { deletedId: args.memberId });
+    return recordOk(`Team member ${args.memberId} removed.`, { deletedId: args.memberId }, 'removed', {
+      type: 'teamMember',
+      name: personName(member),
+    });
   }
 );
 
@@ -866,7 +986,10 @@ add(
       ...data,
       permission: role ? { role } : undefined,
     });
-    return textOk(`Project member ${m.email} added.`, { id: m.id, email: m.email });
+    return recordOk(`Project member ${m.email} added.`, { id: m.id, email: m.email }, 'added', {
+      type: 'projectMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -880,7 +1003,10 @@ add(
     const m = await client.projects.updateMember(args.projectId, args.memberId, {
       permission: { role: args.role },
     });
-    return textOk(`Project member ${m.id} updated.`, { id: m.id, email: m.email });
+    return recordOk(`Project member ${m.id} updated.`, { id: m.id, email: m.email }, 'updated', {
+      type: 'projectMember',
+      name: personName(m as any),
+    });
   }
 );
 
@@ -891,8 +1017,12 @@ add(
   ['projectId', 'memberId'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const member: any = await before(() => client.projects.getMember(args.projectId, args.memberId));
     await client.projects.removeMember(args.projectId, args.memberId);
-    return textOk(`Project member ${args.memberId} removed.`, { deletedId: args.memberId });
+    return recordOk(`Project member ${args.memberId} removed.`, { deletedId: args.memberId }, 'removed', {
+      type: 'projectMember',
+      name: personName(member),
+    });
   }
 );
 
@@ -946,7 +1076,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const t = await client.todos.create(args);
-    return textOk(`Todo "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name });
+    return recordOk(`Todo "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name }, 'created', {
+      type: 'todo',
+      name: t.name,
+      context: [(t as any).project?.title].filter(Boolean) as string[],
+      color: hexColor((t as any).project?.color),
+      date: (t as any).dueDate,
+    });
   }
 );
 
@@ -975,7 +1111,13 @@ add(
       if (!isNaN(n)) data.status = n;
     }
     const t = await client.todos.update(id, data);
-    return textOk(`Todo ${t.id} updated.`, { id: t.id, name: t.name, status: t.status });
+    return recordOk(`Todo ${t.id} updated.`, { id: t.id, name: t.name, status: t.status }, 'updated', {
+      type: 'todo',
+      name: t.name,
+      context: [(t as any).project?.title].filter(Boolean) as string[],
+      color: hexColor((t as any).project?.color),
+      date: (t as any).dueDate,
+    });
   }
 );
 
@@ -987,7 +1129,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const t = await client.todos.update(args.id, { status: TODO_STATUS_CLOSED });
-    return textOk(`Todo "${t.name}" closed.`, { id: t.id, status: t.status });
+    return recordOk(`Todo "${t.name}" closed.`, { id: t.id, status: t.status }, 'completed', {
+      type: 'todo',
+      name: t.name,
+      context: [(t as any).project?.title].filter(Boolean) as string[],
+      color: hexColor((t as any).project?.color),
+      date: (t as any).dueDate,
+    });
   }
 );
 
@@ -999,7 +1147,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const t = await client.todos.update(args.id, { status: TODO_STATUS_OPEN });
-    return textOk(`Todo "${t.name}" reopened.`, { id: t.id, status: t.status });
+    return recordOk(`Todo "${t.name}" reopened.`, { id: t.id, status: t.status }, 'reopened', {
+      type: 'todo',
+      name: t.name,
+      context: [(t as any).project?.title].filter(Boolean) as string[],
+      color: hexColor((t as any).project?.color),
+      date: (t as any).dueDate,
+    });
   }
 );
 
@@ -1010,8 +1164,14 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const t: any = await before(() => client.todos.get(args.id));
     await client.todos.delete(args.id);
-    return textOk(`Todo ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Todo ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'todo',
+      name: t?.name,
+      context: [t?.project?.title].filter(Boolean),
+      color: hexColor(t?.project?.color),
+    });
   }
 );
 
@@ -1061,7 +1221,11 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const r = await client.rates.create(args);
-    return textOk(`Rate "${r.title}" created (ID: ${r.id}).`, { id: r.id, title: r.title });
+    return recordOk(`Rate "${r.title}" created (ID: ${r.id}).`, { id: r.id, title: r.title }, 'created', {
+      type: 'rate',
+      name: r.title,
+      context: r.factor !== undefined && r.factor !== null ? [`× ${r.factor}`] : [],
+    });
   }
 );
 
@@ -1074,7 +1238,11 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const r = await client.rates.update(id, compact(data));
-    return textOk(`Rate ${r.id} updated.`, { id: r.id, title: r.title });
+    return recordOk(`Rate ${r.id} updated.`, { id: r.id, title: r.title }, 'updated', {
+      type: 'rate',
+      name: r.title,
+      context: r.factor !== undefined && r.factor !== null ? [`× ${r.factor}`] : [],
+    });
   }
 );
 
@@ -1085,8 +1253,9 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const rate: any = await before(() => client.rates.get(args.id));
     await client.rates.delete(args.id);
-    return textOk(`Rate ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Rate ${args.id} deleted.`, { deletedId: args.id }, 'deleted', { type: 'rate', name: rate?.title });
   }
 );
 
@@ -1130,7 +1299,11 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const t = await client.tags.create(args);
-    return textOk(`Tag "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name });
+    return recordOk(`Tag "${t.name}" created (ID: ${t.id}).`, { id: t.id, name: t.name }, 'created', {
+      type: 'tag',
+      name: t.name,
+      color: hexColor(t.color),
+    });
   }
 );
 
@@ -1143,7 +1316,11 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const t = await client.tags.update(id, compact(data));
-    return textOk(`Tag ${t.id} updated.`, { id: t.id, name: t.name });
+    return recordOk(`Tag ${t.id} updated.`, { id: t.id, name: t.name }, 'updated', {
+      type: 'tag',
+      name: t.name,
+      color: hexColor(t.color),
+    });
   }
 );
 
@@ -1154,8 +1331,13 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const tag: any = await before(() => client.tags.get(args.id));
     await client.tags.delete(args.id);
-    return textOk(`Tag ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Tag ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'tag',
+      name: tag?.name,
+      color: hexColor(tag?.color),
+    });
   }
 );
 
@@ -1206,7 +1388,12 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const n = await client.notes.create(args);
-    return textOk(`Note created (ID: ${n.id}).`, { id: n.id });
+    return recordOk(`Note created (ID: ${n.id}).`, { id: n.id }, 'added', {
+      type: 'note',
+      context: entryContext(n),
+      date: n.dateTime,
+      text: n.text,
+    });
   }
 );
 
@@ -1219,7 +1406,12 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const n = await client.notes.update(id, compact(data));
-    return textOk(`Note ${n.id} updated.`, { id: n.id });
+    return recordOk(`Note ${n.id} updated.`, { id: n.id }, 'updated', {
+      type: 'note',
+      context: entryContext(n),
+      date: n.dateTime,
+      text: n.text,
+    });
   }
 );
 
@@ -1230,8 +1422,13 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const note: any = await before(() => client.notes.get(args.id));
     await client.notes.delete(args.id);
-    return textOk(`Note ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Note ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'note',
+      context: entryContext(note),
+      text: note?.text,
+    });
   }
 );
 
@@ -1286,7 +1483,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const e = await client.expenses.create(args);
-    return textOk(`Expense created (ID: ${e.id}).`, { id: e.id });
+    return recordOk(`Expense created (ID: ${e.id}).`, { id: e.id }, 'added', {
+      type: 'expense',
+      name: e.description,
+      context: entryContext(e),
+      amount: e.amount === undefined || e.amount === null ? undefined : Number(e.amount),
+      date: e.dateTime,
+    });
   }
 );
 
@@ -1307,7 +1510,13 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const e = await client.expenses.update(id, compact(data));
-    return textOk(`Expense ${e.id} updated.`, { id: e.id });
+    return recordOk(`Expense ${e.id} updated.`, { id: e.id }, 'updated', {
+      type: 'expense',
+      name: e.description,
+      context: entryContext(e),
+      amount: e.amount === undefined || e.amount === null ? undefined : Number(e.amount),
+      date: e.dateTime,
+    });
   }
 );
 
@@ -1318,8 +1527,14 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const e: any = await before(() => client.expenses.get(args.id));
     await client.expenses.delete(args.id);
-    return textOk(`Expense ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Expense ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'expense',
+      name: e?.description,
+      context: entryContext(e),
+      amount: e?.amount === undefined || e?.amount === null ? undefined : Number(e.amount),
+    });
   }
 );
 
@@ -1331,7 +1546,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const e = await client.expenses.updateStatus({ id: args.id, refunded: args.refunded });
-    return textOk(`Expense ${e.id} refunded=${args.refunded}.`, { id: e.id, refunded: args.refunded });
+    return recordOk(`Expense ${e.id} refunded=${args.refunded}.`, { id: e.id, refunded: args.refunded }, args.refunded ? 'refunded' : 'unrefunded', {
+      type: 'expense',
+      name: e.description,
+      context: entryContext(e),
+      amount: e.amount === undefined || e.amount === null ? undefined : Number(e.amount),
+      date: e.dateTime,
+    });
   },
   { title: 'Set Expense Refunded Status', idempotent: true }
 );
@@ -1397,7 +1618,13 @@ add(
   WRITE_ANNOT,
   async (client, args) => {
     const p = await client.pauses.create(args);
-    return textOk(`Pause created (ID: ${p.id}).`, { id: p.id });
+    return recordOk(`Pause created (ID: ${p.id}).`, { id: p.id }, 'added', {
+      type: 'pause',
+      name: p.description,
+      context: entryContext(p),
+      durationSeconds: pauseSeconds(p),
+      date: p.startDateTime,
+    });
   }
 );
 
@@ -1410,7 +1637,13 @@ add(
   async (client, args) => {
     const { id, ...data } = args;
     const p = await client.pauses.update(id, compact(data));
-    return textOk(`Pause ${p.id} updated.`, { id: p.id });
+    return recordOk(`Pause ${p.id} updated.`, { id: p.id }, 'updated', {
+      type: 'pause',
+      name: p.description,
+      context: entryContext(p),
+      durationSeconds: pauseSeconds(p),
+      date: p.startDateTime,
+    });
   }
 );
 
@@ -1421,8 +1654,14 @@ add(
   ['id'],
   DESTRUCT_ANNOT,
   async (client, args) => {
+    const p: any = await before(() => client.pauses.get(args.id));
     await client.pauses.delete(args.id);
-    return textOk(`Pause ${args.id} deleted.`, { deletedId: args.id });
+    return recordOk(`Pause ${args.id} deleted.`, { deletedId: args.id }, 'deleted', {
+      type: 'pause',
+      name: p?.description,
+      context: entryContext(p),
+      durationSeconds: p ? pauseSeconds(p) : undefined,
+    });
   }
 );
 
@@ -1446,7 +1685,11 @@ add(
   UPDATE_ANNOT,
   async (client, args) => {
     const p = await client.profile.updateProfile(compact(args));
-    return textOk('Profile updated.', { email: p.email });
+    return recordOk('Profile updated.', { email: p.email }, 'updated', {
+      type: 'profile',
+      name: personName(p as any),
+      changes: changedFields(args),
+    });
   }
 );
 
@@ -1478,7 +1721,10 @@ add(
   UPDATE_ANNOT,
   async (client, args) => {
     const s = await client.settings.update(compact(args));
-    return textOk('Settings updated.', { theme: s.theme, language: s.language });
+    return recordOk('Settings updated.', { theme: s.theme, language: s.language }, 'updated', {
+      type: 'settings',
+      changes: changedFields(args),
+    });
   }
 );
 

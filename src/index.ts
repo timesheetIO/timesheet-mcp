@@ -23,6 +23,9 @@ import {
   formatExportTemplateListResponse,
   formatExportResultResponse,
   formatPdfReportResponse,
+  formatRecordResultResponse,
+  intToHexColor,
+  type RecordCard,
   exportFormat,
   idList,
   listWidgetResources,
@@ -73,6 +76,33 @@ const HOSTED_TOOL_DEFINITIONS = TOOL_DEFINITIONS.filter((tool) => tool.name !== 
   securitySchemes: HOSTED_SECURITY_SCHEMES,
   _meta: { ...tool._meta, securitySchemes: HOSTED_SECURITY_SCHEMES },
 }));
+
+/** What a note, expense or break added to the running timer belongs to: its project. */
+function timerContext(timer: any): string[] {
+  const project = timer?.task?.project?.title;
+  return project ? [project] : [];
+}
+
+/** A project for the ResultCard confirmation: title, client, color and billing default. */
+function projectRecord(project: any): RecordCard {
+  return {
+    type: 'project',
+    name: project?.title,
+    context: project?.employer ? [project.employer] : [],
+    color: intToHexColor(project?.color),
+    billable: typeof project?.taskDefaultBillable === 'boolean' ? project.taskDefaultBillable : undefined,
+  };
+}
+
+/** An export template for the ResultCard confirmation: its name and file format. */
+function templateRecord(template: any): RecordCard {
+  const format = typeof template?.format === 'string' ? template.format.toLowerCase() : '';
+  return {
+    type: 'exportTemplate',
+    name: template?.name,
+    context: format ? [format.startsWith('xlsx') ? 'Excel' : format.toUpperCase()] : [],
+  };
+}
 
 export class TimesheetMCPServer {
   private server: Server;
@@ -596,25 +626,20 @@ export class TimesheetMCPServer {
         };
       }
 
+      const noteDateTime = dateTime ?? new Date().toISOString();
       await client.notes.create({
         taskId: timer.task.id,
         text,
         // NoteCreateRequest.dateTime is required; default to now per tool description
-        dateTime: dateTime ?? new Date().toISOString(),
+        dateTime: noteDateTime,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Note added to current task: "${text}"`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          noteText: text,
-        },
-      };
+      return formatRecordResultResponse(`Note added to current task: "${text}"`, 'added', {
+        type: 'note',
+        context: timerContext(timer),
+        date: noteDateTime,
+        text,
+      }, { success: true, noteText: text });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -650,19 +675,12 @@ export class TimesheetMCPServer {
         ...(typeof refunded === 'boolean' ? { refunded } : {}),
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Expense added: ${description} - $${amount}`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          expenseDescription: description,
-          amount: amount,
-        },
-      };
+      return formatRecordResultResponse(`Expense added: ${description} - $${amount}`, 'added', {
+        type: 'expense',
+        name: description,
+        context: timerContext(timer),
+        amount: amount === undefined || amount === null || amount === '' ? undefined : Number(amount),
+      }, { success: true, expenseDescription: description, amount: amount });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -699,18 +717,13 @@ export class TimesheetMCPServer {
       const end = new Date(endDateTime).getTime();
       const durationSeconds = Math.floor((end - start) / 1000);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Pause added to current task`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          duration: durationSeconds,
-        },
-      };
+      return formatRecordResultResponse(`Pause added to current task`, 'added', {
+        type: 'pause',
+        name: description,
+        context: timerContext(timer),
+        durationSeconds: Number.isFinite(durationSeconds) && durationSeconds >= 0 ? durationSeconds : undefined,
+        date: startDateTime,
+      }, { success: true, duration: durationSeconds });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -824,7 +837,10 @@ export class TimesheetMCPServer {
 
     try {
       const project = await client.projects.create(args);
+      const created = formatRecordResultResponse(`Project created: ${project.title} (ID: ${project.id})`, 'created',
+        projectRecord(project), { id: project.id, title: project.title });
       return {
+        ...created,
         content: [
           {
             type: 'text',
@@ -845,10 +861,6 @@ export class TimesheetMCPServer {
             },
           },
         ],
-        structuredContent: {
-          id: project.id,
-          title: project.title,
-        },
       };
     } catch (error) {
       return this.handleApiError(error);
@@ -861,18 +873,8 @@ export class TimesheetMCPServer {
 
     try {
       const project = await client.projects.update(id, updateData);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Project updated: ${project.title}`,
-          },
-        ],
-        structuredContent: {
-          id: project.id,
-          title: project.title,
-        },
-      };
+      return formatRecordResultResponse(`Project updated: ${project.title}`, 'updated', projectRecord(project),
+        { id: project.id, title: project.title });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -883,19 +885,11 @@ export class TimesheetMCPServer {
     const { id } = args;
 
     try {
+      // Read first, so the card can name what was deleted
+      const project = await client.projects.get(id).catch(() => undefined);
       await client.projects.delete(id);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Project ${id} deleted successfully`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          deletedId: id,
-        },
-      };
+      return formatRecordResultResponse(`Project ${id} deleted successfully`, 'deleted',
+        project ? projectRecord(project) : { type: 'project' }, { success: true, deletedId: id });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -1031,19 +1025,17 @@ export class TimesheetMCPServer {
     const { id } = args;
 
     try {
+      // Read first, so the card can name what was deleted
+      const task: any = await client.tasks.get(id).catch(() => undefined);
       await client.tasks.delete(id);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Task ${id} deleted successfully`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          deletedId: id,
-        },
-      };
+      return formatRecordResultResponse(`Task ${id} deleted successfully`, 'deleted', {
+        type: 'task',
+        name: task?.description || task?.project?.title,
+        context: task?.description ? [task?.project?.title] : [],
+        color: intToHexColor(task?.project?.color),
+        durationSeconds: typeof task?.duration === 'number' ? task.duration : undefined,
+        date: task?.startDateTime,
+      }, { success: true, deletedId: id });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -1534,18 +1526,8 @@ export class TimesheetMCPServer {
         filename,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Template "${template.name}" created successfully with ID: ${template.id}`,
-          },
-        ],
-        structuredContent: {
-          id: template.id,
-          name: template.name,
-        },
-      };
+      return formatRecordResultResponse(`Template "${template.name}" created successfully with ID: ${template.id}`,
+        'created', templateRecord(template), { id: template.id, name: template.name });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -1564,18 +1546,8 @@ export class TimesheetMCPServer {
         projectIds,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Template "${template.name}" updated successfully`,
-          },
-        ],
-        structuredContent: {
-          id: template.id,
-          name: template.name,
-        },
-      };
+      return formatRecordResultResponse(`Template "${template.name}" updated successfully`, 'updated',
+        templateRecord(template), { id: template.id, name: template.name });
     } catch (error) {
       return this.handleApiError(error);
     }
@@ -1586,20 +1558,12 @@ export class TimesheetMCPServer {
     const { templateId } = args;
 
     try {
+      // Read first, so the card can name what was deleted
+      const template = await client.reports.export.getTemplate(templateId).catch(() => undefined);
       await client.reports.export.deleteTemplate(templateId);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Template ${templateId} deleted successfully`,
-          },
-        ],
-        structuredContent: {
-          success: true,
-          deletedId: templateId,
-        },
-      };
+      return formatRecordResultResponse(`Template ${templateId} deleted successfully`, 'deleted',
+        template ? templateRecord(template) : { type: 'exportTemplate' }, { success: true, deletedId: templateId });
     } catch (error) {
       return this.handleApiError(error);
     }

@@ -6,6 +6,7 @@ import {
   formatExportResultResponse,
   formatPdfReportResponse,
   formatProjectListResponse,
+  formatRecordResultResponse,
   formatStatisticsResponse,
   formatTaskCardResponse,
   formatTaskListResponse,
@@ -53,7 +54,20 @@ describe('tool descriptors link their widget', () => {
       absence_create: 'ResultCard', absence_get: 'ResultCard', absence_update: 'ResultCard',
       absence_approve: 'ResultCard', absence_reject: 'ResultCard', absence_cancel: 'ResultCard',
     };
+    // Every other write tool confirms with the ResultCard's record card
+    for (const tool of TOOL_DEFINITIONS) {
+      if (tool.name !== 'auth_configure' && tool.annotations?.readOnlyHint === false && !(tool.name in expected)) {
+        expected[tool.name] = 'ResultCard';
+      }
+    }
     expect(Object.fromEntries(Object.entries(TOOL_WIDGET_LINKS).map(([k, v]) => [k, v.widget]))).toEqual(expected);
+  });
+
+  /** Microsoft's agent store asks for a card confirming every completed action. */
+  test('every write tool answers with a card', () => {
+    const writes = TOOL_DEFINITIONS.filter((tool) => tool.name !== 'auth_configure' && tool.annotations?.readOnlyHint === false);
+    expect(writes.length).toBeGreaterThan(60);
+    expect(writes.filter((tool) => !TOOL_WIDGET_LINKS[tool.name]).map((tool) => tool.name)).toEqual([]);
   });
 
   test('descriptor _meta has the resource, visibility and short status lines', () => {
@@ -270,6 +284,93 @@ describe('ResultCard: absence', () => {
       fullDay: false, totalHours: '4', totalDays: '0.5',
     });
     expect(card).toMatchObject({ fullDay: false, totalHours: 4, totalDays: 0.5 });
+  });
+});
+
+describe('ResultCard: record', () => {
+  test('the card sits next to the legacy fields, without empty ones', () => {
+    const result = formatRecordResultResponse('Tag t1 updated.', 'updated', {
+      type: 'tag', name: 'Peer review', context: ['', 'Studio'], color: undefined, changes: [],
+    }, { id: 't1', name: 'Peer review' });
+    expect(result.content).toEqual([{ type: 'text', text: 'Tag t1 updated.' }]);
+    expect(result.structuredContent).toEqual({
+      id: 't1', name: 'Peer review', kind: 'record', action: 'updated',
+      record: { type: 'tag', name: 'Peer review', context: ['Studio'] },
+    });
+  });
+
+  test('a delete reads the record first, so the card can name it', async () => {
+    const client = {
+      tags: {
+        get: jest.fn(async () => ({ id: 't1', name: 'Peer review', color: 3066993 })),
+        delete: jest.fn(async () => undefined),
+      },
+    } as any;
+    const result: any = await dispatchExtendedTool(client, 'tag_delete', { id: 't1' });
+    expect(client.tags.delete).toHaveBeenCalledWith('t1');
+    expect(result.structuredContent).toEqual({
+      deletedId: 't1', kind: 'record', action: 'deleted',
+      record: { type: 'tag', name: 'Peer review', color: '#2ecc71' },
+    });
+  });
+
+  test('a failed read never stops the delete', async () => {
+    const client = {
+      todos: {
+        get: jest.fn(async () => { throw new Error('404'); }),
+        delete: jest.fn(async () => undefined),
+      },
+    } as any;
+    const result: any = await dispatchExtendedTool(client, 'todo_delete', { id: 'td1' });
+    expect(client.todos.delete).toHaveBeenCalledWith('td1');
+    expect(result.structuredContent.record).toEqual({ type: 'todo' });
+    expect(result.structuredContent.deletedId).toBe('td1');
+  });
+
+  test('contract status changes carry their own action', async () => {
+    const client = {
+      contracts: {
+        suspend: jest.fn(async () => ({
+          id: 'c1', name: 'Part-time 2027', status: 'SUSPENDED',
+          member: { firstname: 'Alex', lastname: 'Member' },
+        })),
+      },
+    } as any;
+    const result: any = await dispatchExtendedTool(client, 'contract_suspend', { organizationId: 'org', id: 'c1' });
+    expect(result.structuredContent).toMatchObject({
+      id: 'c1', status: 'SUSPENDED', kind: 'record', action: 'suspended',
+      record: { type: 'contract', name: 'Part-time 2027', context: ['Alex Member'] },
+    });
+  });
+
+  test('an invitation says so, an added member does not', async () => {
+    const client = {
+      organizations: { addMember: jest.fn(async () => ({ id: 'm1', email: 'sam@example.com', invited: true })) },
+      projects: { addMember: jest.fn(async () => ({ id: 'm2', email: 'alex@example.com', displayName: 'Alex Member' })) },
+    } as any;
+    const invited: any = await dispatchExtendedTool(client, 'organization_member_add', { organizationId: 'org', email: 'sam@example.com' });
+    expect(invited.structuredContent).toMatchObject({ action: 'invited', record: { type: 'organizationMember', name: 'sam@example.com' } });
+    const added: any = await dispatchExtendedTool(client, 'project_member_add', { projectId: 'p1', email: 'alex@example.com' });
+    expect(added.structuredContent).toMatchObject({ action: 'added', record: { type: 'projectMember', name: 'Alex Member' } });
+  });
+
+  test('the refund flag picks the action, and the amount is a number', async () => {
+    const client = {
+      expenses: { updateStatus: jest.fn(async () => ({ id: 'e1', description: 'Taxi', amount: '26.00', refunded: false })) },
+    } as any;
+    const result: any = await dispatchExtendedTool(client, 'expense_set_refunded', { id: 'e1', refunded: false });
+    expect(result.structuredContent).toMatchObject({
+      id: 'e1', refunded: false, action: 'unrefunded', record: { type: 'expense', name: 'Taxi', amount: 26 },
+    });
+  });
+
+  test('settings list what the update changed', async () => {
+    const client = { settings: { update: jest.fn(async () => ({ theme: 'dark', language: 'en' })) } } as any;
+    const result: any = await dispatchExtendedTool(client, 'settings_update', { theme: 'dark', firstDay: 1 });
+    expect(result.structuredContent).toEqual({
+      theme: 'dark', language: 'en', kind: 'record', action: 'updated',
+      record: { type: 'settings', changes: [{ key: 'theme', value: 'dark' }, { key: 'firstDay', value: '1' }] },
+    });
   });
 });
 

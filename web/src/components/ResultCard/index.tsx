@@ -4,12 +4,37 @@
  * - export: export_send ("Timesheet sent to ..."), export_generate / export_from_template
  *   ("Export ready" with a download)
  * - absence: absence_create, _update, _approve, _reject, _cancel, _get
+ * - record: every other write tool, confirming what it did ("Tag created", "Contract suspended")
  */
 
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useTranslation } from 'react-i18next';
-import { CalendarIcon, DocumentDownloadIcon, DocumentTextIcon, MailIcon } from '@heroicons/react/outline';
+import {
+  AnnotationIcon,
+  CalendarIcon,
+  CashIcon,
+  CheckCircleIcon,
+  CheckIcon,
+  ClockIcon,
+  CogIcon,
+  DocumentDownloadIcon,
+  DocumentTextIcon,
+  FolderAddIcon,
+  FolderIcon,
+  MailIcon,
+  OfficeBuildingIcon,
+  PauseIcon,
+  ReceiptRefundIcon,
+  ScaleIcon,
+  TagIcon,
+  TemplateIcon,
+  TrashIcon,
+  UserAddIcon,
+  UserCircleIcon,
+  UserIcon,
+  UserRemoveIcon,
+} from '@heroicons/react/outline';
 import { McpAppProvider } from '../../McpAppProvider';
 import {
   useCallTool,
@@ -17,10 +42,11 @@ import {
   useLocale,
   useOpenLink,
   useToolFailure,
+  useTimeZone,
   useToolOutput,
   useUpdateModelContext,
 } from '../../hooks';
-import { formatDateRange, formatNumber, projectColor } from '../../format';
+import { formatDate, formatDateRange, formatDuration, formatNumber, projectColor } from '../../format';
 import Card from '../shared/Card';
 import IconTile from '../shared/IconTile';
 import Badge, { type BadgeTone } from '../shared/Badge';
@@ -69,7 +95,29 @@ interface AbsenceResult {
   };
 }
 
-type Result = ExportResult | AbsenceResult;
+type RecordAction =
+  | 'created' | 'added' | 'updated' | 'deleted' | 'removed' | 'invited'
+  | 'completed' | 'reopened' | 'activated' | 'suspended' | 'reactivated' | 'terminated'
+  | 'refunded' | 'unrefunded';
+
+interface RecordResult {
+  kind: 'record';
+  action: RecordAction;
+  record: {
+    type: string;
+    name?: string;
+    context?: string[];
+    color?: string;
+    amount?: number;
+    durationSeconds?: number;
+    date?: string;
+    billable?: boolean;
+    text?: string;
+    changes?: Array<{ key: string; value: string }>;
+  };
+}
+
+type Result = ExportResult | AbsenceResult | RecordResult;
 
 /** "PDF", "Excel", "CSV" */
 function formatLabel(format: string): string {
@@ -318,6 +366,126 @@ function AbsenceCard({ result: initial }: { result: AbsenceResult }) {
   );
 }
 
+/** Status changes carry a badge in the card's corner; plain creates and updates do not. */
+const RECORD_BADGES: Partial<Record<RecordAction, BadgeTone>> = {
+  deleted: 'danger',
+  removed: 'danger',
+  invited: 'neutral',
+  completed: 'success',
+  reopened: 'neutral',
+  activated: 'success',
+  suspended: 'warning',
+  reactivated: 'success',
+  terminated: 'neutral',
+  refunded: 'success',
+  unrefunded: 'neutral',
+};
+
+/** Setting values the card translates; anything else (a time zone, a format) shows as it is. */
+const TRANSLATED_VALUES = new Set(['light', 'dark', 'system', 'true', 'false']);
+
+const MEMBER_TYPES = new Set(['organizationMember', 'teamMember', 'projectMember']);
+
+function recordIcon(type: string, action: RecordAction) {
+  if (MEMBER_TYPES.has(type)) {
+    if (action === 'removed') return <UserRemoveIcon />;
+    return action === 'updated' ? <UserIcon /> : <UserAddIcon />;
+  }
+  if (action === 'deleted' || action === 'removed') return <TrashIcon />;
+  switch (type) {
+    case 'project': return action === 'created' ? <FolderAddIcon /> : <FolderIcon />;
+    case 'task': return <ClockIcon />;
+    case 'note': return <AnnotationIcon />;
+    case 'expense': return action === 'refunded' || action === 'unrefunded' ? <ReceiptRefundIcon /> : <CashIcon />;
+    case 'pause': return <PauseIcon />;
+    case 'exportTemplate': return <TemplateIcon />;
+    case 'absence':
+    case 'absenceType': return <CalendarIcon />;
+    case 'contract': return <DocumentTextIcon />;
+    case 'organization': return <OfficeBuildingIcon />;
+    case 'todo': return <CheckCircleIcon />;
+    case 'rate': return <ScaleIcon />;
+    case 'tag': return <TagIcon />;
+    case 'profile': return <UserCircleIcon />;
+    case 'settings': return <CogIcon />;
+    default: return <CheckIcon />;
+  }
+}
+
+/** Confirms a write: what happened as the title, the record and what it belongs to below. */
+function RecordCard({ result }: { result: RecordResult }) {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const timeZone = useTimeZone();
+  const { action, record } = result;
+
+  const title = t(`resultCard.record.title.${record.type}.${action}`, {
+    defaultValue: t(`resultCard.record.fallback.${action}`, { defaultValue: '' }),
+  });
+  const tone = RECORD_BADGES[action];
+  const dot = projectColor(record.color);
+  const subtitle = [record.name, ...(record.context ?? [])].filter(Boolean).join(' · ');
+  const amount = typeof record.amount === 'number' && Number.isFinite(record.amount)
+    ? formatNumber(record.amount, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : undefined;
+  const duration = typeof record.durationSeconds === 'number' ? formatDuration(record.durationSeconds, locale) : undefined;
+  // The corner holds a status change's badge, else the amount or the duration
+  const figure = amount ?? duration;
+  const aside = tone ? (
+    <Badge tone={tone}>{t(`resultCard.record.badge.${action}`)}</Badge>
+  ) : figure ? (
+    <span className="font-mono tabular-nums text-[22px] sm:text-[24px] leading-none pt-1 text-accent-text whitespace-nowrap">
+      {figure}
+    </span>
+  ) : undefined;
+
+  const changes = (record.changes ?? []).map((change) => {
+    const label = t(`resultCard.record.field.${change.key}`, { defaultValue: change.key });
+    const value = TRANSLATED_VALUES.has(change.value) ? t(`resultCard.record.value.${change.value}`) : change.value;
+    return `${label}: ${value}`;
+  });
+  const details = [
+    record.date ? formatDate(record.date, locale, {}, timeZone) : undefined,
+    // A status change has its badge in the corner, so its amount moves down here
+    tone ? figure : undefined,
+    ...changes,
+  ].filter((detail): detail is string => Boolean(detail));
+  // A record without a name (settings, profile) shows its details right under the title
+  const detailsInHeader = !subtitle && details.length > 0;
+
+  return (
+    <Card className="p-4 sm:p-5">
+      <CardHeader
+        icon={recordIcon(record.type, action)}
+        title={title}
+        subtitle={
+          subtitle ? (
+            <span className="inline-flex items-center gap-1.5 min-w-0">
+              {dot && <i className="inline-block w-2 h-2 rounded-full flex-none" style={{ background: dot }} aria-hidden="true" />}
+              <span className="break-words">{subtitle}</span>
+            </span>
+          ) : detailsInHeader ? (
+            <span className="break-words">{details.join(' · ')}</span>
+          ) : undefined
+        }
+        aside={aside}
+      />
+      {((details.length > 0 && !detailsInHeader) || typeof record.billable === 'boolean') && (
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-2 mt-3 pl-0 min-[480px]:pl-[60px] text-caption text-secondary">
+          {!detailsInHeader && details.map((detail, index) => <span key={index}>{detail}</span>)}
+          {record.billable === true && <Badge tone="success">{t('taskList.billable')}</Badge>}
+          {record.billable === false && <Badge tone="neutral">{t('taskList.nonBillable')}</Badge>}
+        </div>
+      )}
+      {record.text && (
+        <p className="m-0 mt-3 pl-0 min-[480px]:pl-[60px] text-body-small text-text-primary whitespace-pre-line break-words">
+          {record.text}
+        </p>
+      )}
+    </Card>
+  );
+}
+
 function ResultCardApp() {
   const { t } = useTranslation();
   const result = useToolOutput<Result>();
@@ -335,6 +503,9 @@ function ResultCardApp() {
   }
   if (result.kind === 'absence' && result.absence) {
     return <AbsenceCard result={result} />;
+  }
+  if (result.kind === 'record' && result.record) {
+    return <RecordCard result={result} />;
   }
   return null;
 }

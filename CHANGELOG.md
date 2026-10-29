@@ -26,6 +26,11 @@
 - The timer widgets show hours and minutes (`1:24`), like the web app, and update once a minute.
 
 ### Added
+- Every write tool now answers with a confirmation card in the ResultCard widget: what was created,
+  changed or deleted, its name, project or member, and the key values (date, amount, duration, changed
+  fields). Microsoft's agent store asks for a card after every completed action; ChatGPT and Claude
+  show it too. Deletes read the record first so the card can name it, and still delete if that read
+  fails. `structuredContent` keeps its earlier fields and adds `kind: 'record'`, `action` and `record`.
 - The HTTP server allows the Microsoft 365 Copilot widget host for `mcp.timesheet.io`
   (`https://2d696c5327cc51d6dfd953cf1968bab6.widget-renderer.usercontent.microsoft`) in CORS, for the
   Timesheet agent in `apps/app-microsoft-365`.
@@ -45,6 +50,7 @@
   `/unsubscribe`). Errors use the sketch's codes ChatGPT implements (-32011 to -32015).
 
 ### Fixed
+- `contract_suspend` answered "Contract … suspendd". Its text now says "suspended".
 - A timer card in an earlier message no longer counts on after its entry ended. The timer widgets
   of a conversation and the sidebar share the latest timer in the browser: a card follows the entry
   it showed running and stops once that entry is paused or stopped elsewhere. A card shown again

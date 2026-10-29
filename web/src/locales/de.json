@@ -170,6 +170,157 @@
       },
       "hours": "{{value}} Std.",
       "defaultType": "Abwesenheit"
+    },
+    "record": {
+      "title": {
+        "project": {
+          "created": "Projekt erstellt",
+          "updated": "Projekt aktualisiert",
+          "deleted": "Projekt gelöscht"
+        },
+        "task": {
+          "deleted": "Zeiteintrag gelöscht"
+        },
+        "note": {
+          "added": "Notiz hinzugefügt",
+          "updated": "Notiz aktualisiert",
+          "deleted": "Notiz gelöscht"
+        },
+        "expense": {
+          "added": "Auslage hinzugefügt",
+          "updated": "Auslage aktualisiert",
+          "deleted": "Auslage gelöscht",
+          "refunded": "Auslage erstattet",
+          "unrefunded": "Auslage nicht erstattet"
+        },
+        "pause": {
+          "added": "Pause hinzugefügt",
+          "updated": "Pause aktualisiert",
+          "deleted": "Pause gelöscht"
+        },
+        "exportTemplate": {
+          "created": "Exportvorlage gespeichert",
+          "updated": "Exportvorlage aktualisiert",
+          "deleted": "Exportvorlage gelöscht"
+        },
+        "absence": {
+          "deleted": "Abwesenheit gelöscht"
+        },
+        "absenceType": {
+          "created": "Abwesenheitsart erstellt",
+          "updated": "Abwesenheitsart aktualisiert",
+          "deleted": "Abwesenheitsart gelöscht"
+        },
+        "contract": {
+          "created": "Vertrag erstellt",
+          "updated": "Vertrag aktualisiert",
+          "deleted": "Vertrag gelöscht",
+          "activated": "Vertrag aktiviert",
+          "suspended": "Vertrag ausgesetzt",
+          "reactivated": "Vertrag reaktiviert",
+          "terminated": "Vertrag beendet"
+        },
+        "organization": {
+          "created": "Organisation erstellt",
+          "updated": "Organisation aktualisiert",
+          "deleted": "Organisation gelöscht"
+        },
+        "organizationMember": {
+          "invited": "Mitglied eingeladen",
+          "added": "Mitglied hinzugefügt",
+          "updated": "Mitglied aktualisiert",
+          "removed": "Mitglied entfernt"
+        },
+        "teamMember": {
+          "invited": "Teammitglied eingeladen",
+          "added": "Teammitglied hinzugefügt",
+          "updated": "Teammitglied aktualisiert",
+          "removed": "Teammitglied entfernt"
+        },
+        "projectMember": {
+          "added": "Projektmitglied hinzugefügt",
+          "updated": "Projektmitglied aktualisiert",
+          "removed": "Projektmitglied entfernt"
+        },
+        "todo": {
+          "created": "ToDo erstellt",
+          "updated": "ToDo aktualisiert",
+          "completed": "ToDo erledigt",
+          "reopened": "ToDo wieder geöffnet",
+          "deleted": "ToDo gelöscht"
+        },
+        "rate": {
+          "created": "Rate erstellt",
+          "updated": "Rate aktualisiert",
+          "deleted": "Rate gelöscht"
+        },
+        "tag": {
+          "created": "Stichwort erstellt",
+          "updated": "Stichwort aktualisiert",
+          "deleted": "Stichwort gelöscht"
+        },
+        "profile": {
+          "updated": "Profil aktualisiert"
+        },
+        "settings": {
+          "updated": "Einstellungen aktualisiert"
+        }
+      },
+      "fallback": {
+        "created": "Erstellt",
+        "added": "Hinzugefügt",
+        "updated": "Aktualisiert",
+        "deleted": "Gelöscht",
+        "removed": "Entfernt",
+        "invited": "Eingeladen",
+        "completed": "Erledigt",
+        "reopened": "Wieder geöffnet",
+        "activated": "Aktiviert",
+        "suspended": "Ausgesetzt",
+        "reactivated": "Reaktiviert",
+        "terminated": "Beendet",
+        "refunded": "Erstattet",
+        "unrefunded": "Nicht erstattet"
+      },
+      "badge": {
+        "deleted": "Gelöscht",
+        "removed": "Entfernt",
+        "invited": "Eingeladen",
+        "completed": "Erledigt",
+        "reopened": "Offen",
+        "activated": "Aktiv",
+        "suspended": "Ausgesetzt",
+        "reactivated": "Aktiv",
+        "terminated": "Beendet",
+        "refunded": "Erstattet",
+        "unrefunded": "Nicht erstattet"
+      },
+      "field": {
+        "theme": "Thema",
+        "language": "Sprache",
+        "timezone": "Zeitzone",
+        "currency": "Währung",
+        "distance": "Entfernung",
+        "dateFormat": "Datumsformat",
+        "timeFormat": "Zeitformat",
+        "durationFormat": "Format Dauer",
+        "csvSeparator": "CSV-Trennzeichen",
+        "firstDay": "Erster Tag der Woche",
+        "defaultTaskDuration": "Standarddauer eines Eintrags",
+        "defaultBreakDuration": "Standarddauer einer Pause",
+        "firstname": "Vorname",
+        "lastname": "Nachname",
+        "email": "E-Mail",
+        "imageUrl": "Bild",
+        "newsletter": "Newsletter"
+      },
+      "value": {
+        "light": "Hell",
+        "dark": "Dunkel",
+        "system": "System",
+        "true": "An",
+        "false": "Aus"
+      }
     }
   },
   "exportWidget": {

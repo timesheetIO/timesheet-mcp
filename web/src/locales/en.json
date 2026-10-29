@@ -170,6 +170,157 @@
       },
       "hours": "{{value}} h",
       "defaultType": "Absence"
+    },
+    "record": {
+      "title": {
+        "project": {
+          "created": "Project created",
+          "updated": "Project updated",
+          "deleted": "Project deleted"
+        },
+        "task": {
+          "deleted": "Time entry deleted"
+        },
+        "note": {
+          "added": "Note added",
+          "updated": "Note updated",
+          "deleted": "Note deleted"
+        },
+        "expense": {
+          "added": "Expense added",
+          "updated": "Expense updated",
+          "deleted": "Expense deleted",
+          "refunded": "Expense refunded",
+          "unrefunded": "Expense not refunded"
+        },
+        "pause": {
+          "added": "Break added",
+          "updated": "Break updated",
+          "deleted": "Break deleted"
+        },
+        "exportTemplate": {
+          "created": "Export template saved",
+          "updated": "Export template updated",
+          "deleted": "Export template deleted"
+        },
+        "absence": {
+          "deleted": "Absence deleted"
+        },
+        "absenceType": {
+          "created": "Absence type created",
+          "updated": "Absence type updated",
+          "deleted": "Absence type deleted"
+        },
+        "contract": {
+          "created": "Contract created",
+          "updated": "Contract updated",
+          "deleted": "Contract deleted",
+          "activated": "Contract activated",
+          "suspended": "Contract suspended",
+          "reactivated": "Contract reactivated",
+          "terminated": "Contract terminated"
+        },
+        "organization": {
+          "created": "Organization created",
+          "updated": "Organization updated",
+          "deleted": "Organization deleted"
+        },
+        "organizationMember": {
+          "invited": "Member invited",
+          "added": "Member added",
+          "updated": "Member updated",
+          "removed": "Member removed"
+        },
+        "teamMember": {
+          "invited": "Team member invited",
+          "added": "Team member added",
+          "updated": "Team member updated",
+          "removed": "Team member removed"
+        },
+        "projectMember": {
+          "added": "Project member added",
+          "updated": "Project member updated",
+          "removed": "Project member removed"
+        },
+        "todo": {
+          "created": "Todo created",
+          "updated": "Todo updated",
+          "completed": "Todo completed",
+          "reopened": "Todo reopened",
+          "deleted": "Todo deleted"
+        },
+        "rate": {
+          "created": "Rate created",
+          "updated": "Rate updated",
+          "deleted": "Rate deleted"
+        },
+        "tag": {
+          "created": "Tag created",
+          "updated": "Tag updated",
+          "deleted": "Tag deleted"
+        },
+        "profile": {
+          "updated": "Profile updated"
+        },
+        "settings": {
+          "updated": "Settings updated"
+        }
+      },
+      "fallback": {
+        "created": "Created",
+        "added": "Added",
+        "updated": "Updated",
+        "deleted": "Deleted",
+        "removed": "Removed",
+        "invited": "Invited",
+        "completed": "Completed",
+        "reopened": "Reopened",
+        "activated": "Activated",
+        "suspended": "Suspended",
+        "reactivated": "Reactivated",
+        "terminated": "Terminated",
+        "refunded": "Refunded",
+        "unrefunded": "Not refunded"
+      },
+      "badge": {
+        "deleted": "Deleted",
+        "removed": "Removed",
+        "invited": "Invited",
+        "completed": "Done",
+        "reopened": "Open",
+        "activated": "Active",
+        "suspended": "Suspended",
+        "reactivated": "Active",
+        "terminated": "Terminated",
+        "refunded": "Refunded",
+        "unrefunded": "Not refunded"
+      },
+      "field": {
+        "theme": "Theme",
+        "language": "Language",
+        "timezone": "Time zone",
+        "currency": "Currency",
+        "distance": "Distance",
+        "dateFormat": "Date format",
+        "timeFormat": "Time format",
+        "durationFormat": "Duration format",
+        "csvSeparator": "CSV separator",
+        "firstDay": "First day of the week",
+        "defaultTaskDuration": "Default entry length",
+        "defaultBreakDuration": "Default break length",
+        "firstname": "First name",
+        "lastname": "Last name",
+        "email": "Email",
+        "imageUrl": "Picture",
+        "newsletter": "Newsletter"
+      },
+      "value": {
+        "light": "Light",
+        "dark": "Dark",
+        "system": "System",
+        "true": "On",
+        "false": "Off"
+      }
     }
   },
   "exportWidget": {
