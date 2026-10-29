@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Changed
+- `project_list` and `task_list`, and their `limit` parameters, no longer word their guidance as "when the
+  user asks": Microsoft's agent store refuses descriptions that read like instructions about what a
+  user says. Same meaning.
 - Built on MCP SDK 2.3.1 (`@modelcontextprotocol/server` and `@modelcontextprotocol/client` 2.3.1,
   `@modelcontextprotocol/node` 2.1.1), up from 2.1.0. The server already builds one instance per
   request and per stdio connection, which 2.3.0 requires.

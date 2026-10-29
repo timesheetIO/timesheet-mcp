@@ -455,13 +455,13 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
   {
     name: 'project_list',
     title: 'List Projects',
-    description: 'Use this when the user wants to view their projects. IMPORTANT: When the user asks for a specific number (e.g., "show me 5 projects"), use the limit parameter to control how many projects are returned. Always use pagination to avoid loading all projects unnecessarily. Supports filtering by team, status, date ranges, and text search.',
+    description: 'Use this when the user wants to view their projects. Returns one page at a time: set limit to the number of projects wanted and page through the rest instead of loading all of them. Supports filtering by team, status, date ranges, and text search.',
     inputSchema: {
       type: 'object',
       properties: {
         limit: {
           type: 'number',
-          description: 'Maximum number of projects to return. Use this when user asks for a specific number (e.g., "5 projects" = limit: 5). Defaults to 20 if not specified.',
+          description: 'Maximum number of projects to return, such as 5 for five projects. Defaults to 20.',
         },
         page: {
           type: 'number',
@@ -742,13 +742,13 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
   {
     name: 'task_list',
     title: 'List Tasks',
-    description: 'Use this when the user wants to view their time entries. IMPORTANT: When the user asks for a specific number (e.g., "show me 10 tasks"), use the limit parameter to control how many tasks are returned. Always use pagination to avoid loading all tasks unnecessarily. Supports extensive filtering by organization, team, project, user, tags, and more.',
+    description: 'Use this when the user wants to view their time entries. Returns one page at a time: set limit to the number of entries wanted and page through the rest instead of loading all of them. Supports extensive filtering by organization, team, project, user, tags, and more.',
     inputSchema: {
       type: 'object',
       properties: {
         limit: {
           type: 'number',
-          description: 'Maximum number of tasks to return. Use this when user asks for a specific number (e.g., "10 tasks" = limit: 10). Defaults to 20 if not specified.',
+          description: 'Maximum number of time entries to return, such as 10 for ten entries. Defaults to 20.',
         },
         page: {
           type: 'number',
