@@ -10,6 +10,7 @@ import {
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { TimesheetApiError, TimesheetClient, TimesheetClientOptions } from '@timesheet/sdk';
+import type { ExportParams, ExportTemplate, ExportTemplateCreateRequest, ExportTemplateUpdateRequest, ExportedField } from '@timesheet/sdk';
 import dotenv from 'dotenv';
 import { pathToFileURL } from 'url';
 import { realpathSync } from 'fs';
@@ -22,6 +23,7 @@ import {
   formatStatisticsResponse,
   formatExportTemplateListResponse,
   formatExportResultResponse,
+  exportTemplateDetails,
   formatPdfReportResponse,
   formatRecordResultResponse,
   intToHexColor,
@@ -92,6 +94,25 @@ function projectRecord(project: any): RecordCard {
     color: intToHexColor(project?.color),
     billable: typeof project?.taskDefaultBillable === 'boolean' ? project.taskDefaultBillable : undefined,
   };
+}
+
+/**
+ * Adds `title`, the heading of a PDF export, which @timesheet/sdk 1.3 does not type yet. The SDK
+ * sends export params and template data to the API as given, so the field still reaches it.
+ */
+type WithTitle<T> = T & { title?: string };
+
+/** A tool argument refused before the API is called; the model reads the message. */
+class ToolInputError extends Error {}
+
+/**
+ * The settings an export and an export template share, from a tool's arguments. A left-out setting
+ * stays undefined and so is left out of the request: the default for an export or a new template,
+ * the stored value on a template update.
+ */
+function exportSettings(args: any) {
+  const { format, teamIds, projectIds, userIds, tagIds, type, filter, splitTask, summarize, filename, title } = args;
+  return { format, teamIds, projectIds, userIds, tagIds, type, filter, splitTask, summarize, filename, title };
 }
 
 /** An export template for the ResultCard confirmation: its name and file format. */
@@ -1266,25 +1287,18 @@ export class TimesheetMCPServer {
 
   private async handleExportGenerate(args: any) {
     const client = this.getClient();
-    const { report, startDate, endDate, format, teamIds, projectIds, userIds, tagIds, type, filter, splitTask, summarize, filename } = args;
+    const { report, startDate, endDate, format, filename } = args;
 
     try {
+      const exportedFields = await this.exportColumns(args.exportedFields, report);
       const [result, reportName] = await Promise.all([
         client.reports.export.generate({
           report,
           startDate,
           endDate,
-          format,
-          teamIds,
-          projectIds,
-          userIds,
-          tagIds,
-          type,
-          filter,
-          splitTask,
-          summarize,
-          filename,
-        }),
+          ...exportSettings(args),
+          exportedFields,
+        } as WithTitle<ExportParams>),
         this.getReportName(report),
       ]);
 
@@ -1308,20 +1322,19 @@ export class TimesheetMCPServer {
 
   private async handleExportSend(args: any) {
     const client = this.getClient();
-    const { email, report, startDate, endDate, format, teamIds, projectIds, filename } = args;
+    const { email, report, startDate, endDate, format, filename } = args;
 
     try {
+      const exportedFields = await this.exportColumns(args.exportedFields, report);
       const [, reportName] = await Promise.all([
         client.reports.export.send({
           email,
           report,
           startDate,
           endDate,
-          format,
-          teamIds,
-          projectIds,
-          filename,
-        }),
+          ...exportSettings(args),
+          exportedFields,
+        } as WithTitle<ExportParams>),
         this.getReportName(report),
       ]);
 
@@ -1353,7 +1366,7 @@ export class TimesheetMCPServer {
     const { templateId, startDate, endDate } = args;
 
     try {
-      const template = await client.reports.export.getTemplate(templateId);
+      const template: WithTitle<ExportTemplate> = await client.reports.export.getTemplate(templateId);
       const [result, reportName] = await Promise.all([
         client.reports.export.generate({
           report: template.report,
@@ -1369,8 +1382,9 @@ export class TimesheetMCPServer {
           splitTask: template.splitTask,
           summarize: template.summarize,
           filename: template.filename,
+          title: template.title,
           exportedFields: idList(template.exportedFields as any) as any,
-        }),
+        } as WithTitle<ExportParams>),
         this.getReportName(template.report),
       ]);
 
@@ -1405,6 +1419,55 @@ export class TimesheetMCPServer {
     }
   }
 
+  /**
+   * An export's columns from field IDs, built as the web app builds them. The API writes each
+   * column as given: without its name the header stays blank, and the team and project summaries
+   * drop a column not marked as a team or project field. The fields come from the report type's
+   * field scope, custom fields included.
+   */
+  private async exportColumns(fieldIds: unknown, report: unknown): Promise<ExportedField[] | undefined> {
+    if (!Array.isArray(fieldIds) || fieldIds.length === 0) {
+      return undefined;
+    }
+    if (report === undefined || report === null) {
+      throw new ToolInputError('exportedFields needs the report type: pass report too (IDs from export_report_types).');
+    }
+    const client = this.getClient();
+    const reportType = (await client.reports.export.getReportTypes()).items?.find((t) => t.id === Number(report));
+    if (!reportType) {
+      throw new ToolInputError(`Unknown report type ${report}. export_report_types lists them.`);
+    }
+    if (!reportType.acceptFields || !reportType.fieldScope) {
+      throw new ToolInputError(`Report type ${reportType.id} (${reportType.name}) has fixed columns: leave exportedFields out.`);
+    }
+    const scope = reportType.fieldScope.toLowerCase() as 'project' | 'team' | 'task' | 'todo';
+    const { fields } = await client.reports.export.getFields(scope);
+    const byId = new Map(fields.map((field) => [field.fieldId, field]));
+    const ids = fieldIds.map(String);
+    const unknown = ids.filter((id) => !byId.has(id));
+    if (unknown.length > 0) {
+      throw new ToolInputError(
+        `Unknown column ${unknown.join(', ')} for report type ${reportType.id}. export_fields with scope "${scope}" lists its columns.`
+      );
+    }
+    return ids.flatMap((id, position) => {
+      const field = byId.get(id);
+      return field
+        ? [{
+            id: field.fieldId,
+            name: field.name,
+            position,
+            projectField: field.scope === 'PROJECT',
+            teamField: field.scope === 'TEAM',
+            customField: field.customField ?? false,
+            customType: field.customType,
+            customValue: field.customValue,
+            customFormula: field.customFormula,
+          }]
+        : [];
+    });
+  }
+
   // ============================================================================
   // Reports API - Export Configuration
   // ============================================================================
@@ -1416,8 +1479,8 @@ export class TimesheetMCPServer {
     try {
       const result = await client.reports.export.getFields(scope);
 
+      // Every field: claude.ai gives the model only the text, and exportedFields takes these IDs
       const fieldList = result.fields
-        .slice(0, 10)
         .map((f: any) => `- ${f.name} (${f.fieldId})`)
         .join('\n');
 
@@ -1425,7 +1488,7 @@ export class TimesheetMCPServer {
         content: [
           {
             type: 'text',
-            text: `Available export fields (${result.fields.length} total):\n${fieldList}${result.fields.length > 10 ? '\n...and more' : ''}`,
+            text: `Available export fields (${result.fields.length} total):\n${fieldList}`,
           },
         ],
         structuredContent: result,
@@ -1442,7 +1505,7 @@ export class TimesheetMCPServer {
       const result = await client.reports.export.getReportTypes();
 
       const reportList = result.items
-        .map((r: any) => `- ${r.id}: ${r.name}${r.description ? ` - ${r.description}` : ''}`)
+        .map((r: any) => `- ${r.id}: ${r.name}${r.acceptFields && r.fieldScope ? ` (columns: export_fields scope "${String(r.fieldScope).toLowerCase()}")` : ''}`)
         .join('\n');
 
       return {
@@ -1490,13 +1553,13 @@ export class TimesheetMCPServer {
     const { templateId } = args;
 
     try {
-      const template = await client.reports.export.getTemplate(templateId);
+      const template: WithTitle<ExportTemplate> = await client.reports.export.getTemplate(templateId);
 
       return {
         content: [
           {
             type: 'text',
-            text: `Template: ${template.name}\nFormat: ${template.format || 'N/A'}\nReport Type: ${template.report || 'N/A'}`,
+            text: [`Template: ${template.name} (ID: ${template.id ?? templateId})`, ...exportTemplateDetails(template)].join('\n'),
           },
         ],
         structuredContent: template,
@@ -1508,25 +1571,19 @@ export class TimesheetMCPServer {
 
   private async handleExportTemplateCreate(args: any) {
     const client = this.getClient();
-    const { name, report, format, teamIds, projectIds, userIds, type, filter, splitTask, summarize, email, filename } = args;
+    const { name, report, email } = args;
 
     try {
       const template = await client.reports.export.createTemplate({
         name,
         report,
-        format,
-        teamIds,
-        projectIds,
-        userIds,
-        type,
-        filter,
-        splitTask,
-        summarize,
+        ...exportSettings(args),
         email,
-        filename,
-      });
+        exportedFields: await this.exportColumns(args.exportedFields, report),
+      } as WithTitle<ExportTemplateCreateRequest>);
 
-      return formatRecordResultResponse(`Template "${template.name}" created successfully with ID: ${template.id}`,
+      const text = [`Template "${template.name}" created successfully with ID: ${template.id}`, ...exportTemplateDetails(template)];
+      return formatRecordResultResponse(text.join('\n'),
         'created', templateRecord(template), { id: template.id, name: template.name });
     } catch (error) {
       return this.handleApiError(error);
@@ -1535,18 +1592,26 @@ export class TimesheetMCPServer {
 
   private async handleExportTemplateUpdate(args: any) {
     const client = this.getClient();
-    const { templateId, name, report, format, teamIds, projectIds } = args;
+    const { templateId, name, report, email, exportedFields } = args;
 
     try {
+      // A left-out setting is left out of the request and keeps the stored value; '' clears a text.
+      // Earlier Reports API versions refuse an update without a name, and this server deploys on its
+      // own: the stored name goes along. Columns match the stored report type when the call keeps it.
+      const needsReport = Array.isArray(exportedFields) && exportedFields.length > 0 && (report === undefined || report === null);
+      const stored = name === undefined || name === null || needsReport
+        ? await client.reports.export.getTemplate(templateId)
+        : undefined;
       const template = await client.reports.export.updateTemplate(templateId, {
-        name,
+        name: name ?? stored?.name,
         report,
-        format,
-        teamIds,
-        projectIds,
-      });
+        ...exportSettings(args),
+        email,
+        exportedFields: await this.exportColumns(exportedFields, report ?? stored?.report),
+      } as WithTitle<ExportTemplateUpdateRequest>);
 
-      return formatRecordResultResponse(`Template "${template.name}" updated successfully`, 'updated',
+      const text = [`Template "${template.name}" updated successfully (ID: ${template.id ?? templateId})`, ...exportTemplateDetails(template)];
+      return formatRecordResultResponse(text.join('\n'), 'updated',
         templateRecord(template), { id: template.id, name: template.name });
     } catch (error) {
       return this.handleApiError(error);
@@ -1610,6 +1675,10 @@ export class TimesheetMCPServer {
   }
 
   private handleApiError(error: any) {
+    if (error instanceof ToolInputError) {
+      return { content: [{ type: 'text', text: error.message }], isError: true };
+    }
+
     // Tier-gate rejection from the backend (402). Surface the required tier so
     // the AI client can tell the user what their plan is missing. The link is the
     // plans page: ChatGPT's directory forbids links that start an upgrade.

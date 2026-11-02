@@ -34,6 +34,68 @@ const TIMER_OUTPUT_SCHEMA = {
 } as const;
 
 /**
+ * The settings an export and an export template share (ExportParams and the template requests of
+ * the Reports API), worded once so that every export and template tool takes all of them: a tool
+ * that dropped one made a different export than asked for. `mode` says what a left-out setting
+ * means: the default for an export or a new template, the stored value for a template update.
+ */
+function exportSettingProperties(mode: 'export' | 'template' | 'update') {
+  const update = mode === 'update';
+  const otherwise = (fallback: string) => (update ? 'Leave it out to keep the current setting.' : fallback);
+  const idFilter = (entries: string, all: string) => ({
+    type: 'array',
+    items: { type: 'string' },
+    description: `Only ${entries}. ${update ? 'Leave it out to keep the current filter; an empty array removes it.' : `Leave it out for ${all}.`}`,
+  });
+  const pdfs = mode === 'export' ? 'a PDF export' : "the template's PDF exports";
+  return {
+    format: {
+      type: 'string',
+      enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
+      description: `File format: xlsx (Excel), xlsx1904 (Excel with the 1904 date system), csv or pdf. ${otherwise('Leave it out for xlsx.')}`,
+    },
+    teamIds: idFilter('entries of these teams (IDs from team_list)', 'all teams'),
+    projectIds: idFilter('entries of these projects (IDs from project_list)', 'all projects'),
+    userIds: idFilter('entries of these members (user IDs)', 'all members'),
+    tagIds: idFilter('entries with these tags (IDs from tag_list)', 'all entries'),
+    type: {
+      type: 'string',
+      enum: ['all', 'task', 'mileage', 'call'],
+      description: `Entry type: all, task (time entries), mileage or call. ${otherwise('Leave it out for all.')}`,
+    },
+    filter: {
+      type: 'string',
+      enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'outstanding'],
+      description: `Billing status: all, billable, notBillable, paid, unpaid (billable, not paid), billed or outstanding (billed, not paid). ${otherwise('Leave it out for all.')}`,
+    },
+    splitTask: {
+      type: 'boolean',
+      description: `Split each entry at its breaks: one row per stretch of work, without the break columns. ${otherwise('Off when left out.')}`,
+    },
+    summarize: {
+      type: 'boolean',
+      description: `Add a totals row at the end; the entries are still listed. ${otherwise('Off when left out.')}`,
+    },
+    filename: {
+      type: 'string',
+      description: mode === 'export'
+        ? 'File name without extension; the export adds the date and time. Leave it out for "timesheet".'
+        : `File name of the template's exports, up to 50 characters, without extension. ${update ? 'Leave it out to keep it, or pass an empty string for "timesheet".' : 'Leave it out for "timesheet".'}`,
+    },
+    title: {
+      type: 'string',
+      description: `Heading printed at the top of ${pdfs}, such as "Hours report, Jane Smith"${mode === 'export' ? '' : ', up to 255 characters'}. ${update ? "Leave it out to keep the current one, or pass an empty string to go back to the report's name." : "Leave it out for the report's name."} Only used when format is pdf: Excel and CSV exports have no title row.`,
+    },
+    exportedFields: {
+      type: 'array',
+      items: { type: 'string' },
+      minItems: 1,
+      description: `Columns, in order, as field IDs from export_fields, with the field scope that export_report_types names for the report type. ${update ? 'Leave it out to keep the current columns.' : "Leave it out for the report's default columns."} Only for report types that take columns.`,
+    },
+  };
+}
+
+/**
  * The Claude directory lists a tool by annotations.title, which the tools below only give at the
  * top level: copy it into the annotations. The extended tools set both already.
  */
@@ -1431,53 +1493,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
           type: 'string',
           description: 'End date for the export period (YYYY-MM-DD format)',
         },
-        format: {
-          type: 'string',
-          enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
-          description: 'Export file format. xlsx=Excel, xlsx1904=Excel 1904 date system, csv=comma-separated, pdf=PDF document',
-        },
-        teamIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by team IDs',
-        },
-        projectIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by project IDs',
-        },
-        userIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by user IDs',
-        },
-        tagIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by tag IDs',
-        },
-        type: {
-          type: 'string',
-          enum: ['all', 'task', 'mileage', 'call'],
-          description: 'Task type filter',
-        },
-        filter: {
-          type: 'string',
-          enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'outstanding'],
-          description: 'Status filter for billing/payment',
-        },
-        splitTask: {
-          type: 'boolean',
-          description: 'Whether to split multi-day tasks into separate rows',
-        },
-        summarize: {
-          type: 'boolean',
-          description: 'Whether to add a totals row at the end. Individual entries are still listed',
-        },
-        filename: {
-          type: 'string',
-          description: 'Custom filename for the export',
-        },
+        ...exportSettingProperties('export'),
       },
       required: ['report', 'startDate', 'endDate'],
     },
@@ -1507,7 +1523,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         },
         report: {
           type: 'number',
-          description: 'Report type identifier',
+          description: 'Report type identifier. Use export_report_types to get available types.',
         },
         startDate: {
           type: 'string',
@@ -1517,25 +1533,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
           type: 'string',
           description: 'End date for the export period (YYYY-MM-DD)',
         },
-        format: {
-          type: 'string',
-          enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
-          description: 'Export file format. xlsx=Excel, xlsx1904=Excel 1904 date system, csv=comma-separated, pdf=PDF document',
-        },
-        teamIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by team IDs',
-        },
-        projectIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Filter by project IDs',
-        },
-        filename: {
-          type: 'string',
-          description: 'Custom filename for the export',
-        },
+        ...exportSettingProperties('export'),
       },
       required: ['email', 'report', 'startDate', 'endDate'],
     },
@@ -1760,53 +1758,12 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         },
         report: {
           type: 'number',
-          description: 'Report type identifier',
+          description: 'Report type identifier. Use export_report_types to get available types.',
         },
-        format: {
-          type: 'string',
-          enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
-          description: 'Export format',
-        },
-        teamIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Team IDs filter',
-        },
-        projectIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Project IDs filter',
-        },
-        userIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'User IDs filter',
-        },
-        type: {
-          type: 'string',
-          enum: ['all', 'task', 'mileage', 'call'],
-          description: 'Task type filter',
-        },
-        filter: {
-          type: 'string',
-          enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'outstanding'],
-          description: 'Status filter',
-        },
-        splitTask: {
-          type: 'boolean',
-          description: 'Split multi-day tasks',
-        },
-        summarize: {
-          type: 'boolean',
-          description: 'Add a totals row at the end (entries are still listed)',
-        },
+        ...exportSettingProperties('template'),
         email: {
           type: 'string',
-          description: 'Default email for sending exports',
-        },
-        filename: {
-          type: 'string',
-          description: 'Default filename',
+          description: 'Default recipient for exports from this template that are sent by email',
         },
       },
       required: ['name'],
@@ -1837,26 +1794,16 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         },
         name: {
           type: 'string',
-          description: 'Updated template name',
+          description: 'New template name. Leave it out to keep the current one.',
         },
         report: {
           type: 'number',
-          description: 'Updated report type',
+          description: 'New report type (IDs from export_report_types). Leave it out to keep the current one.',
         },
-        format: {
+        ...exportSettingProperties('update'),
+        email: {
           type: 'string',
-          enum: ['xlsx', 'xlsx1904', 'csv', 'pdf'],
-          description: 'Updated export format',
-        },
-        teamIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Updated team IDs filter',
-        },
-        projectIds: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Updated project IDs filter',
+          description: 'New default recipient for exports from this template that are sent by email. Leave it out to keep it, or pass an empty string to clear it.',
         },
       },
       required: ['templateId'],

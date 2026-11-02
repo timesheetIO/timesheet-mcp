@@ -26,6 +26,18 @@
 - The timer widgets show hours and minutes (`1:24`), like the web app, and update once a minute.
 
 ### Added
+- `title` on `export_generate`, `export_send`, `export_template_create` and `export_template_update`:
+  the heading printed at the top of a PDF export, such as "Hours report, Jane Smith", in place of
+  the report's name. Excel and CSV exports have no title row. On `export_template_update`, leaving
+  it out keeps the template's title and an empty string clears it. `export_from_template` carries
+  the template's title, and `export_template_get` names it in its text.
+- `exportedFields` on `export_generate`, `export_send`, `export_template_create` and
+  `export_template_update`: the columns, in order, as field IDs from `export_fields`. The server
+  builds the columns the API takes from the report type's field scope, as the web app does: name,
+  position, project or team field, custom field data. An unknown ID, or columns for a report type with
+  fixed ones, is refused before the export runs. `export_fields` lists every field in its text (it
+  stopped at ten), and `export_report_types` names the field scope of each report type that takes
+  columns.
 - Every write tool now answers with a confirmation card in the ResultCard widget: what was created,
   changed or deleted, its name, project or member, and the key values (date, amount, duration, changed
   fields). Microsoft's agent store asks for a card after every completed action; ChatGPT and Claude
@@ -50,6 +62,21 @@
   `/unsubscribe`). Errors use the sketch's codes ChatGPT implements (-32011 to -32015).
 
 ### Fixed
+- `export_send` took only the format, teams, projects and file name, so a mailed export left out
+  the members, tags, entry type, billing filter, split, totals row and columns asked for. It now
+  takes every setting `export_generate` takes.
+- `export_template_update` changed only the name, report type, format, teams and projects. It now
+  takes every template field: members, tags, entry type, billing filter, split, totals row, email,
+  file name and columns as well. Each is optional and a left-out one keeps the stored value; an
+  empty array removes a filter and an empty string clears the email or file name. `name` is
+  optional too: without it the server reads the template and sends its current name, as earlier
+  Reports API versions refuse an update without one. `export_template_create` also takes `tagIds`.
+- `splitTask` read "split multi-day tasks into separate rows" on the export and template tools. It
+  splits each entry at its breaks, one row per stretch of work, as the descriptions now say.
+- `export_template_get` names every stored setting in its text, not only the format and report type
+  (report type 0 read "N/A"), and the template create and update results list them too.
+  `export_template_list` lists every template of the page in its text (it stopped at ten) with its
+  report type and PDF title. claude.ai hands the model only the text of a result.
 - `contract_suspend` answered "Contract … suspendd". Its text now says "suspended".
 - A timer card in an earlier message no longer counts on after its entry ended. The timer widgets
   of a conversation and the sidebar share the latest timer in the browser: a card follows the entry

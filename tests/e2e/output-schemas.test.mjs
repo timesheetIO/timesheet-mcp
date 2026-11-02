@@ -63,10 +63,49 @@ const ENTITY = {
   params: { count: 1, page: 1, limit: 50 },
 };
 
+/** Report types: two that take columns, from the task and the project field scope, and one with fixed columns. */
+const REPORT_TYPES = {
+  items: [
+    { id: 1, name: 'Hours', acceptFields: true, fieldScope: 'TASK', dataCategory: 'TASK' },
+    { id: 4, name: 'Project summary', acceptFields: true, fieldScope: 'PROJECT', dataCategory: 'TASK' },
+    { id: 12, name: 'Absences', acceptFields: false, dataCategory: 'ABSENCE' },
+  ],
+};
+/** The export fields of each field scope, a custom field among them. */
+const FIELDS = {
+  task: [
+    { fieldId: 'DATE', name: 'Date', type: 'DATE', category: 'TASK', scope: 'TASK' },
+    { fieldId: 'DURATION', name: 'Duration', type: 'DURATION', category: 'TASK', scope: 'TASK' },
+    { fieldId: 'CUSTOM_cf1', name: 'Cost center', type: 'TEXT', scope: 'TASK', customField: true, customType: 'text', customValue: 'CC-42' },
+  ],
+  project: [{ fieldId: 'PROJECT_TITLE', name: 'Project', type: 'TEXT', category: 'PROJECT', scope: 'PROJECT' }],
+};
+/** An export template with every setting, as GET /v1/export/templates/tp-full answers it. */
+const TEMPLATE = {
+  id: 'tp-full',
+  name: 'Monthly hours',
+  report: 1,
+  format: 'pdf',
+  teamIds: ['tm1'],
+  projectIds: ['p1'],
+  userIds: ['u1'],
+  tagIds: ['g1'],
+  type: 'task',
+  filter: 'billable',
+  splitTask: true,
+  summarize: true,
+  email: 'jane@example.test',
+  filename: 'hours',
+  title: 'Hours report, Jane Smith',
+  exportedFields: [{ id: 'DURATION', name: 'Duration', position: 0, projectField: false, teamField: false, customField: false }],
+};
+
 let apiStub;
 let apiUrl;
 let child;
 let baseUrl;
+/** Bodies the API stub received, as { method, route, body }. */
+const apiRequests = [];
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -81,8 +120,19 @@ function freePort() {
 
 before(async () => {
   apiStub = http.createServer((req, res) => {
-    req.resume();
     const route = req.url.split('?')[0];
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString();
+      let body = raw || undefined;
+      try {
+        body = raw ? JSON.parse(raw) : undefined;
+      } catch {
+        // not JSON, such as a file upload: keep the raw text
+      }
+      apiRequests.push({ method: req.method, route, body });
+    });
     const send = (body) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
@@ -90,8 +140,13 @@ before(async () => {
     if (req.method === 'DELETE' || route.endsWith('/send')) {
       res.writeHead(204);
       res.end();
-    } else if (route.endsWith('/fields')) {
-      send({ fields: [{ fieldId: 'duration', name: 'Duration', type: 'DURATION', category: 'TASK' }], totalCount: 1 });
+    } else if (route === '/v1/export/fields') {
+      const fields = FIELDS[new URL(req.url, apiUrl).searchParams.get('scope') ?? 'task'] ?? [];
+      send({ fields, totalCount: fields.length });
+    } else if (route === '/v1/export/report-types') {
+      send(REPORT_TYPES);
+    } else if (route === '/v1/export/templates/tp-full') {
+      send(TEMPLATE);
     } else if (route.endsWith('/xml')) {
       res.writeHead(200, { 'Content-Type': 'application/xml' });
       res.end('<?xml version="1.0" encoding="UTF-8"?><Invoice/>');
@@ -266,6 +321,155 @@ test('timer_panel dates the timer and reports an entry the timer no longer runs'
     const sidebar = await client.callTool({ name: 'timer_sidebar', arguments: {} });
     assert.equal(sidebar._meta['timesheet/tool'], 'timer_sidebar');
     assert.equal(sidebar.structuredContent.status, 'running');
+  } finally {
+    await client.close();
+  }
+});
+
+// The heading of a PDF export. @timesheet/sdk 1.3 does not type `title`, so this checks that it
+// still reaches the API, in the export params and in the template data.
+test('the export title reaches the API', async () => {
+  const client = new Client({ name: 'export-title-check', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(baseUrl + '/'), { requestInit: { headers: { Authorization: `Bearer ${API_KEY}` } } })
+  );
+  try {
+    const title = 'Hours report, Jane Smith';
+    const range = { startDate: '2026-10-01', endDate: '2026-10-31' };
+    /** The body of the last request the tool sent to the route. */
+    const sent = async (name, args, method, route) => {
+      apiRequests.length = 0;
+      const result = await client.callTool({ name, arguments: args });
+      assert.equal(result.isError, undefined, `${name}: ${result.content?.[0]?.text}`);
+      return apiRequests.filter((r) => r.method === method && r.route === route).at(-1)?.body;
+    };
+
+    const generated = await sent('export_generate', { report: 1, ...range, format: 'pdf', title }, 'POST', '/v1/export/data');
+    assert.equal(generated?.title, title);
+    const emailed = await sent('export_send', { email: 'jane@example.test', report: 1, ...range, format: 'pdf', title }, 'POST', '/v1/export/send');
+    assert.equal(emailed?.title, title);
+    const created = await sent('export_template_create', { name: 'Monthly hours', format: 'pdf', title }, 'POST', '/v1/export/templates');
+    assert.equal(created?.title, title);
+
+    // '' clears the template's title; leaving it out keeps it, so it is not sent at all
+    const cleared = await sent('export_template_update', { templateId: 'tp1', title: '' }, 'PUT', '/v1/export/templates/tp1');
+    assert.equal(cleared?.title, '');
+    const renamed = await sent('export_template_update', { templateId: 'tp1', name: 'Renamed' }, 'PUT', '/v1/export/templates/tp1');
+    assert.equal('title' in renamed, false);
+
+    // The stub answers the template read with ENTITY, whose title is "Sample"
+    const fromTemplate = await sent('export_from_template', { templateId: 'tp1', ...range }, 'POST', '/v1/export/data');
+    assert.equal(fromTemplate?.title, ENTITY.title);
+  } finally {
+    await client.close();
+  }
+});
+
+// export_send took fewer settings than export_generate, and export_template_update five: every
+// setting a tool takes has to reach the API, the columns as the objects the API reads. A template
+// update leaves out what the call leaves out, so the stored value stays.
+test('every export setting reaches the API', async () => {
+  const client = new Client({ name: 'export-settings-check', version: '1' });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(baseUrl + '/'), { requestInit: { headers: { Authorization: `Bearer ${API_KEY}` } } })
+  );
+  try {
+    const range = { startDate: '2026-10-01', endDate: '2026-10-31' };
+    const settings = {
+      format: 'pdf',
+      teamIds: ['tm1'],
+      projectIds: ['p1'],
+      userIds: ['u1'],
+      tagIds: ['g1'],
+      type: 'task',
+      filter: 'billable',
+      splitTask: true,
+      summarize: true,
+      filename: 'hours',
+      title: 'Hours report, Jane Smith',
+    };
+    const exportedFields = ['DURATION', 'CUSTOM_cf1'];
+    // As the web app sends them: the field's name and scope flags, its position, custom field data
+    const columns = [
+      { id: 'DURATION', name: 'Duration', position: 0, projectField: false, teamField: false, customField: false },
+      { id: 'CUSTOM_cf1', name: 'Cost center', position: 1, projectField: false, teamField: false, customField: true, customType: 'text', customValue: 'CC-42' },
+    ];
+    const call = async (name, args) => {
+      apiRequests.length = 0;
+      return client.callTool({ name, arguments: args });
+    };
+    /** The body of the last request the tool sent to the route. */
+    const sent = async (name, args, method, route) => {
+      const result = await call(name, args);
+      assert.equal(result.isError, undefined, `${name}: ${result.content?.[0]?.text}`);
+      return apiRequests.filter((r) => r.method === method && r.route === route).at(-1)?.body;
+    };
+    const hasSettings = (tool, body) => {
+      for (const [key, value] of Object.entries(settings)) {
+        assert.deepEqual(body?.[key], value, `${tool} sends ${key}`);
+      }
+      assert.deepEqual(body?.exportedFields, columns, `${tool} sends the columns`);
+    };
+    const fetchedTemplate = () => apiRequests.some((r) => r.method === 'GET' && r.route.startsWith('/v1/export/templates/'));
+
+    hasSettings('export_generate', await sent('export_generate', { report: 1, ...range, ...settings, exportedFields }, 'POST', '/v1/export/data'));
+
+    const emailed = await sent('export_send', { email: 'jane@example.test', report: 1, ...range, ...settings, exportedFields }, 'POST', '/v1/export/send');
+    hasSettings('export_send', emailed);
+    assert.equal(emailed.email, 'jane@example.test');
+
+    const created = await sent('export_template_create', { name: 'Monthly hours', report: 1, email: 'jane@example.test', ...settings, exportedFields }, 'POST', '/v1/export/templates');
+    hasSettings('export_template_create', created);
+    assert.deepEqual([created.name, created.report, created.email], ['Monthly hours', 1, 'jane@example.test']);
+
+    const updated = await sent('export_template_update', { templateId: 'tp1', name: 'Renamed', report: 1, email: 'jane@example.test', ...settings, exportedFields }, 'PUT', '/v1/export/templates/tp1');
+    hasSettings('export_template_update', updated);
+    assert.deepEqual([updated.name, updated.report, updated.email], ['Renamed', 1, 'jane@example.test']);
+    assert.equal(fetchedTemplate(), false, 'a named update does not read the template');
+
+    // Without a name the update reads the template and sends its name, as earlier Reports API
+    // versions refuse an update without one. The settings left out stay left out.
+    const partial = await sent('export_template_update', { templateId: 'tp-full', summarize: false }, 'PUT', '/v1/export/templates/tp-full');
+    assert.deepEqual(partial, { name: TEMPLATE.name, summarize: false });
+
+    // Columns without a report type are matched to the stored one
+    const recolumned = await sent('export_template_update', { templateId: 'tp-full', exportedFields: ['DATE'] }, 'PUT', '/v1/export/templates/tp-full');
+    assert.deepEqual(recolumned.exportedFields, [{ id: 'DATE', name: 'Date', position: 0, projectField: false, teamField: false, customField: false }]);
+
+    // A project summary takes project columns, marked as such, or the API drops them
+    const projectSummary = await sent('export_generate', { report: 4, ...range, exportedFields: ['PROJECT_TITLE'] }, 'POST', '/v1/export/data');
+    assert.deepEqual(projectSummary.exportedFields, [{ id: 'PROJECT_TITLE', name: 'Project', position: 0, projectField: true, teamField: false, customField: false }]);
+
+    // An unknown column, or columns for a report type with fixed ones, are refused before the export
+    const unknown = await call('export_generate', { report: 1, ...range, exportedFields: ['NOPE'] });
+    assert.equal(unknown.isError, true);
+    assert.match(unknown.content[0].text, /NOPE.*export_fields with scope "task"/);
+    const fixed = await call('export_generate', { report: 12, ...range, exportedFields: ['DATE'] });
+    assert.equal(fixed.isError, true);
+    assert.match(fixed.content[0].text, /fixed columns/);
+    assert.equal(apiRequests.some((r) => r.route === '/v1/export/data'), false, 'no export after a refused column');
+
+    // An export from a template carries every setting it stores
+    const fromTemplate = await sent('export_from_template', { templateId: 'tp-full', ...range }, 'POST', '/v1/export/data');
+    for (const key of ['report', 'format', 'teamIds', 'projectIds', 'userIds', 'tagIds', 'type', 'filter', 'splitTask', 'summarize', 'filename', 'title', 'exportedFields']) {
+      assert.deepEqual(fromTemplate[key], TEMPLATE[key], `export_from_template sends ${key}`);
+    }
+
+    // claude.ai gives the model only the text: it names every stored setting
+    const details = (await call('export_template_get', { templateId: 'tp-full' })).content[0].text;
+    for (const line of [
+      'Template: Monthly hours (ID: tp-full)', 'Report type: 1', 'Format: pdf', 'Team IDs: tm1', 'Project IDs: p1', 'User IDs: u1',
+      'Tag IDs: g1', 'Entry type: task', 'Billing filter: billable', 'Split at breaks: yes', 'Totals row: yes',
+      'Email: jane@example.test', 'File name: hours', 'PDF title: Hours report, Jane Smith', 'Columns: Duration (DURATION)',
+    ]) {
+      assert.ok(details.includes(line), `export_template_get text lacks "${line}":\n${details}`);
+    }
+    // and the columns and report types it can choose from
+    const fields = (await call('export_fields', { scope: 'task' })).content[0].text;
+    assert.ok(fields.includes('Cost center (CUSTOM_cf1)'), fields);
+    const types = (await call('export_report_types', {})).content[0].text;
+    assert.ok(types.includes('1: Hours (columns: export_fields scope "task")'), types);
+    assert.ok(types.includes('12: Absences\n') || types.endsWith('12: Absences'), types);
   } finally {
     await client.close();
   }

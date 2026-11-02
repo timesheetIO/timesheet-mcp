@@ -650,15 +650,51 @@ export function formatPdfReportResponse(kind: PdfReportKind, id: string, pdf: Ar
 }
 
 /**
+ * An export template's settings as lines of text, each one only when it is set. claude.ai hands
+ * the model only a result's text, so it names every setting that an export from the template, or
+ * an update of it, depends on.
+ */
+export function exportTemplateDetails(template: any): string[] {
+  const lines: string[] = [];
+  const add = (label: string, value: unknown) => {
+    const text = Array.isArray(value) ? value.join(', ') : value;
+    if (text !== undefined && text !== null && text !== '') {
+      lines.push(`${label}: ${text}`);
+    }
+  };
+  add('Report type', template?.report);
+  add('Format', template?.format);
+  add('Team IDs', idList(template?.teamIds));
+  add('Project IDs', idList(template?.projectIds));
+  add('User IDs', idList(template?.userIds));
+  add('Tag IDs', idList(template?.tagIds));
+  add('Entry type', template?.type);
+  add('Billing filter', template?.filter);
+  add('Split at breaks', template?.splitTask ? 'yes' : undefined);
+  add('Totals row', template?.summarize ? 'yes' : undefined);
+  add('Email', template?.email);
+  add('File name', template?.filename);
+  add('PDF title', template?.title);
+  add('Columns', idList(template?.exportedFields)?.map((f: any) => (f?.name ? `${f.name} (${f.id})` : f?.id)).filter(Boolean));
+  return lines;
+}
+
+/**
  * Format export template list response with component
  */
 export function formatExportTemplateListResponse(templates: any[], totalCount: number) {
+  // Every template of the page: the model only sees the text, and export_from_template needs the ID
   const templateList = templates
-    .slice(0, 10)
     .map((t: any) => {
       let line = `- ${t.name}${withId(t.id)}`;
       if (t.format) {
         line += ` [${t.format.toUpperCase()}]`;
+      }
+      if (typeof t.report === 'number') {
+        line += `, report type ${t.report}`;
+      }
+      if (t.title) {
+        line += `, PDF title "${t.title}"`;
       }
       if (t.summarize) {
         line += ' (summarized)';
@@ -667,7 +703,7 @@ export function formatExportTemplateListResponse(templates: any[], totalCount: n
     })
     .join('\n');
 
-  const textContent = `Found ${totalCount} export template${totalCount !== 1 ? 's' : ''}:\n\n${templateList || 'No templates found'}${totalCount > 10 ? '\n...and more' : ''}`;
+  const textContent = `Found ${totalCount} export template${totalCount !== 1 ? 's' : ''}:\n\n${templateList || 'No templates found'}`;
 
   return {
     content: [
