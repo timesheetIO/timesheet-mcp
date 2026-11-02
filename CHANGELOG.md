@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.0] - 2026-11-02
 
 ### Changed
 - `project_list` and `task_list`, and their `limit` parameters, no longer word their guidance as "when the
