@@ -1,6 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [3.1.0] - 2026-11-10
+
+3.0.0 never reached npm, so this is the first npm version with its changes (below). The hosted
+server at `mcp.timesheet.io` has run 3.0.0 since 2026-11-02.
 
 ### Changed
 - `statistics_get` reads the server's task totals (`POST /v1/tasks/breakdown`, plus one query for
@@ -23,6 +26,8 @@
   `team_member_list`.
 
 ## [3.0.0] - 2026-11-02
+
+Not published to npm; these changes first ship there in 3.1.0.
 
 ### Changed
 - `project_list` and `task_list`, and their `limit` parameters, no longer word their guidance as "when the
