@@ -32,6 +32,15 @@ const TASK = {
 };
 const TIMER = { status: 'running', task: { ...TASK, endDateTime: undefined, duration: 1800 } };
 const PROFILE = { id: 'u1', firstname: 'Ada', lastname: 'Lovelace', email: 'ada@example.test' };
+/** Server totals of a range (tasks/breakdown): one project and the day its tasks started on. */
+const TOTALS = { duration: 3600, durationBreak: 300, salaryTotal: '50.00', salaryBreak: '0.00', taskCount: 1 };
+const BREAKDOWN = {
+  projects: [{ id: PROJECT.id, name: PROJECT.title, color: PROJECT.color, ...TOTALS }],
+  members: [],
+  tags: [],
+  locations: [],
+  days: [{ id: '2026-09-24', ...TOTALS }],
+};
 const SETTINGS = { timezone: 'Europe/Vienna', language: 'en', theme: 'light', currency: 'EUR' };
 
 /**
@@ -152,6 +161,8 @@ before(async () => {
       res.end('<?xml version="1.0" encoding="UTF-8"?><Invoice/>');
     } else if (route.startsWith('/v1/timer')) {
       send(TIMER);
+    } else if (route === '/v1/tasks/breakdown') {
+      send(BREAKDOWN);
     } else if (route === '/v1/profiles/me') {
       send(PROFILE);
     } else if (route === '/v1/settings') {

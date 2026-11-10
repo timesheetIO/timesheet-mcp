@@ -556,9 +556,6 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
   if (stats.startDate && stats.endDate) {
     lines.push(`Period: ${stats.startDate} to ${stats.endDate}`);
   }
-  if (stats.truncated) {
-    lines.push('Not every time entry of this range could be read, so these totals are too low. Narrow the range or filter by project, team or user.');
-  }
 
   const billablePct = stats.totalHours > 0
     ? Math.round((stats.billableHours / stats.totalHours) * 100)
@@ -568,6 +565,11 @@ export function formatStatisticsResponse(stats: any, profile?: any, settings?: a
 
   if (stats.totalBreakHours > 0) {
     lines.push(`Breaks: ${stats.totalBreakHours.toFixed(1)}h`);
+  }
+
+  if (stats.runningTimer) {
+    const project = stats.runningTimer.projectTitle ? ` on ${stats.runningTimer.projectTitle}` : '';
+    lines.push(`Includes the ${stats.runningTimer.status} timer${project}: ${stats.runningTimer.hours.toFixed(1)}h so far (already counted above).`);
   }
 
   if (stats.projectBreakdown && stats.projectBreakdown.length > 0) {

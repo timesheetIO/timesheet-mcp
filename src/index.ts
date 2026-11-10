@@ -43,7 +43,7 @@ import {
 import { dispatchExtendedTool } from './extended-tools.js';
 import { EVENTS_EXTENSION_ID, registerEventHandlers } from './events.js';
 import { TOOL_DEFINITIONS, TOOL_OUTPUT_SCHEMAS } from './tool-definitions.js';
-import { computeStatistics, fetchAllPages, STATISTICS_PAGE_SIZE, validateStatisticsRange } from './statistics.js';
+import { computeStatistics, EMPTY_BREAKDOWN, runningShare, type StatisticsFilter, validateStatisticsRange } from './statistics.js';
 
 dotenv.config();
 
@@ -95,12 +95,6 @@ function projectRecord(project: any): RecordCard {
     billable: typeof project?.taskDefaultBillable === 'boolean' ? project.taskDefaultBillable : undefined,
   };
 }
-
-/**
- * Adds `title`, the heading of a PDF export, which @timesheet/sdk 1.3 does not type yet. The SDK
- * sends export params and template data to the API as given, so the field still reaches it.
- */
-type WithTitle<T> = T & { title?: string };
 
 /** A tool argument refused before the API is called; the model reads the message. */
 class ToolInputError extends Error {}
@@ -1298,7 +1292,7 @@ export class TimesheetMCPServer {
           endDate,
           ...exportSettings(args),
           exportedFields,
-        } as WithTitle<ExportParams>),
+        } as ExportParams),
         this.getReportName(report),
       ]);
 
@@ -1334,7 +1328,7 @@ export class TimesheetMCPServer {
           endDate,
           ...exportSettings(args),
           exportedFields,
-        } as WithTitle<ExportParams>),
+        } as ExportParams),
         this.getReportName(report),
       ]);
 
@@ -1366,7 +1360,7 @@ export class TimesheetMCPServer {
     const { templateId, startDate, endDate } = args;
 
     try {
-      const template: WithTitle<ExportTemplate> = await client.reports.export.getTemplate(templateId);
+      const template: ExportTemplate = await client.reports.export.getTemplate(templateId);
       const [result, reportName] = await Promise.all([
         client.reports.export.generate({
           report: template.report,
@@ -1384,7 +1378,7 @@ export class TimesheetMCPServer {
           filename: template.filename,
           title: template.title,
           exportedFields: idList(template.exportedFields as any) as any,
-        } as WithTitle<ExportParams>),
+        } as ExportParams),
         this.getReportName(template.report),
       ]);
 
@@ -1553,7 +1547,7 @@ export class TimesheetMCPServer {
     const { templateId } = args;
 
     try {
-      const template: WithTitle<ExportTemplate> = await client.reports.export.getTemplate(templateId);
+      const template: ExportTemplate = await client.reports.export.getTemplate(templateId);
 
       return {
         content: [
@@ -1580,7 +1574,7 @@ export class TimesheetMCPServer {
         ...exportSettings(args),
         email,
         exportedFields: await this.exportColumns(args.exportedFields, report),
-      } as WithTitle<ExportTemplateCreateRequest>);
+      } as ExportTemplateCreateRequest);
 
       const text = [`Template "${template.name}" created successfully with ID: ${template.id}`, ...exportTemplateDetails(template)];
       return formatRecordResultResponse(text.join('\n'),
@@ -1608,7 +1602,7 @@ export class TimesheetMCPServer {
         ...exportSettings(args),
         email,
         exportedFields: await this.exportColumns(exportedFields, report ?? stored?.report),
-      } as WithTitle<ExportTemplateUpdateRequest>);
+      } as ExportTemplateUpdateRequest);
 
       const text = [`Template "${template.name}" updated successfully (ID: ${template.id ?? templateId})`, ...exportTemplateDetails(template)];
       return formatRecordResultResponse(text.join('\n'), 'updated',
@@ -1643,31 +1637,28 @@ export class TimesheetMCPServer {
     const client = this.getClient();
 
     try {
-      const searchParams: any = {
-        startDate,
-        endDate,
-        limit: STATISTICS_PAGE_SIZE,
-        populateTags: false,
-      };
-      if (projectId) searchParams.projectId = projectId;
-      if (projectIds) searchParams.projectIds = projectIds;
-      if (teamId) searchParams.teamId = teamId;
-      if (teamIds) searchParams.teamIds = teamIds;
-      if (tagIds) searchParams.tagIds = tagIds;
-      if (userIds) searchParams.userIds = userIds;
-      if (filter) searchParams.filter = filter;
+      const params: StatisticsFilter = { startDate, endDate };
+      if (projectId) params.projectId = projectId;
+      if (projectIds) params.projectIds = projectIds;
+      if (teamId) params.teamId = teamId;
+      if (teamIds) params.teamIds = teamIds;
+      if (tagIds) params.tagIds = tagIds;
+      if (userIds) params.userIds = userIds;
+      if (filter) params.filter = filter;
 
-      const [{ items, complete }, userData] = await Promise.all([
-        fetchAllPages((page) => client.tasks.search({ ...searchParams, page })),
+      // The server adds the tasks up. Every billing filter but notBillable keeps only billable
+      // tasks, so the billable share needs a second query only without one.
+      const unfiltered = !filter || filter === 'all';
+      const [all, billableOnly, timer, userData] = await Promise.all([
+        client.tasks.breakdown(params),
+        unfiltered ? client.tasks.breakdown({ ...params, filter: 'billable' }) : null,
+        // The totals count finished tasks; a failed timer read only leaves the running one out.
+        client.timer.get().catch(() => null),
         this.getProfileAndSettings(),
       ]);
-      if (!complete) {
-        console.error(`[MCP] statistics_get: only the first ${items.length} tasks of the range were read`);
-      }
-      // Pages are separate queries sorted by time, so entries that share a time can land on two of them
-      const tasks = [...new Map(items.map((task: any) => [task.id, task])).values()];
+      const billable = billableOnly ?? (filter === 'notBillable' ? EMPTY_BREAKDOWN : all);
 
-      const stats = { ...computeStatistics(tasks, startDate, endDate), truncated: !complete };
+      const stats = computeStatistics(all, billable, startDate, endDate, runningShare(timer, params, Date.now()));
       return formatStatisticsResponse(stats, userData.profile, userData.settings);
     } catch (error) {
       return this.handleApiError(error);

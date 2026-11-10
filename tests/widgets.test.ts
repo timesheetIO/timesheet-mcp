@@ -28,10 +28,15 @@ import {
 } from '../src/mcp-app-helpers.js';
 import { dispatchExtendedTool } from '../src/extended-tools.js';
 import { TOOL_DEFINITIONS } from '../src/tool-definitions.js';
-import { computeStatistics, fetchAllPages, validateStatisticsRange } from '../src/statistics.js';
+import { computeStatistics, EMPTY_BREAKDOWN, runningShare, validateStatisticsRange } from '../src/statistics.js';
 
 const PROFILE = { firstname: 'Ada' };
 const SETTINGS = { timeFormat: '24h' };
+
+/** One row of the server's task totals (tasks/breakdown). */
+function total(id: string | null, name: string | null, duration: number, extra: Record<string, unknown> = {}) {
+  return { id, name, duration, durationBreak: 0, salaryTotal: '0.00', salaryBreak: '0.00', taskCount: 1, ...extra };
+}
 
 
 describe('tool descriptors link their widget', () => {
@@ -145,7 +150,7 @@ describe('results carry UI-only data in _meta', () => {
     timer: formatTimerResponse({ status: 'running', duration: 60 }, PROFILE, SETTINGS),
     projects: formatProjectListResponse([], 0, {}, PROFILE, SETTINGS),
     tasks: formatTaskListResponse([], {}, PROFILE, SETTINGS),
-    statistics: formatStatisticsResponse(computeStatistics([], '2026-09-21', '2026-09-27'), PROFILE, SETTINGS),
+    statistics: formatStatisticsResponse(computeStatistics(EMPTY_BREAKDOWN, EMPTY_BREAKDOWN, '2026-09-21', '2026-09-27'), PROFILE, SETTINGS),
   };
 
   test.each(Object.entries(results))('%s', (_name, result: any) => {
@@ -379,14 +384,20 @@ describe('statistics in a timezone east of UTC (jest.config.js pins Asia/Tokyo)'
     expect(new Date('2026-09-22T00:00:00').getTimezoneOffset()).toBe(-540);
   });
 
-  const tasks = [
-    { duration: 7200, billable: true, startDateTime: '2026-09-21T09:00:00+09:00', project: { id: 'p1', title: 'Acme', color: 16746496 } },
-    { duration: 3600, billable: false, startDateTime: '2026-09-22T10:00:00+09:00', project: { id: 'p1', title: 'Acme', color: 16746496 } },
-    { duration: 1800, billable: false, startDateTime: '2026-09-23T01:00:00+09:00', project: { id: 'p2', title: 'Internal' } },
-  ];
+  // Server totals of three entries: Acme 2h billable on the 21st and 1h on the 22nd, Internal 0.5h on the 23rd
+  const all = {
+    ...EMPTY_BREAKDOWN,
+    projects: [total('p1', 'Acme', 10800, { color: 16746496, taskCount: 2 }), total('p2', 'Internal', 1800)],
+    days: [total('2026-09-21', null, 7200), total('2026-09-22', null, 3600), total('2026-09-23', null, 1800)],
+  };
+  const billable = {
+    ...EMPTY_BREAKDOWN,
+    projects: [total('p1', 'Acme', 7200, { color: 16746496 })],
+    days: [total('2026-09-21', null, 7200)],
+  };
 
   test('daily keys are the local calendar days of the range', () => {
-    const stats = computeStatistics(tasks, '2026-09-21', '2026-09-27');
+    const stats = computeStatistics(all, billable, '2026-09-21', '2026-09-27');
     expect(stats.dailyHours.map((d) => d.date)).toEqual([
       '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26', '2026-09-27',
     ]);
@@ -395,14 +406,14 @@ describe('statistics in a timezone east of UTC (jest.config.js pins Asia/Tokyo)'
   });
 
   test('weekly keys are local Mondays', () => {
-    const stats = computeStatistics(tasks, '2026-09-01', '2026-09-30');
+    const stats = computeStatistics(all, billable, '2026-09-01', '2026-09-30');
     expect(stats.weeklyHours!.map((w) => w.weekStart)).toEqual([
       '2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28',
     ]);
   });
 
   test('projects report billable hours and a hex color', () => {
-    const [acme, internal] = computeStatistics(tasks, '2026-09-21', '2026-09-27').projectBreakdown;
+    const [acme, internal] = computeStatistics(all, billable, '2026-09-21', '2026-09-27').projectBreakdown;
     expect(acme).toMatchObject({ projectTitle: 'Acme', hours: 3, billableHours: 2, nonBillableHours: 1, color: '#ff8800' });
     expect(internal.billableHours).toBe(0);
     expect(internal.color).toBeUndefined();
@@ -410,7 +421,8 @@ describe('statistics in a timezone east of UTC (jest.config.js pins Asia/Tokyo)'
 
   test('an entry without a project has no title and no colour for the widget to replace', () => {
     const [entry] = computeStatistics(
-      [{ duration: 600, billable: false, startDateTime: '2026-09-21T09:00:00+09:00', project: { id: 'p3', color: 0 } }],
+      { ...EMPTY_BREAKDOWN, projects: [total(null, null, 600, { color: 0 })] },
+      EMPTY_BREAKDOWN,
       '2026-09-21', '2026-09-21'
     ).projectBreakdown;
     expect(entry.projectTitle).toBe('');
@@ -423,32 +435,62 @@ describe('statistics in a timezone east of UTC (jest.config.js pins Asia/Tokyo)'
   });
 });
 
-describe('fetchAllPages', () => {
-  const page = (n: number, size: number, count?: number) => ({
-    items: Array.from({ length: size }, (_, i) => `p${n}-${i}`),
-    params: count === undefined ? {} : { count },
+describe('statistics count the running timer', () => {
+  const NOW = Date.parse('2026-09-22T11:30:00+09:00');
+  const week = { startDate: '2026-09-21', endDate: '2026-09-27' };
+  const timer = (status = 'running', task: Record<string, unknown> = {}): any => ({
+    status,
+    user: 'u1',
+    task: {
+      startDateTime: '2026-09-22T10:00:00+09:00',
+      durationBreak: 300,
+      billable: true,
+      project: { id: 'p1', title: 'Acme', team: { id: 't1' } },
+      ...task,
+    },
+  });
+  const acme = { ...EMPTY_BREAKDOWN, projects: [total('p1', 'Acme', 3600)], days: [total('2026-09-22', null, 3600)] };
+
+  test('its time so far adds to its project, its day and the totals', () => {
+    const share = runningShare(timer(), week, NOW);
+    expect(share).toMatchObject({ projectId: 'p1', day: '2026-09-22', duration: 5400, durationBreak: 300, billable: true });
+
+    const stats = computeStatistics(acme, acme, week.startDate, week.endDate, share);
+    expect(stats.totalHours).toBe(2.5);
+    expect(stats.billableHours).toBe(2.5);
+    expect(stats.totalTasks).toBe(2);
+    expect(stats.projectBreakdown[0]).toMatchObject({ projectId: 'p1', hours: 2.5, taskCount: 2 });
+    expect(stats.dailyHours.find((d) => d.date === '2026-09-22')).toMatchObject({ hours: 2.5, breakHours: 0.08 });
+    expect(stats.runningTimer).toEqual({ projectTitle: 'Acme', status: 'running', hours: 1.5 });
   });
 
-  test('reads the pages the count announces', async () => {
-    const fetchPage = jest.fn(async (n: number) => page(n, n < 3 ? 100 : 50, 250));
-    const { items, complete } = await fetchAllPages(fetchPage);
-    expect(items).toHaveLength(250);
-    expect(complete).toBe(true);
-    expect(fetchPage).toHaveBeenCalledTimes(3);
+  test('a paused timer counts its open break as break', () => {
+    const paused = { ...timer('paused'), pause: { startDateTime: '2026-09-22T11:00:00+09:00' } };
+    expect(runningShare(paused, week, NOW)).toMatchObject({ duration: 5400, durationBreak: 300 + 1800 });
   });
 
-  test('stops at the cap and says so', async () => {
-    const fetchPage = jest.fn(async (n: number) => page(n, 100, 100_000));
-    const { items, complete } = await fetchAllPages(fetchPage, 100, 4);
-    expect(items).toHaveLength(400);
-    expect(complete).toBe(false);
+  test('a timer the filters leave out is not counted', () => {
+    expect(runningShare(timer(), { startDate: '2026-09-23', endDate: '2026-09-27' }, NOW)).toBeNull();
+    expect(runningShare(timer(), { ...week, projectIds: ['p2'] }, NOW)).toBeNull();
+    expect(runningShare(timer(), { ...week, teamId: 't2' }, NOW)).toBeNull();
+    expect(runningShare(timer(), { ...week, userIds: ['u2'] }, NOW)).toBeNull();
+    expect(runningShare(timer(), { ...week, filter: 'notBillable' }, NOW)).toBeNull();
+    expect(runningShare(timer(), { ...week, tagIds: ['g1'] }, NOW)).toBeNull();
+    expect(runningShare(timer('stopped'), week, NOW)).toBeNull();
+    expect(runningShare(null, week, NOW)).toBeNull();
   });
 
-  test('without a count it reads on until a short page', async () => {
-    const fetchPage = jest.fn(async (n: number) => page(n, n < 2 ? 100 : 7));
-    const { items, complete } = await fetchAllPages(fetchPage);
-    expect(items).toHaveLength(107);
-    expect(complete).toBe(true);
+  test('a timer matching the filters is counted', () => {
+    expect(runningShare(timer(), { ...week, teamIds: ['t1'], userIds: ['u1'], filter: 'unpaid' }, NOW)).not.toBeNull();
+    expect(runningShare(timer('running', { tags: [{ id: 'g1' }] }), { ...week, tagIds: ['g1'] }, NOW)).not.toBeNull();
+    expect(runningShare(timer('running', { tags: [] }), { ...week, tagIds: ['-1'] }, NOW)).not.toBeNull();
+  });
+
+  test('the model reads that the running timer is already counted', () => {
+    const stats = computeStatistics(EMPTY_BREAKDOWN, EMPTY_BREAKDOWN, week.startDate, week.endDate, runningShare(timer(), week, NOW));
+    const result = formatStatisticsResponse(stats) as any;
+    expect(result.structuredContent.runningTimer).toEqual({ projectTitle: 'Acme', status: 'running', hours: 1.5 });
+    expect(result.content[0].text).toContain('Includes the running timer on Acme: 1.5h so far (already counted above).');
   });
 });
 
@@ -526,15 +568,6 @@ describe('statistics range', () => {
     expect(validateStatisticsRange('2026-02-30', '2026-03-01')).toMatch(/YYYY-MM-DD/);
     expect(validateStatisticsRange('24.09.2026', '2026-09-30')).toMatch(/YYYY-MM-DD/);
     expect(validateStatisticsRange(undefined, '2026-09-30')).toMatch(/YYYY-MM-DD/);
-  });
-});
-
-describe('statistics text says when entries are missing', () => {
-  test('a truncated read is flagged for the model', () => {
-    const stats = { ...computeStatistics([], '2026-09-01', '2026-09-30'), truncated: true };
-    const result = formatStatisticsResponse(stats) as any;
-    expect(result.structuredContent.truncated).toBe(true);
-    expect(result.content[0].text).toContain('these totals are too low');
   });
 });
 

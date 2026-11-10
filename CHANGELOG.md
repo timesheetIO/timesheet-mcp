@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- `statistics_get` reads the server's task totals (`POST /v1/tasks/breakdown`, plus one query for
+  the billable share when no billing filter is set) instead of paging through up to 5,000 time
+  entries. The totals are complete for any number of entries, so `truncated` is gone from the
+  result.
+- `statistics_get` counts the running or paused timer's time so far when it matches the filters,
+  as the apps' day and week totals do. The result names it in `runningTimer`, and the text says it
+  is already counted.
+- `statistics_get` accepts `notBilled` as `filter`.
+- Built on `@timesheet/sdk` 1.5.0 (`tasks.breakdown()`), up from 1.3.1.
+
+### Added
+- `team_list` filters: `teamIds`, `managed` (teams the user manages), `manageable` (teams the
+  user may create projects, tags and rates in) and `memberUserId` (teams a user is an active
+  member of).
+- `includeFormer` on `team_list`, `project_list` and `organization_list`: also list the teams,
+  projects and organizations the user left that still hold their own time or contract, read-only.
+- `former` on `organization_member_list` (only former members) and `autoJoinProjects` on
+  `team_member_list`.
+
 ## [3.0.0] - 2026-11-02
 
 ### Changed

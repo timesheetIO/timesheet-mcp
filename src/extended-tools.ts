@@ -656,7 +656,16 @@ for (const action of ['activate', 'suspend', 'reactivate', 'terminate'] as const
 add(
   'organization_list',
   'List organizations the current user belongs to.',
-  { search: STR, limit: NUM, page: NUM },
+  {
+    search: STR,
+    limit: NUM,
+    page: NUM,
+    includeFormer: {
+      ...BOOL,
+      description:
+        'Also list the organizations the user has a contract in but left, marked former, after the current ones. Their absences and balances stay readable.',
+    },
+  },
   [],
   READ_ANNOT,
   async (client, args) => {
@@ -727,7 +736,14 @@ add(
 add(
   'organization_member_list',
   'List members of an organization.',
-  { organizationId: STR, deleted: BOOL, search: STR, limit: NUM, page: NUM },
+  {
+    organizationId: STR,
+    deleted: BOOL,
+    former: { ...BOOL, description: 'Only former members: no active organization permission and no active team membership' },
+    search: STR,
+    limit: NUM,
+    page: NUM,
+  },
   ['organizationId'],
   READ_ANNOT,
   async (client, args) => {
@@ -817,6 +833,10 @@ add(
     status: STR,
     withoutMe: BOOL,
     deleted: BOOL,
+    autoJoinProjects: {
+      ...BOOL,
+      description: 'Only members who join new projects automatically (true) or only the others (false)',
+    },
     search: STR,
     limit: NUM,
     page: NUM,

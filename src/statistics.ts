@@ -1,13 +1,9 @@
 /**
  * Aggregation behind the statistics_get tool: totals, per-project breakdown and daily/weekly
- * hours, computed from the time entries of a date range.
+ * hours of a date range, from the server's task totals (tasks/breakdown) plus the running timer.
  */
+import type { TaskBreakdown, Timer } from '@timesheet/sdk';
 import { calendarDate, intToHexColor, toLocalDateKey } from './mcp-app-helpers.js';
-
-/** Tasks per API page, and the most pages statistics_get reads (5,000 tasks). */
-export const STATISTICS_PAGE_SIZE = 100;
-export const STATISTICS_MAX_PAGES = 50;
-const PAGE_CONCURRENCY = 5;
 
 /**
  * The longest range statistics_get accepts. The daily series has an entry for every day of the
@@ -42,55 +38,6 @@ function parseCalendarDate(value: unknown): Date | null {
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value) ? date : null;
 }
 
-interface Page<T> {
-  items: T[];
-  params?: { count?: number };
-}
-
-/**
- * Reads every page of a search. The first page reports the total count, so the remaining pages
- * are requested a few at a time instead of one after another. Stops at maxPages; `complete` is
- * false when there was more.
- */
-export async function fetchAllPages<T>(
-  fetchPage: (page: number) => Promise<Page<T>>,
-  pageSize: number = STATISTICS_PAGE_SIZE,
-  maxPages: number = STATISTICS_MAX_PAGES
-): Promise<{ items: T[]; complete: boolean }> {
-  const first = await fetchPage(1);
-  const items = [...first.items];
-  const count = first.params?.count;
-
-  if (first.items.length < pageSize) {
-    return { items, complete: true };
-  }
-
-  if (typeof count === 'number' && count >= 0) {
-    const totalPages = Math.ceil(count / pageSize);
-    const lastPage = Math.min(totalPages, maxPages);
-    for (let start = 2; start <= lastPage; start += PAGE_CONCURRENCY) {
-      const pages = [];
-      for (let page = start; page < start + PAGE_CONCURRENCY && page <= lastPage; page++) {
-        pages.push(fetchPage(page));
-      }
-      for (const result of await Promise.all(pages)) {
-        items.push(...result.items);
-      }
-    }
-    return { items, complete: totalPages <= maxPages };
-  }
-
-  // No count in the response: read on until a short page.
-  for (let page = 2; page <= maxPages; page++) {
-    const result = await fetchPage(page);
-    items.push(...result.items);
-    if (result.items.length < pageSize) {
-      return { items, complete: true };
-    }
-  }
-  return { items, complete: false };
-}
-
 interface Totals {
   totalSec: number;
   billableSec: number;
@@ -100,82 +47,188 @@ interface Totals {
 
 const hours = (seconds: number) => Number((seconds / 3600).toFixed(2));
 
-export function computeStatistics(tasks: any[], startDate: string, endDate: string) {
+/** No tasks: the billable totals under the notBillable filter. */
+export const EMPTY_BREAKDOWN: TaskBreakdown = { projects: [], members: [], tags: [], locations: [], days: [] };
+
+/** The filters statistics_get passes to tasks/breakdown. */
+export interface StatisticsFilter {
+  startDate: string;
+  endDate: string;
+  projectId?: string;
+  projectIds?: string[];
+  teamId?: string;
+  teamIds?: string[];
+  tagIds?: string[];
+  userIds?: string[];
+  filter?: string;
+}
+
+/**
+ * The running timer's time so far. The server totals count finished tasks only, so statistics_get
+ * adds the running one, as the apps' day and week totals do.
+ */
+export interface RunningShare {
+  projectId?: string;
+  projectTitle: string;
+  projectColor?: number;
+  day: string;
+  status: string;
+  duration: number;
+  durationBreak: number;
+  billable: boolean;
+}
+
+/** As the task query's billing filter (the backend's SqlUtils.getTaskFilterString). */
+function matchesBillingFilter(task: any, filter?: string): boolean {
+  const billable = task.billable === true;
+  const billed = task.billed === true;
+  const paid = task.paid === true;
+  switch (filter) {
+    case 'billable':
+      return billable;
+    case 'notBillable':
+      return !billable;
+    case 'paid':
+      return billable && paid;
+    case 'unpaid':
+      return billable && !paid;
+    case 'billed':
+      return billable && billed;
+    case 'notBilled':
+      return billable && !billed && !paid;
+    case 'outstanding':
+      return billable && billed && !paid;
+    default:
+      return true;
+  }
+}
+
+/** The task query's filters applied to the running task, which started on `day`. */
+function runningTaskMatches(timer: any, task: any, day: string, filter: StatisticsFilter): boolean {
+  const projectId = task.project?.id ?? task.projectId;
+  const teamId = task.project?.team?.id ?? task.project?.teamId;
+  if (day < filter.startDate || day > filter.endDate) return false;
+  if (filter.projectId && filter.projectId !== projectId) return false;
+  if (filter.projectIds?.length && !filter.projectIds.includes(projectId)) return false;
+  if (filter.teamId && filter.teamId !== teamId) return false;
+  if (filter.teamIds?.length && !filter.teamIds.includes(teamId)) return false;
+  if (filter.userIds?.length && !filter.userIds.includes(timer.user ?? task.user)) return false;
+  if (filter.tagIds?.length) {
+    // A timer without its tags can't be matched to a tag filter, so it stays out.
+    if (!Array.isArray(task.tags)) return false;
+    const tagged = task.tags.some((tag: any) => filter.tagIds!.includes(tag?.id));
+    const untaggedWanted = task.tags.length === 0 && filter.tagIds.includes('-1');
+    if (!tagged && !untaggedWanted) return false;
+  }
+  return matchesBillingFilter(task, filter.filter);
+}
+
+/** The running or paused timer's time so far, or null when there is none or it doesn't match. */
+export function runningShare(timer: Timer | null | undefined, filter: StatisticsFilter, now: number): RunningShare | null {
+  const task: any = timer?.task;
+  const active = timer?.status === 'running' || timer?.status === 'paused';
+  const start = Date.parse(task?.startDateTime ?? '');
+  const day = calendarDate(task?.startDateTime);
+  if (!timer || !active || !Number.isFinite(start) || !day || !runningTaskMatches(timer, task, day, filter)) {
+    return null;
+  }
+  const duration = Math.max(0, Math.floor((now - start) / 1000));
+  let breaks = task.durationBreak || 0;
+  const pauseStart = Date.parse(timer.pause?.startDateTime ?? '');
+  if (timer.status === 'paused' && Number.isFinite(pauseStart)) {
+    breaks += Math.max(0, Math.floor((now - pauseStart) / 1000));
+  }
+  return {
+    projectId: task.project?.id,
+    projectTitle: task.project?.title || '',
+    projectColor: task.project?.color,
+    day,
+    status: timer.status,
+    duration,
+    durationBreak: Math.min(breaks, duration),
+    billable: task.billable === true,
+  };
+}
+
+/** The key of a project in the breakdown: tasks without a project share one entry. */
+const projectKey = (id?: string | null) => id || 'unknown';
+
+/**
+ * Totals, project breakdown and daily/weekly hours of a range. `all` holds the server totals of
+ * the finished tasks, `billable` those of the billable ones among them; `running` adds the timer.
+ */
+export function computeStatistics(
+  all: TaskBreakdown,
+  billable: TaskBreakdown,
+  startDate: string,
+  endDate: string,
+  running: RunningShare | null = null
+) {
+  const billableByProject = new Map(billable.projects.map((p) => [projectKey(p.id), p.duration]));
+  const billableByDay = new Map(billable.days.map((d) => [d.id ?? '', d.duration]));
+
+  const projectMap = new Map<string, { title: string; color?: number; totalSec: number; billableSec: number; count: number }>();
+  for (const p of all.projects) {
+    projectMap.set(projectKey(p.id), {
+      // Empty for an entry without a project: the widget shows its own localized label
+      title: p.name || '',
+      color: p.color ?? undefined,
+      totalSec: p.duration,
+      billableSec: billableByProject.get(projectKey(p.id)) ?? 0,
+      count: p.taskCount,
+    });
+  }
+
+  // Daily totals, keyed by the day each task started as the user saw it
+  const dailyMap = new Map<string, Totals>();
+  for (const d of all.days) {
+    if (!d.id) continue;
+    const billableSec = billableByDay.get(d.id) ?? 0;
+    dailyMap.set(d.id, {
+      totalSec: d.duration,
+      billableSec,
+      nonBillableSec: d.duration - billableSec,
+      breakSec: d.durationBreak,
+    });
+  }
+
+  if (running) {
+    const key = projectKey(running.projectId);
+    const project = projectMap.get(key) ?? {
+      title: running.projectTitle,
+      color: running.projectColor,
+      totalSec: 0,
+      billableSec: 0,
+      count: 0,
+    };
+    project.totalSec += running.duration;
+    project.billableSec += running.billable ? running.duration : 0;
+    project.count += 1;
+    projectMap.set(key, project);
+
+    const day = dailyMap.get(running.day) ?? { totalSec: 0, billableSec: 0, nonBillableSec: 0, breakSec: 0 };
+    day.totalSec += running.duration;
+    day.breakSec += running.durationBreak;
+    if (running.billable) {
+      day.billableSec += running.duration;
+    } else {
+      day.nonBillableSec += running.duration;
+    }
+    dailyMap.set(running.day, day);
+  }
+
   let totalSeconds = 0;
   let billableSeconds = 0;
-  let nonBillableSeconds = 0;
+  let totalTasks = 0;
+  for (const p of projectMap.values()) {
+    totalSeconds += p.totalSec;
+    billableSeconds += p.billableSec;
+    totalTasks += p.count;
+  }
+  const nonBillableSeconds = totalSeconds - billableSeconds;
   let breakSeconds = 0;
-
-  // Project aggregation map: projectId -> { title, color, totalSec, billableSec, nonBillableSec, count }
-  const projectMap = new Map<string, {
-    title: string;
-    color?: number;
-    totalSec: number;
-    billableSec: number;
-    nonBillableSec: number;
-    count: number;
-  }>();
-
-  // Daily aggregation map: YYYY-MM-DD -> totals
-  const dailyMap = new Map<string, Totals>();
-
-  for (const task of tasks) {
-    const duration = task.duration || 0;
-    const durationBreak = task.durationBreak || 0;
-
-    totalSeconds += duration;
-    breakSeconds += durationBreak;
-
-    if (task.billable) {
-      billableSeconds += duration;
-    } else {
-      nonBillableSeconds += duration;
-    }
-
-    // Project aggregation
-    const projId = task.project?.id || 'unknown';
-    const existing = projectMap.get(projId);
-    if (existing) {
-      existing.totalSec += duration;
-      existing.count += 1;
-      if (task.billable) {
-        existing.billableSec += duration;
-      } else {
-        existing.nonBillableSec += duration;
-      }
-    } else {
-      projectMap.set(projId, {
-        // Empty for an entry without a project: the widget shows its own localized label
-        title: task.project?.title || '',
-        color: task.project?.color,
-        totalSec: duration,
-        billableSec: task.billable ? duration : 0,
-        nonBillableSec: task.billable ? 0 : duration,
-        count: 1,
-      });
-    }
-
-    // Daily aggregation, on the day the task started as the user saw it
-    const dateKey = calendarDate(task.startDateTime);
-    if (dateKey) {
-      const dayEntry = dailyMap.get(dateKey);
-      if (dayEntry) {
-        dayEntry.totalSec += duration;
-        dayEntry.breakSec += durationBreak;
-        if (task.billable) {
-          dayEntry.billableSec += duration;
-        } else {
-          dayEntry.nonBillableSec += duration;
-        }
-      } else {
-        dailyMap.set(dateKey, {
-          totalSec: duration,
-          billableSec: task.billable ? duration : 0,
-          nonBillableSec: task.billable ? 0 : duration,
-          breakSec: durationBreak,
-        });
-      }
-    }
+  for (const d of dailyMap.values()) {
+    breakSeconds += d.breakSec;
   }
 
   // Fill zero-days within the range. Keys are local dates: toISOString() of local midnight
@@ -259,7 +312,7 @@ export function computeStatistics(tasks: any[], startDate: string, endDate: stri
         color: intToHexColor(p.color),
         hours: projectHours,
         billableHours: hours(p.billableSec),
-        nonBillableHours: hours(p.nonBillableSec),
+        nonBillableHours: hours(p.totalSec - p.billableSec),
         taskCount: p.count,
         percentage: totalHours > 0 ? Math.round((projectHours / totalHours) * 100) : 0,
       };
@@ -269,12 +322,15 @@ export function computeStatistics(tasks: any[], startDate: string, endDate: stri
     totalHours,
     billableHours: hours(billableSeconds),
     nonBillableHours: hours(nonBillableSeconds),
-    totalTasks: tasks.length,
+    totalTasks,
     totalBreakHours: hours(breakSeconds),
     startDate,
     endDate,
     projectBreakdown,
     dailyHours,
     weeklyHours,
+    runningTimer: running
+      ? { projectTitle: running.projectTitle, status: running.status, hours: hours(running.duration) }
+      : undefined,
   };
 }

@@ -481,6 +481,27 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
           enum: ['asc', 'desc'],
           description: 'Sort order (ascending or descending)',
         },
+        teamIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Only these teams',
+        },
+        managed: {
+          type: 'boolean',
+          description: 'Only the teams the user manages (team manager or owner)',
+        },
+        manageable: {
+          type: 'boolean',
+          description: 'The teams the user may create projects, tags and rates in: the ones they manage plus every team of the organizations they administer',
+        },
+        memberUserId: {
+          type: 'string',
+          description: 'Only the teams this user is an active member of',
+        },
+        includeFormer: {
+          type: 'boolean',
+          description: 'Also list the teams the user left that still hold their own time entries, after the current ones. They are read-only for the user.',
+        },
       },
     },
     outputSchema: {
@@ -586,6 +607,10 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
           type: 'array',
           items: { type: 'string' },
           description: 'Filter projects containing tasks assigned to these user IDs',
+        },
+        includeFormer: {
+          type: 'boolean',
+          description: 'Also list the projects the user has own time entries on but left (the project, its team or organization). They are read-only for the user; leave this off when picking a project for new time.',
         },
       },
     },
@@ -1854,7 +1879,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
   {
     name: 'statistics_get',
     title: 'Get Statistics',
-    description: 'Use this when the user wants to see time tracking statistics, summaries, or reports for a date range of up to one year (366 days). For a longer period, call it once per year. Returns aggregated totals, project breakdowns, and daily/weekly hour charts.',
+    description: 'Use this when the user wants to see time tracking statistics, summaries, or reports for a date range of up to one year (366 days). For a longer period, call it once per year. Returns aggregated totals, project breakdowns, and daily/weekly hour charts. The totals include the running timer\'s time so far when it matches the filters.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1898,7 +1923,7 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         },
         filter: {
           type: 'string',
-          enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'outstanding'],
+          enum: ['all', 'billable', 'notBillable', 'paid', 'unpaid', 'billed', 'notBilled', 'outstanding'],
           description: 'Filter by billing/payment status',
         },
       },
@@ -1914,7 +1939,15 @@ export const TOOL_DEFINITIONS: readonly Tool[] = applyToolUiMeta(withAnnotationT
         totalBreakHours: { type: 'number', description: 'Total break hours' },
         startDate: { type: 'string', description: 'Period start date' },
         endDate: { type: 'string', description: 'Period end date' },
-        truncated: { type: 'boolean', description: 'True when not every entry of the range could be read (over 5,000), so the totals are too low' },
+        runningTimer: {
+          type: 'object',
+          description: 'The running timer, already included in the totals; absent when no timer runs or it does not match the filters',
+          properties: {
+            projectTitle: { type: 'string', description: 'Project of the running timer' },
+            status: { type: 'string', description: 'running or paused' },
+            hours: { type: 'number', description: 'Hours so far, breaks included' },
+          },
+        },
       },
       required: ['totalHours', 'billableHours', 'startDate', 'endDate'],
     },

@@ -358,8 +358,8 @@ describe('http', () => {
   });
 
   test('statistics_get refuses a range over a year before calling the API', async () => {
-    const searches = () => apiCalls.filter((call) => call === 'POST /v1/tasks/search').length;
-    const before = searches();
+    const breakdowns = () => apiCalls.filter((call) => call === 'POST /v1/tasks/breakdown').length;
+    const before = breakdowns();
     const { message } = await legacyCall({
       jsonrpc: '2.0',
       id: 1,
@@ -368,7 +368,7 @@ describe('http', () => {
     });
     assert.equal(message.result.isError, true);
     assert.match(message.result.content[0].text, /up to 366/);
-    assert.equal(searches(), before);
+    assert.equal(breakdowns(), before);
   });
 
   test('batches are limited to 20 requests', async () => {
