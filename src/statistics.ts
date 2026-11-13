@@ -29,6 +29,23 @@ export function validateStatisticsRange(startDate: unknown, endDate: unknown): s
   return null;
 }
 
+/**
+ * A tool's arguments with `startDate` and `endDate` as calendar dates. Models send a full
+ * timestamp ("2026-11-12T00:00:00+01:00") where the day is asked for, and the API takes the day
+ * only; the date as written is the one meant.
+ */
+export function withCalendarDates<T>(args: T): T {
+  if (!args || typeof args !== 'object') return args;
+  const fixed = { ...args } as Record<string, unknown>;
+  for (const key of ['startDate', 'endDate']) {
+    const value = fixed[key];
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      fixed[key] = value.slice(0, 10);
+    }
+  }
+  return fixed as T;
+}
+
 /** A YYYY-MM-DD string as UTC midnight, or null when it is not a real calendar date. */
 function parseCalendarDate(value: unknown): Date | null {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {

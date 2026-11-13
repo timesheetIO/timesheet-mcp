@@ -43,7 +43,7 @@ import {
 import { dispatchExtendedTool } from './extended-tools.js';
 import { EVENTS_EXTENSION_ID, registerEventHandlers } from './events.js';
 import { TOOL_DEFINITIONS, TOOL_OUTPUT_SCHEMAS } from './tool-definitions.js';
-import { computeStatistics, EMPTY_BREAKDOWN, runningShare, type StatisticsFilter, validateStatisticsRange } from './statistics.js';
+import { computeStatistics, EMPTY_BREAKDOWN, runningShare, type StatisticsFilter, validateStatisticsRange, withCalendarDates } from './statistics.js';
 
 dotenv.config();
 
@@ -307,6 +307,7 @@ export class TimesheetMCPServer {
 
   /** Runs a tool by name. Resolves to null for a tool that does not exist. */
   private async dispatchTool(name: string, args: any): Promise<unknown | null> {
+    args = withCalendarDates(args);
     switch (name) {
       // Timer operations
       case 'timer_start':

@@ -28,7 +28,7 @@ import {
 } from '../src/mcp-app-helpers.js';
 import { dispatchExtendedTool } from '../src/extended-tools.js';
 import { TOOL_DEFINITIONS } from '../src/tool-definitions.js';
-import { computeStatistics, EMPTY_BREAKDOWN, runningShare, validateStatisticsRange } from '../src/statistics.js';
+import { computeStatistics, EMPTY_BREAKDOWN, runningShare, validateStatisticsRange, withCalendarDates } from '../src/statistics.js';
 
 const PROFILE = { firstname: 'Ada' };
 const SETTINGS = { timeFormat: '24h' };
@@ -568,6 +568,19 @@ describe('statistics range', () => {
     expect(validateStatisticsRange('2026-02-30', '2026-03-01')).toMatch(/YYYY-MM-DD/);
     expect(validateStatisticsRange('24.09.2026', '2026-09-30')).toMatch(/YYYY-MM-DD/);
     expect(validateStatisticsRange(undefined, '2026-09-30')).toMatch(/YYYY-MM-DD/);
+  });
+});
+
+describe('date range arguments', () => {
+  test('a full timestamp counts as its calendar date', () => {
+    expect(withCalendarDates({ startDate: '2025-11-12T00:00:00+01:00', endDate: '2025-11-30T23:59:59Z', limit: 5 }))
+      .toEqual({ startDate: '2025-11-12', endDate: '2025-11-30', limit: 5 });
+  });
+
+  test('calendar dates, other values and missing arguments are left alone', () => {
+    expect(withCalendarDates({ startDate: '2025-11-12', endDate: '24.09.2026' }))
+      .toEqual({ startDate: '2025-11-12', endDate: '24.09.2026' });
+    expect(withCalendarDates(undefined)).toBeUndefined();
   });
 });
 
